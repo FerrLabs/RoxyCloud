@@ -1,0 +1,9 @@
+{
+  "name": "roxycloud",
+  "private": true,
+  "scripts": {
+    "build": "pnpm --filter @roxycloud/web build",
+    "dev": "pnpm --filter @roxycloud/web dev",
+    "lint": "pnpm --filter @roxycloud/web lint"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits"],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Batch patch and minor Rust bumps into one pull request",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "rust dependencies"
+    }
+  ]
+}

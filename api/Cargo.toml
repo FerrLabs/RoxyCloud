@@ -1,0 +1,46 @@
+[package]
+name = "roxycloud-api"
+version = "0.1.0"
+description = "Self-hosted file storage with WebDAV, over a content-addressed blob store"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+roxycloud-core = { workspace = true, features = ["postgres"] }
+
+axum = { version = "0.8", features = ["macros"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+futures = { workspace = true }
+bytes = { workspace = true }
+
+sqlx = { version = "0.8", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "chrono",
+    "uuid",
+    "migrate",
+] }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+blake3 = { workspace = true }
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
+argon2 = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
