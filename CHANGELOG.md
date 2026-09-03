@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.0] - 2026-09-03
+
+### Features
+
+- feat(web): hide what a reader cannot do (#53)
+
 ## [0.7.0] - 2026-09-03
 
 ### Features
