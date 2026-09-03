@@ -145,8 +145,12 @@ mod tests {
         let sessions = sessions(Duration::hours(1));
         let token = sessions.issue(Uuid::now_v7()).expect("signs");
         let mut tampered = token.clone();
-        tampered.pop();
-        tampered.push('A');
+        let last = tampered.pop().expect("a signed token is never empty");
+        tampered.push(if last == 'A' { 'B' } else { 'A' });
+        assert_ne!(
+            tampered, token,
+            "the tampering must actually change the token"
+        );
         assert_eq!(sessions.verify(&tampered), None);
     }
 
