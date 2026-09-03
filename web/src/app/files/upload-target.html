@@ -1,0 +1,8 @@
+<button type="button" class="primary" [disabled]="pending() > 0" (click)="open()">
+  @if (pending() > 0) {
+    Uploading {{ pending() }}
+  } @else {
+    Upload files
+  }
+</button>
+<input #picker type="file" multiple hidden (change)="pick($event)" />

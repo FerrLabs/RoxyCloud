@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use roxycloud_client::sync::watch::{Command, Session as SyncSession, Status, watch};
 use roxycloud_client::{Debounce, Engine, Remote};
 use roxycloud_core::node::Node;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
 
 const STATUS_EVENT: &str = "sync:status";
@@ -48,6 +48,41 @@ async fn list_folder(desktop: State<'_, Desktop>, path: String) -> Result<Vec<No
         .list(&path)
         .await
         .map_err(move |error| format!("{path}: {error}"))
+}
+
+#[tauri::command]
+async fn download_file(
+    app: AppHandle,
+    desktop: State<'_, Desktop>,
+    path: String,
+) -> Result<String, String> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+
+    let directory = app
+        .path()
+        .download_dir()
+        .map_err(|error| error.to_string())?;
+    let name = path
+        .rsplit_once('/')
+        .map_or(path.as_str(), |(_, name)| name);
+    let destination = directory.join(name);
+
+    remote
+        .download(&path, &destination)
+        .await
+        .map_err(|error| format!("{path}: {error}"))?;
+    Ok(destination.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+async fn delete_node(desktop: State<'_, Desktop>, path: String) -> Result<(), String> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    remote
+        .delete(&path)
+        .await
+        .map_err(|error| format!("{path}: {error}"))
 }
 
 #[tauri::command]
@@ -111,6 +146,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             login,
             list_folder,
+            download_file,
+            delete_node,
             start_sync,
             sync_control
         ])

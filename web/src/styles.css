@@ -1,0 +1,137 @@
+:root {
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  --measure: 64rem;
+  --gutter: 1.5rem;
+  --radius: 0.5rem;
+
+  --page: #f6f8fa;
+  --surface: #ffffff;
+  --surface-raised: #f2f7fb;
+  --ink: #0f172a;
+  --ink-muted: #4a5a72;
+  --ink-faint: #7b8aa1;
+  --rule: #dde4ec;
+  --rule-soft: #eef2f6;
+  --rule-strong: #b9c5d4;
+  --accent: #0284c7;
+  --accent-ink: #0369a1;
+  --accent-wash: #eaf6fd;
+  --accent-contrast: #ffffff;
+  --danger: #b42318;
+  --danger-ink: #912018;
+  --danger-wash: #fdecea;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0b1220;
+    --surface: #0f1828;
+    --surface-raised: #142033;
+    --ink: #e8eef7;
+    --ink-muted: #a3b2c8;
+    --ink-faint: #7f8ea6;
+    --rule: #1f2c41;
+    --rule-soft: #182338;
+    --rule-strong: #33455f;
+    --accent: #38bdf8;
+    --accent-ink: #7dd3fc;
+    --accent-wash: #0e1e2f;
+    --accent-contrast: #04121d;
+    --danger: #f97066;
+    --danger-ink: #fda29b;
+    --danger-wash: #2a1414;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button {
+  font: inherit;
+}
+
+button.primary,
+button.ghost {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+button.ghost:hover {
+  border-color: var(--accent-rule, var(--accent));
+  color: var(--accent-ink);
+}
+
+button.ghost.danger {
+  color: var(--danger-ink);
+}
+
+button.ghost.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger-ink);
+}
+
+button.danger:not(.ghost) {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-wash);
+  color: var(--danger-ink);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+input:focus-visible {
+  border-color: var(--accent);
+}

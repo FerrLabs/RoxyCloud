@@ -1,0 +1,8 @@
+<dialog #dialog (cancel)="dismiss()">
+  <h2>{{ heading() }}</h2>
+  <p>{{ body() }}</p>
+  <div class="actions">
+    <button type="button" class="ghost" (click)="dismiss()">Cancel</button>
+    <button type="button" class="danger" (click)="accept()">{{ action() }}</button>
+  </div>
+</dialog>

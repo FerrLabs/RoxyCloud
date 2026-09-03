@@ -20,6 +20,7 @@
             "browser": "src/main.ts",
             "polyfills": [],
             "tsConfig": "tsconfig.app.json",
+            "styles": ["src/styles.css"],
             "define": {
               "ROXYCLOUD_API_URL": "'http://localhost:3001'",
               "ROXYCLOUD_SOURCE_URL": "'https://github.com/FerrLabs/RoxyCloud'"
