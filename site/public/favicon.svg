@@ -13,11 +13,17 @@
     <path d="M39 38l3.5 6" />
   </g>
 
+  <g fill="#f74c00" fill-rule="evenodd">
+    <path
+      d="M14 28m-6.8 0a6.8 6.8 0 1 0 13.6 0a6.8 6.8 0 1 0-13.6 0M10.6 24.2m-4.6 0a4.6 4.6 0 1 0 9.2 0a4.6 4.6 0 1 0-9.2 0"
+    />
+    <path
+      d="M50 28m-6.8 0a6.8 6.8 0 1 0 13.6 0a6.8 6.8 0 1 0-13.6 0M53.4 24.2m-4.6 0a4.6 4.6 0 1 0 9.2 0a4.6 4.6 0 1 0-9.2 0"
+    />
+  </g>
   <g fill="#f74c00">
-    <ellipse cx="15.5" cy="27.5" rx="6" ry="3.1" transform="rotate(-28 15.5 27.5)" />
-    <ellipse cx="16" cy="33" rx="6" ry="3.1" transform="rotate(22 16 33)" />
-    <ellipse cx="48.5" cy="27.5" rx="6" ry="3.1" transform="rotate(28 48.5 27.5)" />
-    <ellipse cx="48" cy="33" rx="6" ry="3.1" transform="rotate(-22 48 33)" />
+    <rect x="14" y="28.5" width="9" height="5.5" rx="2.75" />
+    <rect x="41" y="28.5" width="9" height="5.5" rx="2.75" />
   </g>
 
   <ellipse cx="32" cy="33" rx="13.5" ry="8" fill="#f74c00" />
