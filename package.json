@@ -1,6 +1,7 @@
 {
   "name": "roxycloud",
   "private": true,
+  "packageManager": "pnpm@11.20.0",
   "scripts": {
     "build": "pnpm --filter @roxycloud/web build",
     "dev": "pnpm --filter @roxycloud/web dev",
