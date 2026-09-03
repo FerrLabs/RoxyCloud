@@ -1,0 +1,33 @@
+<article class="doc">
+  <header>
+    <h1>{{ content.heading }}</h1>
+    <p class="lead">{{ content.lead }}</p>
+  </header>
+
+  <section>
+    <h2>{{ content.session.heading }}</h2>
+    <p>{{ content.session.body }}</p>
+    @for (block of content.session.blocks; track block.caption) {
+      <rx-code-block [caption]="block.caption" [code]="block.code" />
+    }
+  </section>
+
+  <section>
+    <h2>{{ content.endpoints.heading }}</h2>
+    <p>{{ content.endpoints.body }}</p>
+    <rx-doc-table [columns]="content.endpoints.columns" [rows]="content.endpoints.rows" />
+  </section>
+
+  <section>
+    <h2>{{ content.transfers.heading }}</h2>
+    <p>{{ content.transfers.body }}</p>
+    @for (block of content.transfers.blocks; track block.caption) {
+      <rx-code-block [caption]="block.caption" [code]="block.code" />
+    }
+  </section>
+
+  <section>
+    <h2>{{ content.gaps.heading }}</h2>
+    <p>{{ content.gaps.body }}</p>
+  </section>
+</article>

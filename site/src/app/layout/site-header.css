@@ -1,0 +1,65 @@
+header {
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 1rem var(--gutter);
+}
+
+.wordmark {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+nav {
+  display: flex;
+  gap: 1.5rem;
+  margin-right: auto;
+}
+
+nav a,
+.language {
+  color: var(--ink-muted);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+nav a:hover,
+.language:hover {
+  color: var(--ink);
+}
+
+nav a.current {
+  color: var(--accent);
+}
+
+.language {
+  font-size: 0.85rem;
+}
+
+@media (max-width: 40rem) {
+  .bar {
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+  }
+
+  nav {
+    order: 3;
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .language {
+    margin-left: auto;
+  }
+}

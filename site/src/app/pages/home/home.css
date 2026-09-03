@@ -1,0 +1,131 @@
+section {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.hero {
+  padding-top: 5rem;
+  padding-bottom: 4rem;
+}
+
+.eyebrow {
+  margin: 0 0 1rem;
+  color: var(--accent-ink);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  max-width: 18ch;
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.lead {
+  max-width: 62ch;
+  margin: 1.5rem 0 0;
+  color: var(--ink-muted);
+  font-size: 1.15rem;
+  line-height: 1.65;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 2.5rem 0 0;
+}
+
+.status {
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+}
+
+.status h2,
+.design h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.columns {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  margin-top: 2.5rem;
+}
+
+.column {
+  padding: 1.75rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.column.shipped {
+  background: var(--accent-wash);
+  border-color: var(--accent-rule);
+}
+
+.column h3 {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.column.shipped h3 {
+  color: var(--accent-ink);
+}
+
+.column.planned h3 {
+  color: var(--ink-muted);
+}
+
+.column ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.column li {
+  line-height: 1.6;
+}
+
+.column.planned li {
+  color: var(--ink-muted);
+}
+
+.design {
+  padding-top: 3rem;
+  padding-bottom: 6rem;
+}
+
+.grid {
+  display: grid;
+  gap: 2rem 3rem;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  margin-top: 2.5rem;
+}
+
+.grid h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.grid p {
+  margin: 0;
+  color: var(--ink-muted);
+  line-height: 1.7;
+}

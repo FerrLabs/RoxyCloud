@@ -123,6 +123,11 @@ sync until a human answers is worse.
 Separate builds. They cannot import `@ferrlabs/ui-*`, for the same reason `api/` cannot import
 `Kit`, so the shared component layer here is local to this repository.
 
+`site/` prerenders to static files and ships no server. Its copy lives in typed dictionaries under
+`site/src/app/content/`, one per locale, rather than in `$localize` and an extraction step: the
+pages are prose, the type makes a missing French string a compile error, and each locale is a route
+prefix that the prerenderer walks on its own.
+
 ### deploy
 
 The self-host story is a product surface, not an afterthought. A single container image carrying the

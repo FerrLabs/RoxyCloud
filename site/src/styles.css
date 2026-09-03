@@ -1,0 +1,154 @@
+:root {
+  --display: 'Fraunces Variable', ui-serif, Georgia, serif;
+  --sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  --measure: 68rem;
+  --gutter: 1.5rem;
+  --radius: 0.5rem;
+
+  --page: #ffffff;
+  --surface: #fbfcfd;
+  --code-surface: #f5f8fa;
+  --code-ink: #0f172a;
+  --ink: #0f172a;
+  --ink-muted: #526077;
+  --rule: #dfe5ec;
+  --rule-soft: #eaeff4;
+  --accent: #0284c7;
+  --accent-ink: #0369a1;
+  --accent-wash: #f0f8fd;
+  --accent-rule: #bfe2f5;
+  --accent-contrast: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0b1220;
+    --surface: #0e1626;
+    --code-surface: #111b2d;
+    --code-ink: #dbe6f3;
+    --ink: #e8eef7;
+    --ink-muted: #93a4bd;
+    --rule: #1e2b40;
+    --rule-soft: #17233a;
+    --accent: #38bdf8;
+    --accent-ink: #7dd3fc;
+    --accent-wash: #0d1a2b;
+    --accent-rule: #14384f;
+    --accent-contrast: #04121d;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.button {
+  display: inline-block;
+  padding: 0.7rem 1.4rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.95rem;
+  text-decoration: none;
+}
+
+.button:hover {
+  border-color: var(--accent-rule);
+  color: var(--accent-ink);
+}
+
+.button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.button.primary:hover {
+  color: var(--accent-contrast);
+  filter: brightness(1.06);
+}
+
+.doc {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 4rem var(--gutter) 6rem;
+}
+
+.doc > header h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2.1rem, 5vw, 3rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.doc .lead {
+  margin: 1.25rem 0 0;
+  color: var(--ink-muted);
+  font-size: 1.1rem;
+  line-height: 1.65;
+}
+
+.doc section {
+  margin-top: 3.5rem;
+}
+
+.doc h2 {
+  margin: 0 0 0.75rem;
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.doc p {
+  margin: 0 0 1rem;
+  color: var(--ink-muted);
+  line-height: 1.7;
+}
+
+.doc ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.5rem;
+  color: var(--ink-muted);
+}
+
+.doc .note {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--accent-rule);
+  border-radius: var(--radius);
+  background: var(--accent-wash);
+  color: var(--ink);
+  font-size: 0.95rem;
+}
