@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use roxycloud_client::sync::watch::{Command, Session as SyncSession, Status, watch};
 use roxycloud_client::{Debounce, Engine, Remote};
 use roxycloud_core::node::Node;
+use roxycloud_core::user::User;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
 
@@ -48,6 +49,13 @@ async fn list_folder(desktop: State<'_, Desktop>, path: String) -> Result<Vec<No
         .list(&path)
         .await
         .map_err(move |error| format!("{path}: {error}"))
+}
+
+#[tauri::command]
+async fn account(desktop: State<'_, Desktop>) -> Result<User, String> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    remote.me().await.map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -160,6 +168,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             login,
             list_folder,
+            account,
             read_file,
             download_file,
             delete_node,

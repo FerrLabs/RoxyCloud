@@ -11,6 +11,7 @@ use crate::sync::path::RelPath;
 use crate::sync::snapshot::{Entry, Snapshot};
 use crate::sync::transport::Transport;
 use roxycloud_core::node::{Node, NodeKind};
+use roxycloud_core::user::User;
 
 impl Remote {
     pub async fn upload(&self, path: &str, source: &Path) -> Result<Node, RemoteError> {
@@ -27,6 +28,18 @@ impl Remote {
             .send()
             .await?;
         check(response.status(), path)?;
+        Ok(response.json().await?)
+    }
+
+    pub async fn me(&self) -> Result<User, RemoteError> {
+        let url = format!("{}/v1/auth/me", self.base());
+        let response = self
+            .http()
+            .get(&url)
+            .bearer_auth(self.token())
+            .send()
+            .await?;
+        check(response.status(), "the authenticated account")?;
         Ok(response.json().await?)
     }
 

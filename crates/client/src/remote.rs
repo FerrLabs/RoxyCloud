@@ -100,6 +100,10 @@ impl Remote {
         &self.token
     }
 
+    pub(crate) fn base(&self) -> &str {
+        &self.base
+    }
+
     pub fn endpoint(&self, collection: &str, path: &str) -> Result<String, RemoteError> {
         let segments = parse_path(path)?;
         if segments.is_empty() {

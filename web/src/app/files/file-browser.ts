@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, type UrlSegment } from '@angular/router';
+import { Session } from '../account';
 import { childOf } from '../folder';
 import { byKindThenName, formatDate, formatSize, type Node } from '../node';
 import { PLATFORM } from '../platform';
@@ -51,7 +52,12 @@ export class FileBrowser {
     [...(this.listing.value() ?? [])].sort(byKindThenName),
   );
 
-  protected readonly canUpload = this.platform.upload !== undefined;
+  private readonly session = inject(Session);
+
+  protected readonly canWrite = this.session.canWrite;
+  protected readonly canUpload = computed(
+    () => this.platform.upload !== undefined && this.canWrite(),
+  );
   protected readonly dragging = signal(false);
   protected readonly pending = signal(0);
   protected readonly announcement = signal<string | null>(null);
@@ -124,7 +130,7 @@ export class FileBrowser {
   }
 
   protected onDragOver(event: DragEvent): void {
-    if (!this.canUpload) {
+    if (!this.canUpload()) {
       return;
     }
     event.preventDefault();
@@ -136,7 +142,7 @@ export class FileBrowser {
   }
 
   protected onDrop(event: DragEvent): void {
-    if (!this.canUpload) {
+    if (!this.canUpload()) {
       return;
     }
     event.preventDefault();

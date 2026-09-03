@@ -69,7 +69,7 @@ impl fmt::Display for Email {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "postgres", derive(sqlx::FromRow))]
 pub struct User {
     pub id: Uuid,

@@ -1,4 +1,5 @@
 import { InjectionToken, type Provider } from '@angular/core';
+import type { Account } from './account';
 import type { Node } from './node';
 
 export type PlatformKind = 'browser' | 'desktop';
@@ -7,6 +8,7 @@ export interface Platform {
   readonly kind: PlatformKind;
   authenticated(): boolean;
   login(email: string, password: string): Promise<void>;
+  account(): Promise<Account>;
   listFolder(path: string): Promise<Node[]>;
   read(path: string): Promise<Blob>;
   download(path: string, name: string): Promise<string | null>;
@@ -31,7 +33,11 @@ function browserPlatform(baseUrl: string): Platform {
       },
     });
     if (!response.ok) {
-      throw new Error(`${response.status} ${response.statusText}`);
+      throw new Error(
+        response.status === 403
+          ? 'this account may only read'
+          : `${response.status} ${response.statusText}`,
+      );
     }
     return response;
   };
@@ -50,6 +56,7 @@ function browserPlatform(baseUrl: string): Platform {
       });
       localStorage.setItem(TOKEN_KEY, session.token);
     },
+    account: () => json<Account>('/v1/auth/me'),
     listFolder: (path) => json<Node[]>(`/v1/folders${encodePath(path)}`),
     read: async (path) => (await call(`/v1/files${encodePath(path)}`)).blob(),
     upload: async (path, file) => {
@@ -82,6 +89,10 @@ function desktopPlatform(serverUrl: string): Platform {
       const { invoke } = await core();
       await invoke<void>('login', { server: serverUrl, email, password });
       connected = true;
+    },
+    account: async () => {
+      const { invoke } = await core();
+      return invoke<Account>('account');
     },
     listFolder: async (path) => {
       const { invoke } = await core();
