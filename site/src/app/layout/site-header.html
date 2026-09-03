@@ -1,0 +1,24 @@
+<header>
+  <div class="bar">
+    <a class="wordmark" [routerLink]="localisation.link('/')">RoxyCloud</a>
+
+    <nav [attr.aria-label]="chrome().nav.overview">
+      <a
+        [routerLink]="localisation.link('/')"
+        routerLinkActive="current"
+        [routerLinkActiveOptions]="{ exact: true }"
+        >{{ chrome().nav.overview }}</a
+      >
+      <a [routerLink]="localisation.link('/install')" routerLinkActive="current">{{
+        chrome().nav.install
+      }}</a>
+      <a [routerLink]="localisation.link('/api')" routerLinkActive="current">{{
+        chrome().nav.api
+      }}</a>
+    </nav>
+
+    <a class="language" [routerLink]="localisation.alternateUrl()">{{
+      chrome().languageSwitch
+    }}</a>
+  </div>
+</header>

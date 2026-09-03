@@ -1,0 +1,57 @@
+<article class="doc">
+  <header>
+    <h1>{{ content.heading }}</h1>
+    <p class="lead">{{ content.lead }}</p>
+  </header>
+
+  <section>
+    <h2>{{ content.requirements.heading }}</h2>
+    <ul>
+      @for (item of content.requirements.items; track item) {
+        <li>{{ item }}</li>
+      }
+    </ul>
+  </section>
+
+  <section>
+    <h2>{{ content.compose.heading }}</h2>
+    <p>{{ content.compose.body }}</p>
+    @for (block of content.compose.blocks; track block.caption) {
+      <rx-code-block [caption]="block.caption" [code]="block.code" />
+    }
+    <p class="note">{{ content.compose.note }}</p>
+  </section>
+
+  <section>
+    <h2>{{ content.source.heading }}</h2>
+    <p>{{ content.source.body }}</p>
+    @for (block of content.source.blocks; track block.caption) {
+      <rx-code-block [caption]="block.caption" [code]="block.code" />
+    }
+  </section>
+
+  <section>
+    <h2>{{ content.configuration.heading }}</h2>
+    <p>{{ content.configuration.body }}</p>
+    <rx-doc-table
+      [columns]="content.configuration.columns"
+      [rows]="content.configuration.rows"
+    />
+  </section>
+
+  <section>
+    <h2>{{ content.firstLogin.heading }}</h2>
+    <p>{{ content.firstLogin.body }}</p>
+    @for (block of content.firstLogin.blocks; track block.caption) {
+      <rx-code-block [caption]="block.caption" [code]="block.code" />
+    }
+  </section>
+
+  <section>
+    <h2>{{ content.webApp.heading }}</h2>
+    <p>{{ content.webApp.body }}</p>
+    @for (block of content.webApp.blocks; track block.caption) {
+      <rx-code-block [caption]="block.caption" [code]="block.code" />
+    }
+  </section>
+</article>

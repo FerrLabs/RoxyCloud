@@ -1,0 +1,25 @@
+figure {
+  margin: 1.5rem 0;
+}
+
+figcaption {
+  margin-bottom: 0.5rem;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+pre {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--code-surface);
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--code-ink);
+}

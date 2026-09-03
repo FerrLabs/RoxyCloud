@@ -1,0 +1,20 @@
+<div class="scroller">
+  <table>
+    <thead>
+      <tr>
+        @for (column of columns(); track column) {
+          <th scope="col">{{ column }}</th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row[1]) {
+        <tr>
+          <th scope="row" translate="no">{{ row[0] }}</th>
+          <td translate="no">{{ row[1] }}</td>
+          <td>{{ row[2] }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

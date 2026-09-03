@@ -1,0 +1,50 @@
+<section class="hero">
+  <p class="eyebrow">{{ content.eyebrow }}</p>
+  <h1>{{ content.heading }}</h1>
+  <p class="lead">{{ content.lead }}</p>
+
+  <p class="actions">
+    <a class="button primary" [routerLink]="installUrl">{{
+      content.install
+    }}</a>
+    <a class="button" [href]="sourceUrl" rel="noreferrer">{{ content.source }}</a>
+  </p>
+</section>
+
+<section class="status">
+  <h2>{{ content.status.heading }}</h2>
+  <p class="lead">{{ content.status.lead }}</p>
+
+  <div class="columns">
+    <div class="column shipped">
+      <h3>{{ content.status.shippedHeading }}</h3>
+      <ul>
+        @for (item of content.status.shipped; track item) {
+          <li>{{ item }}</li>
+        }
+      </ul>
+    </div>
+
+    <div class="column planned">
+      <h3>{{ content.status.plannedHeading }}</h3>
+      <ul>
+        @for (item of content.status.planned; track item) {
+          <li>{{ item }}</li>
+        }
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="design">
+  <h2>{{ content.design.heading }}</h2>
+
+  <div class="grid">
+    @for (item of content.design.items; track item.title) {
+      <article>
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.body }}</p>
+      </article>
+    }
+  </div>
+</section>

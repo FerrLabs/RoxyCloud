@@ -14,22 +14,23 @@ Done: content-addressed local blob store with dedup, the node tree with quotas a
 and upload, download, listing and trash over REST.
 
 Done too: password accounts with Argon2id, session tokens, and login from the web app, the desktop
-shell and the CLI.
+shell and the CLI, plus the marketing and documentation site in English and French.
 
 Not written: app passwords, WebDAV, sharing, search, OIDC, the S3 backend, the orphan blob sweeper,
-the sync engine, and the marketing site.
+and the sync engine.
 
 ## Layout
 
 ```
 api/        Rust: the server, the domain, the migrations
-web/        Angular app, and the marketing site (not started)
+web/        Angular app, shared by the browser and the desktop shell
+site/       Angular marketing and documentation site, prerendered
 deploy/     Dockerfile, compose file, Helm chart
 ```
 
 ## Running the API
 
-Postgres 15 or later, and a Rust toolchain matching `api/rust-toolchain.toml`.
+Postgres 15 or later, and a Rust toolchain matching `rust-toolchain.toml`.
 
 ```bash
 DATABASE_URL=postgres://localhost/roxycloud JWT_SECRET=dev-secret cargo run -p roxycloud-api
@@ -88,8 +89,12 @@ pnpm install && pnpm run build
 cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
 ```
 
-`web/dist` is embedded in the desktop build, so build the web app before touching `app/`. On Linux
-the Tauri crate needs `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev` and
-`patchelf`.
+`pnpm run build` builds both browser surfaces. `web/dist` is embedded in the desktop build, so
+build the web app before touching `app/`. On Linux the Tauri crate needs `libwebkit2gtk-4.1-dev`,
+`libappindicator3-dev`, `librsvg2-dev` and `patchelf`.
+
+The site is a separate Angular app under `site/`, prerendered to static files in `site/dist`, with
+`pnpm run dev:site` for the dev server. It carries the install and API pages, so a change to a
+config key or an endpoint updates `site/src/app/content/` in the same pull request.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).

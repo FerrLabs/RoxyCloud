@@ -2,7 +2,7 @@
 
 ## Building
 
-Postgres 15 or later and the toolchain pinned in `api/rust-toolchain.toml`. Every dependency
+Postgres 15 or later and the toolchain pinned in `rust-toolchain.toml`. Every dependency
 resolves from crates.io, npm, or this repository: if something here ever needs a private registry,
 that is a bug, report it.
 

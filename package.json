@@ -3,8 +3,9 @@
   "private": true,
   "packageManager": "pnpm@11.20.0",
   "scripts": {
-    "build": "pnpm --filter @roxycloud/web build",
+    "build": "pnpm -r build",
     "dev": "pnpm --filter @roxycloud/web dev",
-    "lint": "pnpm --filter @roxycloud/web lint"
+    "dev:site": "pnpm --filter @roxycloud/site dev",
+    "lint": "pnpm -r lint"
   }
 }
