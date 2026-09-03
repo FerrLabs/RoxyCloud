@@ -8,6 +8,7 @@ export interface Platform {
   authenticated(): boolean;
   login(email: string, password: string): Promise<void>;
   listFolder(path: string): Promise<Node[]>;
+  read(path: string): Promise<Blob>;
   download(path: string, name: string): Promise<string | null>;
   remove(path: string): Promise<void>;
   upload?(path: string, file: File): Promise<void>;
@@ -50,6 +51,7 @@ function browserPlatform(baseUrl: string): Platform {
       localStorage.setItem(TOKEN_KEY, session.token);
     },
     listFolder: (path) => json<Node[]>(`/v1/folders${encodePath(path)}`),
+    read: async (path) => (await call(`/v1/files${encodePath(path)}`)).blob(),
     upload: async (path, file) => {
       await call(`/v1/files${encodePath(path)}`, { method: 'PUT', body: file });
     },
@@ -84,6 +86,10 @@ function desktopPlatform(serverUrl: string): Platform {
     listFolder: async (path) => {
       const { invoke } = await core();
       return invoke<Node[]>('list_folder', { path });
+    },
+    read: async (path) => {
+      const { invoke } = await core();
+      return new Blob([await invoke<ArrayBuffer>('read_file', { path })]);
     },
     download: async (path) => {
       const { invoke } = await core();

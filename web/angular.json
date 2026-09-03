@@ -20,6 +20,12 @@
             "browser": "src/main.ts",
             "polyfills": [],
             "tsConfig": "tsconfig.app.json",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "public"
+              }
+            ],
             "styles": ["src/styles.css"],
             "define": {
               "ROXYCLOUD_API_URL": "'http://localhost:3001'",
