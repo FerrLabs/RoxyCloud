@@ -1,10 +1,22 @@
+<div align="center">
+
+<img src="site/public/favicon.svg" alt="" width="88" height="88" />
+
 # RoxyCloud
 
-Self-hosted file storage in Rust. Web UI, REST API, and WebDAV over a content-addressed blob store.
+**Self-hosted file storage in Rust.**
 
-A [FerrLabs](https://github.com/FerrLabs) project, licensed [AGPL-3.0](LICENSE).
+A web app, a REST API and folder sync over a content-addressed blob store.<br />
+Your files, on hardware you own, under the AGPL.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the design.
+[![Latest release](https://img.shields.io/github/v/release/FerrLabs/RoxyCloud)](https://github.com/FerrLabs/RoxyCloud/releases/latest)
+[![CI](https://github.com/FerrLabs/RoxyCloud/actions/workflows/ci.yml/badge.svg)](https://github.com/FerrLabs/RoxyCloud/actions/workflows/ci.yml)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-%23FE5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/en/v1.0.0/)
+[![License](https://img.shields.io/github/license/FerrLabs/RoxyCloud)](LICENSE)
+
+[Architecture](ARCHITECTURE.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [FerrLabs](https://github.com/FerrLabs)
+
+</div>
 
 ## Status
 
