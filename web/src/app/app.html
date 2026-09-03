@@ -1,8 +1,13 @@
 <header>
-  <p class="wordmark">
-    <img src="favicon.svg" alt="" width="24" height="24" />
-    RoxyCloud
-  </p>
+  <div class="bar">
+    <p class="wordmark">
+      <img src="favicon.svg" alt="" width="24" height="24" />
+      RoxyCloud
+    </p>
+    @if (session.isReader()) {
+      <p class="badge">Read only</p>
+    }
+  </div>
 </header>
 
 <main id="content">
