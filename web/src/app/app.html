@@ -1,21 +1,21 @@
-<main>
-  <h1>RoxyCloud</h1>
+<header>
+  <p class="wordmark">RoxyCloud</p>
+</header>
 
-  @if (error(); as message) {
-    <p role="alert">{{ message }}</p>
-  }
-
-  @if (nodes(); as entries) {
-    <ul>
-      @for (node of entries; track node.id) {
-        <li>{{ describe(node) }}</li>
-      }
-    </ul>
+<main id="content">
+  @if (connected()) {
+    <router-outlet />
   } @else {
-    <rx-login-form [busy]="busy()" (submitted)="signIn($event)" />
+    <section class="sign-in">
+      <h1>Sign in</h1>
+      @if (error(); as message) {
+        <p class="failure" role="alert">{{ message }}</p>
+      }
+      <rx-login-form [busy]="busy()" (submitted)="signIn($event)" />
+    </section>
   }
-
-  <footer>
-    <a [href]="sourceUrl" rel="noreferrer">Source</a>
-  </footer>
 </main>
+
+<footer>
+  <a [href]="sourceUrl" rel="noreferrer">Source</a>
+</footer>

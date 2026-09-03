@@ -1,0 +1,29 @@
+ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.95rem;
+}
+
+li + li::before {
+  content: '/';
+  margin-right: 0.35rem;
+  color: var(--rule-strong);
+}
+
+a {
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent-ink);
+}
+
+[aria-current='page'] {
+  font-weight: 600;
+}
