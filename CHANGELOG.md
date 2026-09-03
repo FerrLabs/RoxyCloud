@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.0] - 2026-09-03
+
+### Features
+
+- feat(web): open a file instead of downloading it (#46)
+
 ## [0.5.0] - 2026-09-03
 
 ### Features
