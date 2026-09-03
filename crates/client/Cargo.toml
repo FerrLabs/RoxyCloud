@@ -1,6 +1,6 @@
 [package]
 name = "roxycloud-client"
-version = "0.1.0"
+version.workspace = true
 description = "RoxyCloud API client and sync engine, shared by the CLI and the desktop app"
 edition.workspace = true
 license.workspace = true

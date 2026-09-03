@@ -1,6 +1,6 @@
 [package]
 name = "roxycloud-core"
-version = "0.1.0"
+version.workspace = true
 description = "Domain types shared by the RoxyCloud server, CLI and desktop client"
 edition.workspace = true
 license.workspace = true
