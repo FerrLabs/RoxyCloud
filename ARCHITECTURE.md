@@ -90,6 +90,22 @@ list.
 app, and because a file watcher and a delta algorithm are worth testing without a window. Everything
 the desktop app does beyond drawing lives here.
 
+The engine is a three-way merge. It compares a local scan, the other side's listing, and the state
+recorded at the last successful sync, and returns a plan of actions before touching anything. That
+split is why the interesting cases, both sides changed and deleted on one side, are tested with no
+network, no database and no display: the reconciler is a pure function over three maps.
+
+Two decisions carry it. Comparison is by content, never by timestamp, which the content-addressed
+store makes free: a local file hashed with blake3 yields the same etag the server computed, so
+equality is a string compare rather than a transfer. And the state file, `.roxycloud-sync.json` in
+the synced folder, doubles as an mtime cache, so a restart rehashes only what changed rather than
+the whole folder.
+
+What moves bytes sits behind a `Transport` trait with four methods, listing, download, upload and
+remove. `Remote` implements it over REST today. The reason it is a trait and not inherent methods on
+`Remote` is the sync-only mode in #34: if that mode happens, a peer implements the same four methods
+and the reconciler does not know the difference.
+
 The layering is one-way: `core` knows nothing, `client` and `api` know `core`, the binaries know
 their library. Nothing below `api/src/routes` imports axum, which is what lets the current 29 tests
 run with no database, no network and no display in about a tenth of a second.

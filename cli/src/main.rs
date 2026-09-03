@@ -1,6 +1,8 @@
+use std::path::PathBuf;
+
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use roxycloud_client::Remote;
+use roxycloud_client::{Engine, Remote};
 use roxycloud_core::node::NodeKind;
 
 #[derive(Parser)]
@@ -36,6 +38,8 @@ enum Command {
     },
     /// Move a remote file to the trash
     Rm { path: String },
+    /// Reconcile a local folder with the server, once
+    Sync { folder: PathBuf },
 }
 
 #[tokio::main]
@@ -60,6 +64,31 @@ async fn main() -> Result<()> {
         }
         Command::Rm { path } => {
             connect(&cli)?.delete(path).await?;
+        }
+        Command::Sync { folder } => {
+            let mut engine =
+                Engine::open(folder.as_path(), connect(&cli)?).context("reading the sync state")?;
+            let report = engine.sync_once().await.context("syncing the folder")?;
+
+            println!(
+                "{} up, {} down, {} deleted here, {} deleted on the server",
+                report.uploaded, report.downloaded, report.deleted_locally, report.deleted_remotely
+            );
+            for path in &report.conflicts {
+                println!("conflict: {path}, both copies kept");
+            }
+            for path in &report.blocked {
+                println!("blocked: {path} is a file on one side and a directory on the other");
+            }
+            for path in &report.skipped {
+                println!("skipped: {}", path.display());
+            }
+            for failure in &report.failures {
+                println!("failed: {} ({})", failure.path, failure.reason);
+            }
+            if !report.failures.is_empty() {
+                anyhow::bail!("{} paths did not sync", report.failures.len());
+            }
         }
     }
     Ok(())
