@@ -17,8 +17,8 @@ jobs:
           fetch-depth: 0
       - name: Every commit needs a Signed-off-by line
         run: |
-          missing=$(git log --format='%H %s' --invert-grep --grep='^Signed-off-by: ' \
-            "origin/${{ github.base_ref }}..HEAD")
+          missing=$(git log --no-merges --format='%H %s' --invert-grep --grep='^Signed-off-by: ' \
+            "origin/${{ github.base_ref }}..${{ github.event.pull_request.head.sha }}")
           if [ -n "$missing" ]; then
             echo "Commits without a sign-off:"
             echo "$missing"
