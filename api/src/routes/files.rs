@@ -5,7 +5,7 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use tokio_util::io::ReaderStream;
 
-use crate::auth::Caller;
+use crate::auth::{Caller, Writer};
 use crate::db;
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -14,7 +14,7 @@ use roxycloud_core::node::{Node, NodeKind};
 
 pub async fn put(
     State(state): State<AppState>,
-    caller: Caller,
+    caller: Writer,
     Path(path): Path<String>,
     body: Body,
 ) -> Result<Response, ApiError> {
@@ -68,7 +68,7 @@ pub async fn get(
 
 pub async fn delete(
     State(state): State<AppState>,
-    caller: Caller,
+    caller: Writer,
     Path(path): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let segments = parse_path(&path)?;

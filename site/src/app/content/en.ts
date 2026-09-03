@@ -170,7 +170,7 @@ pnpm --filter @roxycloud/web build \\
     lead: 'One REST surface, JSON in and out, bearer tokens. WebDAV will land on the same binary under /dav, and is not written yet.',
     session: {
       heading: 'Getting a token',
-      body: 'Every /v1 route except login expects an Authorization header. A session lasts twelve hours unless SESSION_TTL_SECONDS says otherwise, and there is no refresh: log in again.',
+      body: 'Every /v1 route except login expects an Authorization header. A session lasts twelve hours unless SESSION_TTL_SECONDS says otherwise, and there is no refresh: log in again. The account carries a role, admin, member or reader, and a reader is answered 403 on upload and delete rather than being trusted to hide the buttons.',
       blocks: [
         {
           caption: 'Exchange a password for a session',
@@ -187,6 +187,7 @@ pnpm --filter @roxycloud/web build \\
     "id": "b7f0c2de-6a1e-4d5f-9a0b-2f9c1d7e4a30",
     "email": "you@example.com",
     "display_name": "you",
+    "role": "admin",
     "is_admin": true,
     "created_at": "2026-09-03T08:00:00Z"
   }

@@ -52,6 +52,12 @@ Two authentication paths, because DAV clients cannot do anything modern:
 | WebDAV client | Scoped app password over Basic auth, minted in the web app |
 | Share link | Opaque token in the URL, optionally password-protected |
 
+Every account carries a role, `admin`, `member` or `reader`, and the write routes take a `Writer`
+extractor rather than a `Caller`, so refusing a reader is visible in the handler signature and costs
+a lookup only on the routes that change something. What a reader can usefully *see* is a separate
+question, since a node has one owner and listings walk down from that owner's root: that is the
+sharing design in #16, not this.
+
 App passwords are separate credentials with their own revocation, never the account password. A DAV
 client stores its credential in plain text on disk more often than not, so it must not hold anything
 that can change the account.

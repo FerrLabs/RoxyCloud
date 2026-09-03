@@ -68,6 +68,35 @@ pub struct Caller {
     pub user_id: Uuid,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Writer {
+    pub user_id: Uuid,
+}
+
+impl FromRequestParts<AppState> for Writer {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let caller = Caller::from_request_parts(parts, state).await?;
+        let user = crate::users::by_id(&state.db, caller.user_id)
+            .await?
+            .ok_or(ApiError::Unauthenticated)?;
+
+        if !user.is_active() {
+            return Err(ApiError::Unauthenticated);
+        }
+        if !user.may_write() {
+            return Err(ApiError::Forbidden);
+        }
+        Ok(Self {
+            user_id: caller.user_id,
+        })
+    }
+}
+
 impl FromRequestParts<AppState> for Caller {
     type Rejection = ApiError;
 
