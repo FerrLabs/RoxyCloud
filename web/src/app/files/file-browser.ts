@@ -16,11 +16,12 @@ import { byKindThenName, formatDate, formatSize, type Node } from '../node';
 import { PLATFORM } from '../platform';
 import { Confirm } from '../shared/confirm';
 import { Breadcrumb } from './breadcrumb';
+import { Preview } from './preview';
 import { UploadTarget } from './upload-target';
 
 @Component({
   selector: 'rx-file-browser',
-  imports: [Breadcrumb, Confirm, UploadTarget],
+  imports: [Breadcrumb, Confirm, Preview, UploadTarget],
   templateUrl: './file-browser.html',
   styleUrl: './file-browser.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,6 +57,7 @@ export class FileBrowser {
   protected readonly announcement = signal<string | null>(null);
   protected readonly failure = signal<string | null>(null);
   protected readonly doomed = signal<Node | null>(null);
+  protected readonly opened = signal<Node | null>(null);
 
   protected readonly size = formatSize;
   protected readonly date = formatDate;
@@ -65,6 +67,7 @@ export class FileBrowser {
       this.path();
       this.announcement.set(null);
       this.failure.set(null);
+      this.opened.set(null);
     });
   }
 
@@ -73,7 +76,11 @@ export class FileBrowser {
       void this.router.navigate(['/', ...this.path().split('/').filter(Boolean), node.name]);
       return;
     }
-    void this.download(node);
+    this.opened.set(node);
+  }
+
+  protected pathOf(node: Node): string {
+    return childOf(this.path(), node.name);
   }
 
   protected async download(node: Node): Promise<void> {

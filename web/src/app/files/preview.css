@@ -1,0 +1,80 @@
+dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+dialog {
+  width: min(64rem, 92vw);
+  max-width: none;
+  height: min(44rem, 88vh);
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+dialog::backdrop {
+  background: rgb(8 15 26 / 65%);
+}
+
+header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.meta {
+  margin-right: auto;
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--page);
+}
+
+img {
+  place-self: center;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+pre {
+  margin: 0;
+  padding: 1.25rem;
+  overflow: auto;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.state {
+  place-self: center;
+  padding: 2rem;
+  color: var(--ink-muted);
+  text-align: center;
+}

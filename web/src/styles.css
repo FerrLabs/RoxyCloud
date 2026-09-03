@@ -101,13 +101,38 @@ button.ghost.danger:hover {
   color: var(--danger-ink);
 }
 
-button.danger:not(.ghost) {
+button.danger:not(.ghost):not(.icon) {
   padding: 0.5rem 0.9rem;
   border: 1px solid var(--danger);
   border-radius: var(--radius);
   background: var(--danger-wash);
   color: var(--danger-ink);
   cursor: pointer;
+}
+
+button.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+button.icon:hover {
+  border-color: var(--rule);
+  background: var(--surface);
+  color: var(--accent-ink);
+}
+
+button.icon.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger-ink);
 }
 
 button:disabled {

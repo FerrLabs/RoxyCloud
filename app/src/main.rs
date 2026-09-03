@@ -51,6 +51,20 @@ async fn list_folder(desktop: State<'_, Desktop>, path: String) -> Result<Vec<No
 }
 
 #[tauri::command]
+async fn read_file(
+    desktop: State<'_, Desktop>,
+    path: String,
+) -> Result<tauri::ipc::Response, String> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    let bytes = remote
+        .read(&path)
+        .await
+        .map_err(|error| format!("{path}: {error}"))?;
+    Ok(tauri::ipc::Response::new(bytes.to_vec()))
+}
+
+#[tauri::command]
 async fn download_file(
     app: AppHandle,
     desktop: State<'_, Desktop>,
@@ -146,6 +160,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             login,
             list_folder,
+            read_file,
             download_file,
             delete_node,
             start_sync,

@@ -1,0 +1,36 @@
+<dialog #dialog (cancel)="close()">
+  <header>
+    <span class="name">{{ node().name }}</span>
+    <span class="meta">{{ size(node().size) }}</span>
+    <button type="button" class="ghost" (click)="downloaded.emit()">Download</button>
+    <button type="button" class="ghost" aria-label="Close the preview" (click)="close()">
+      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+        <path
+          d="M5 5l10 10M15 5L5 15"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+        />
+      </svg>
+    </button>
+  </header>
+
+  <div class="body">
+    @if (loading()) {
+      <p class="state" aria-busy="true">Loading the file</p>
+    }
+    @if (image(); as url) {
+      <img [src]="url" [alt]="node().name" />
+    }
+    @if (pdf(); as url) {
+      <iframe [src]="url" [title]="node().name"></iframe>
+    }
+    @if (text() !== null) {
+      <pre><code>{{ text() }}</code></pre>
+    }
+    @if (message(); as reason) {
+      <p class="state" [attr.role]="failed() ? 'alert' : null">{{ reason }}</p>
+    }
+  </div>
+</dialog>

@@ -10,6 +10,9 @@ header {
 }
 
 .wordmark {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   max-width: var(--measure);
   margin: 0 auto;
   padding: 1rem var(--gutter);

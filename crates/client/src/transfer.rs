@@ -30,6 +30,18 @@ impl Remote {
         Ok(response.json().await?)
     }
 
+    pub async fn read(&self, path: &str) -> Result<bytes::Bytes, RemoteError> {
+        let url = self.endpoint("files", path)?;
+        let response = self
+            .http()
+            .get(&url)
+            .bearer_auth(self.token())
+            .send()
+            .await?;
+        check(response.status(), path)?;
+        Ok(response.bytes().await?)
+    }
+
     pub async fn download(&self, path: &str, destination: &Path) -> Result<(), RemoteError> {
         let url = self.endpoint("files", path)?;
         let response = self
