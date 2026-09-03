@@ -1,0 +1,62 @@
+name: SonarQube
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Resolve latest release tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: tag
+        run: |
+          TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+          VERSION="${TAG#v}"
+          echo "version=${VERSION:-0.0.0}" >> "$GITHUB_OUTPUT"
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-tarpaulin
+      # roxycloud-app is excluded: it has no tests, and building it would need
+      # both the webview toolchain and a built web/dist for generate_context!.
+      - run: cargo tarpaulin --workspace --exclude roxycloud-app --out xml --skip-clean
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-cobertura
+          path: cobertura.xml
+          retention-days: 1
+
+  scan:
+    needs: [version, coverage]
+    # reusable-sonarqube-scan declares `pull-requests: write` to post the diff
+    # on a pull request. A called workflow cannot get more than its caller
+    # grants, and permissions are checked before any job runs.
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: FerrLabs/.github/.github/workflows/reusable-sonarqube-scan.yml@e89ec1209ae561a7a1b910127ccbd926e77fa613 # main
+    with:
+      runner: ubuntu-latest
+      project-key: RoxyCloud
+      coverage-artifact: coverage-cobertura
+      args: >-
+        -Dsonar.projectVersion=${{ needs.version.outputs.version }}
+        -Dsonar.rust.cobertura.reportPaths=.sonarcov/cobertura.xml
+    secrets: inherit
