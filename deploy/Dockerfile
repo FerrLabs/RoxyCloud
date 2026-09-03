@@ -18,13 +18,16 @@ COPY api/src api/src
 COPY cli/src cli/src
 COPY crates crates
 COPY api/migrations api/migrations
-RUN cargo build --release --locked --package roxycloud-api
+RUN find api/src cli/src crates -name '*.rs' -exec touch {} + \
+ && cargo build --release --locked --package roxycloud-api
 
 FROM debian:bookworm-slim
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates \
+ && apt-get install -y --no-install-recommends ca-certificates curl \
  && rm -rf /var/lib/apt/lists/* \
- && useradd --system --create-home --uid 10001 roxy
+ && useradd --system --create-home --uid 10001 roxy \
+ && mkdir -p /var/lib/roxycloud \
+ && chown roxy:roxy /var/lib/roxycloud
 COPY --from=builder /build/target/release/roxycloud-api /usr/local/bin/roxycloud-api
 USER roxy
 ENV PORT=3001 BLOB_ROOT=/var/lib/roxycloud

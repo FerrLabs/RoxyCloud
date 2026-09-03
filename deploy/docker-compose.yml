@@ -30,6 +30,12 @@ services:
       - blobs:/var/lib/roxycloud
     ports:
       - "3001:3001"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:3001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
 
 volumes:
   db:
