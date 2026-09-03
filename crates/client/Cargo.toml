@@ -13,6 +13,7 @@ roxycloud-core = { workspace = true }
 
 reqwest = { workspace = true }
 percent-encoding = { workspace = true }
+notify = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 futures = { workspace = true }

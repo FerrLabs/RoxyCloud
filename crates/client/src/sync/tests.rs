@@ -1,13 +1,18 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-use super::engine::Engine;
+use tokio::sync::broadcast;
+
+use super::debounce::Debounce;
+use super::engine::{Engine, Report};
 use super::local;
 use super::path::RelPath;
 use super::snapshot::Snapshot;
 use super::state::SyncState;
 use super::transport::Transport;
+use super::watch::{Command, Status, watch};
 
 struct FakeServer {
     root: PathBuf,
@@ -245,4 +250,67 @@ async fn a_directory_that_still_holds_something_is_not_removed_and_does_not_stop
         pair.read_server("dir/untracked.txt").as_deref(),
         Some(&b"written while offline"[..])
     );
+}
+
+fn eager() -> Debounce {
+    Debounce::new(Duration::from_millis(50), Duration::from_secs(5))
+}
+
+async fn next_sync(status: &mut broadcast::Receiver<Status>) -> Report {
+    let waiting = async {
+        loop {
+            match status.recv().await {
+                Ok(Status::Synced(report)) if !report.is_quiet() => return report,
+                Ok(_) => (),
+                Err(error) => panic!("the status channel closed: {error}"),
+            }
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(10), waiting)
+        .await
+        .expect("a sync within ten seconds")
+}
+
+#[tokio::test]
+async fn the_watcher_syncs_a_file_written_after_it_started() {
+    let pair = Pair::new("watch");
+    let session = watch(pair.engine(), eager()).expect("watches the folder");
+    let mut status = session.subscribe();
+
+    pair.write_local("a.txt", b"written while watching");
+
+    let report = next_sync(&mut status).await;
+    assert_eq!(report.uploaded, 1);
+    assert_eq!(
+        pair.read_server("a.txt").as_deref(),
+        Some(&b"written while watching"[..])
+    );
+
+    session.stop().await;
+}
+
+#[tokio::test]
+async fn a_paused_session_holds_the_change_until_it_resumes() {
+    let pair = Pair::new("watch-pause");
+    let session = watch(pair.engine(), eager()).expect("watches the folder");
+    let mut status = session.subscribe();
+    session.send(Command::Pause).await;
+
+    pair.write_local("a.txt", b"written while paused");
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert!(
+        pair.read_server("a.txt").is_none(),
+        "a paused session transfers nothing"
+    );
+
+    session.send(Command::Resume).await;
+    let report = next_sync(&mut status).await;
+
+    assert_eq!(report.uploaded, 1);
+    assert_eq!(
+        pair.read_server("a.txt").as_deref(),
+        Some(&b"written while paused"[..])
+    );
+
+    session.stop().await;
 }
