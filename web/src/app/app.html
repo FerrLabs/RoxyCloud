@@ -1,0 +1,21 @@
+<main>
+  <h1>RoxyCloud</h1>
+
+  @if (error(); as message) {
+    <p role="alert">{{ message }}</p>
+  }
+
+  @if (nodes(); as entries) {
+    <ul>
+      @for (node of entries; track node.id) {
+        <li>{{ describe(node) }}</li>
+      }
+    </ul>
+  } @else {
+    <rx-login-form [busy]="busy()" (submitted)="signIn($event)" />
+  }
+
+  <footer>
+    <a [href]="sourceUrl" rel="noreferrer">Source</a>
+  </footer>
+</main>
