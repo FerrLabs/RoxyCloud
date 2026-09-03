@@ -16,8 +16,11 @@ and upload, download, listing and trash over REST.
 Done too: password accounts with Argon2id, session tokens, and login from the web app, the desktop
 shell and the CLI, plus the marketing and documentation site in English and French.
 
+And: one-shot folder sync, with a three-way reconciler that keeps both copies when a file changed
+on either side.
+
 Not written: app passwords, WebDAV, sharing, search, OIDC, the S3 backend, the orphan blob sweeper,
-and the sync engine.
+and the file watcher that would make sync continuous rather than a command you run.
 
 ## Layout
 
@@ -81,6 +84,27 @@ to create the administrator, then log in:
 ```bash
 cargo run -p roxycloud-cli -- login you@example.com --password '...'
 ```
+
+## Syncing a folder
+
+`roxy sync` reconciles a local folder with the server once and prints what it did. It compares
+content, not timestamps: a file is only transferred when its bytes differ from the other side.
+
+```bash
+ROXYCLOUD_TOKEN=... cargo run -p roxycloud-cli -- sync ~/RoxyCloud
+```
+
+State lives in `.roxycloud-sync.json` inside the folder, which is what makes a second run cheap and
+what tells a deletion apart from a file that was never there. Delete it to start from a full
+comparison again.
+
+When a file changed on both sides, both copies are kept: the server's version keeps the name, and
+the local one is renamed `name (conflict <timestamp>).ext` and uploaded under that name. Nothing is
+overwritten and nothing waits for an answer.
+
+Two things it deliberately does not do. An empty local directory is not created on the server, since
+there is no endpoint for that yet, and a directory removed locally is not removed on the server,
+because the API trashes a directory node without cascading to its children.
 
 ## Development
 

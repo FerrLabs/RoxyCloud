@@ -3603,7 +3603,9 @@ dependencies = [
 name = "roxycloud-client"
 version = "0.2.3"
 dependencies = [
+ "blake3",
  "bytes",
+ "chrono",
  "futures",
  "percent-encoding",
  "reqwest 0.12.28",

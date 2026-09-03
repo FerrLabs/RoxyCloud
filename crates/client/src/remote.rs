@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 use reqwest::{Client, StatusCode};
 use roxycloud_core::name::{InvalidNodeName, parse_path};
@@ -29,6 +31,21 @@ pub enum RemoteError {
     Status(StatusCode),
     #[error("talking to the server failed")]
     Transport(#[from] reqwest::Error),
+    #[error("reading or writing {path}")]
+    Io {
+        path: std::path::PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+}
+
+impl RemoteError {
+    pub(crate) fn io(path: &Path, source: std::io::Error) -> Self {
+        Self::Io {
+            path: path.to_path_buf(),
+            source,
+        }
+    }
 }
 
 pub struct Remote {
@@ -75,6 +92,14 @@ impl Remote {
         })
     }
 
+    pub(crate) fn http(&self) -> &Client {
+        &self.http
+    }
+
+    pub(crate) fn token(&self) -> &str {
+        &self.token
+    }
+
     pub fn endpoint(&self, collection: &str, path: &str) -> Result<String, RemoteError> {
         let segments = parse_path(path)?;
         if segments.is_empty() {
@@ -107,7 +132,7 @@ impl Remote {
     }
 }
 
-fn check(status: StatusCode, path: &str) -> Result<(), RemoteError> {
+pub(crate) fn check(status: StatusCode, path: &str) -> Result<(), RemoteError> {
     match status {
         s if s.is_success() => Ok(()),
         StatusCode::UNAUTHORIZED => Err(RemoteError::Unauthenticated),
