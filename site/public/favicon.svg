@@ -1,8 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="RoxyCloud">
   <rect width="64" height="64" rx="14" fill="#0284c7" />
-  <g fill="#ffffff">
-    <circle cx="24.5" cy="29" r="12.5" />
-    <circle cx="42" cy="33" r="9.8" />
-    <rect x="11" y="32.5" width="42" height="15" rx="7.5" />
-  </g>
+  <path
+    d="M44 28h-2.52A16 16 0 1 0 26 48h18a10 10 0 0 0 0-20z"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="5.5"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
 </svg>
