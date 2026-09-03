@@ -5,6 +5,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::role::Role;
+
 pub const MAX_EMAIL_LEN: usize = 254;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -73,6 +75,7 @@ pub struct User {
     pub id: Uuid,
     pub email: String,
     pub display_name: String,
+    pub role: Role,
     pub is_admin: bool,
     #[serde(skip)]
     pub password_hash: String,
@@ -85,6 +88,11 @@ impl User {
     #[must_use]
     pub fn is_active(&self) -> bool {
         self.disabled_at.is_none()
+    }
+
+    #[must_use]
+    pub fn may_write(&self) -> bool {
+        self.is_active() && self.role.may_write()
     }
 }
 
@@ -120,19 +128,45 @@ mod tests {
         assert_eq!(long.parse::<Email>(), Err(InvalidEmail::TooLong));
     }
 
-    #[test]
-    fn the_password_hash_never_leaves_through_serde() {
-        let user = User {
+    fn user(role: Role) -> User {
+        User {
             id: Uuid::now_v7(),
             email: "bryan@example.com".to_owned(),
             display_name: "Bryan".to_owned(),
-            is_admin: true,
+            role,
+            is_admin: role.may_administer(),
             password_hash: "$argon2id$v=19$m=19456,t=2,p=1$secret".to_owned(),
             created_at: Utc::now(),
             disabled_at: None,
-        };
-        let json = serde_json::to_string(&user).expect("serialises");
+        }
+    }
+
+    #[test]
+    fn the_password_hash_never_leaves_through_serde() {
+        let json = serde_json::to_string(&user(Role::Admin)).expect("serialises");
         assert!(!json.contains("argon2"), "{json}");
         assert!(!json.contains("password_hash"), "{json}");
+    }
+
+    #[test]
+    fn the_wire_carries_the_role_and_still_carries_is_admin() {
+        let json = serde_json::to_string(&user(Role::Reader)).expect("serialises");
+        assert!(json.contains("\"role\":\"reader\""), "{json}");
+        assert!(json.contains("\"is_admin\":false"), "{json}");
+    }
+
+    #[test]
+    fn a_reader_may_not_write() {
+        assert!(!user(Role::Reader).may_write());
+        assert!(user(Role::Member).may_write());
+        assert!(user(Role::Admin).may_write());
+    }
+
+    #[test]
+    fn a_disabled_account_may_not_write_whatever_its_role_says() {
+        let mut disabled = user(Role::Admin);
+        disabled.disabled_at = Some(Utc::now());
+        assert!(!disabled.may_write());
+        assert!(!disabled.is_active());
     }
 }

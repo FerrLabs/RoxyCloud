@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use roxycloud_api::{build_router, config::Config, state::AppState, users};
+use roxycloud_core::role::Role;
 use roxycloud_core::user::Email;
 use tracing::{info, warn};
 
@@ -44,9 +45,15 @@ async fn bootstrap_admin(state: &AppState, cfg: &Config) -> Result<()> {
 
     let email: Email = admin.email.parse().context("BOOTSTRAP_ADMIN_EMAIL")?;
     let mut tx = state.db.begin().await?;
-    let user = users::create(&mut tx, &email, "Administrator", &admin.password, true)
-        .await
-        .context("creating the bootstrap administrator")?;
+    let user = users::create(
+        &mut tx,
+        &email,
+        "Administrator",
+        &admin.password,
+        Role::Admin,
+    )
+    .await
+    .context("creating the bootstrap administrator")?;
     tx.commit().await?;
 
     info!(%email, id = %user.id, "bootstrap administrator created");

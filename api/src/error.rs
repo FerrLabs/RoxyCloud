@@ -18,6 +18,8 @@ pub enum ApiError {
     Credential,
     #[error("not found")]
     NotFound,
+    #[error("this account may not write")]
+    Forbidden,
     #[error("{0} already exists")]
     Conflict(String),
     #[error("invalid path: {0}")]
@@ -50,6 +52,7 @@ impl ApiError {
             Self::Unauthenticated | Self::InvalidCredentials => StatusCode::UNAUTHORIZED,
             Self::WeakPassword(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::NotFound | Self::Storage(StorageError::NotFound(_)) => StatusCode::NOT_FOUND,
+            Self::Forbidden => StatusCode::FORBIDDEN,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::InvalidPath(_) | Self::WrongKind { .. } => StatusCode::BAD_REQUEST,
             Self::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,

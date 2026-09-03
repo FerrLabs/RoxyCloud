@@ -90,6 +90,11 @@ DELETE /v1/files/{*path}      move to trash
 
 Every `/v1` route except login takes `Authorization: Bearer <session token>`.
 
+Each account carries a role: `admin`, `member` or `reader`. A reader may list and download; upload
+and delete answer 403. The check sits in the API rather than in the interface, so it holds for curl
+and for `roxy sync` as much as for the web app. There is no route that creates an account or changes
+a role yet, so the only way to make one today is the bootstrap administrator or SQL.
+
 On an empty database, set `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` for the first boot
 to create the administrator, then log in:
 

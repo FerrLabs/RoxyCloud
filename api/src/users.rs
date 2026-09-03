@@ -1,3 +1,4 @@
+use roxycloud_core::role::Role;
 use roxycloud_core::user::{Email, User};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -5,8 +6,8 @@ use uuid::Uuid;
 use crate::error::ApiError;
 use crate::password;
 
-const USER_COLUMNS: &str =
-    "id, email, display_name, password_hash, is_admin, created_at, disabled_at";
+const USER_COLUMNS: &str = "id, email, display_name, password_hash, role,
+     (role = 'admin') AS is_admin, created_at, disabled_at";
 
 pub async fn by_email(pool: &PgPool, email: &Email) -> Result<Option<User>, ApiError> {
     sqlx::query_as::<_, User>(&format!(
@@ -31,13 +32,13 @@ pub async fn create(
     email: &Email,
     display_name: &str,
     plaintext: &str,
-    is_admin: bool,
+    role: Role,
 ) -> Result<User, ApiError> {
     password::check_strength(plaintext)?;
     let hash = password::hash(plaintext)?;
 
     sqlx::query_as::<_, User>(&format!(
-        "INSERT INTO users (id, email, display_name, password_hash, is_admin)
+        "INSERT INTO users (id, email, display_name, password_hash, role)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING {USER_COLUMNS}"
     ))
@@ -45,7 +46,7 @@ pub async fn create(
     .bind(email.as_str())
     .bind(display_name)
     .bind(hash)
-    .bind(is_admin)
+    .bind(role)
     .fetch_one(&mut **tx)
     .await
     .map_err(|err| match err {

@@ -170,7 +170,7 @@ pnpm --filter @roxycloud/web build \\
     lead: "Une seule surface REST, du JSON dans les deux sens, des jetons bearer. WebDAV arrivera sur le même binaire sous /dav et n'est pas encore écrit.",
     session: {
       heading: 'Obtenir un jeton',
-      body: "Toutes les routes /v1 sauf la connexion attendent un en-tête Authorization. Une session dure douze heures sauf si SESSION_TTL_SECONDS en décide autrement, et il n'y a pas de rafraîchissement : reconnectez-vous.",
+      body: "Toutes les routes /v1 sauf la connexion attendent un en-tête Authorization. Une session dure douze heures sauf si SESSION_TTL_SECONDS en décide autrement, et il n'y a pas de rafraîchissement : reconnectez-vous. Le compte porte un rôle, admin, member ou reader, et un lecteur reçoit un 403 à l'envoi et à la suppression plutôt qu'une interface qui cache les boutons.",
       blocks: [
         {
           caption: 'Échanger un mot de passe contre une session',
@@ -187,6 +187,7 @@ pnpm --filter @roxycloud/web build \\
     "id": "b7f0c2de-6a1e-4d5f-9a0b-2f9c1d7e4a30",
     "email": "vous@exemple.com",
     "display_name": "vous",
+    "role": "admin",
     "is_admin": true,
     "created_at": "2026-09-03T08:00:00Z"
   }
