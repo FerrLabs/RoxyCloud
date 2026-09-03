@@ -106,6 +106,17 @@ remove. `Remote` implements it over REST today. The reason it is a trait and not
 `Remote` is the sync-only mode in #34: if that mode happens, a peer implements the same four methods
 and the reconciler does not know the difference.
 
+Continuous sync is the same engine on a timer. `Debounce` decides when a batch of filesystem events
+has settled: a quiet period after the last change, and a ceiling measured from the first, so a
+folder under constant writes still syncs instead of waiting for silence that never comes. It reads
+no clock of its own, which is what makes both rules testable without sleeping. The watcher filters
+the engine's own writes, the state file and partial downloads, since syncing would otherwise trigger
+the next sync forever.
+
+The desktop app owns the session and forwards its status to the window as a `sync:status` event,
+which is the only thing the interface needs to show progress, pauses and conflicts. Commands go the
+other way through one `sync_control` call.
+
 The layering is one-way: `core` knows nothing, `client` and `api` know `core`, the binaries know
 their library. Nothing below `api/src/routes` imports axum, which is what lets the current 29 tests
 run with no database, no network and no display in about a tenth of a second.

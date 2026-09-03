@@ -3,6 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use chrono::Utc;
+use serde::Serialize;
 
 use super::local::{self, LocalScan, ScanError};
 use super::path::RelPath;
@@ -32,13 +33,13 @@ pub enum SyncError {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Failure {
     pub path: RelPath,
     pub reason: String,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 pub struct Report {
     pub uploaded: usize,
     pub downloaded: usize,
@@ -48,7 +49,7 @@ pub struct Report {
     pub directories_removed: usize,
     pub conflicts: Vec<RelPath>,
     pub blocked: Vec<RelPath>,
-    pub skipped: Vec<PathBuf>,
+    pub skipped: Vec<String>,
     pub failures: Vec<Failure>,
 }
 
@@ -77,6 +78,11 @@ pub struct Engine<T> {
 }
 
 impl<T: Transport> Engine<T> {
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
     pub fn open(root: impl Into<PathBuf>, transport: T) -> Result<Self, SyncError> {
         let root = root.into();
         let state = SyncState::load(&state_path(&root))?;
@@ -99,7 +105,11 @@ impl<T: Transport> Engine<T> {
 
         let mut report = Report {
             blocked: plan.blocked,
-            skipped: scan.skipped.clone(),
+            skipped: scan
+                .skipped
+                .iter()
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect(),
             ..Report::default()
         };
 

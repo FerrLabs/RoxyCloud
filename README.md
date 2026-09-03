@@ -16,11 +16,11 @@ and upload, download, listing and trash over REST.
 Done too: password accounts with Argon2id, session tokens, and login from the web app, the desktop
 shell and the CLI, plus the marketing and documentation site in English and French.
 
-And: one-shot folder sync, with a three-way reconciler that keeps both copies when a file changed
-on either side.
+And: folder sync, with a three-way reconciler that keeps both copies when a file changed on either
+side, either once or watching the folder as it changes.
 
 Not written: app passwords, WebDAV, sharing, search, OIDC, the S3 backend, the orphan blob sweeper,
-and the file watcher that would make sync continuous rather than a command you run.
+and any interface for the sync beyond the command line.
 
 ## Layout
 
@@ -101,6 +101,17 @@ comparison again.
 When a file changed on both sides, both copies are kept: the server's version keeps the name, and
 the local one is renamed `name (conflict <timestamp>).ext` and uploaded under that name. Nothing is
 overwritten and nothing waits for an answer.
+
+`--watch` keeps it running instead, syncing as the folder changes:
+
+```bash
+ROXYCLOUD_TOKEN=... cargo run -p roxycloud-cli -- sync ~/RoxyCloud --watch
+```
+
+A save is not a sync. Changes are collected until the folder has been quiet for a moment, and a
+folder that never goes quiet still syncs at a ceiling rather than waiting forever. Editors that
+write a temp file, rename it, and touch the directory therefore produce one sync, not four. Ctrl+C
+stops it.
 
 Two things it deliberately does not do. An empty local directory is not created on the server, since
 there is no endpoint for that yet, and a directory removed locally is not removed on the server,
