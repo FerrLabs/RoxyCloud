@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.1] - 2026-09-03
+
+### Bug Fixes
+
+- fix: redraw the crab claws as pincers (#35)
+
 ## [0.2.0] - 2026-09-03
 
 ### Features
