@@ -1,0 +1,24 @@
+{
+  "$schema": "https://ferrflow.com/schema/ferrflow.json",
+  "workspace": {
+    "remote": "origin",
+    "branch": "main",
+    "versioning": "zerover"
+  },
+  "package": [
+    {
+      "name": "roxycloud",
+      "path": ".",
+      "changelog": "CHANGELOG.md",
+      "versionedFiles": [
+        { "path": "Cargo.toml", "format": "toml" },
+        { "path": "app/tauri.conf.json", "format": "json" },
+        { "path": "web/package.json", "format": "json" },
+        { "path": "site/package.json", "format": "json" }
+      ],
+      "hooks": {
+        "postBump": "cargo update --workspace"
+      }
+    }
+  ]
+}

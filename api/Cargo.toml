@@ -1,6 +1,6 @@
 [package]
 name = "roxycloud-api"
-version = "0.1.0"
+version.workspace = true
 description = "Self-hosted file storage with WebDAV, over a content-addressed blob store"
 edition.workspace = true
 license.workspace = true

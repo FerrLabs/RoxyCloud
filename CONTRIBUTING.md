@@ -23,6 +23,12 @@ Pull request titles follow [Conventional Commits](https://www.conventionalcommit
 anything else. Reserve `!` for changes that remove or rename something, or that reject input which
 used to be valid. New endpoints, new config keys and new flags are additive.
 
+Titles are not decoration: FerrFlow reads them on every push to main, bumps the version, writes
+`CHANGELOG.md`, tags and publishes the release. There is nothing to run by hand, and nothing to bump
+in a pull request. Versioning is zerover, so the major stays at `0` and a `!` moves the minor. The
+whole repository shares one version, since the server, the CLI, the desktop app and both browser
+surfaces ship together.
+
 ## What gets merged
 
 A change that adds behaviour comes with tests that fail without it. Tests that assert a constant, or
