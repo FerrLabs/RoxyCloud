@@ -3,6 +3,8 @@ node_modules/
 dist/
 data/
 app/gen/
+.angular/
+out-tsc/
 .env
 .env.*
 !.env.example

@@ -1,4 +1,4 @@
-export type NodeKind = "directory" | "file";
+export type NodeKind = 'directory' | 'file';
 
 export type Node = {
   id: string;
@@ -12,3 +12,7 @@ export type Node = {
   updated_at: string;
   deleted_at?: string;
 };
+
+export function describeNode(node: Node): string {
+  return node.kind === 'directory' ? `${node.name}/` : `${node.name} (${node.size} bytes)`;
+}

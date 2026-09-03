@@ -29,12 +29,12 @@ mobile sync clients, federated sharing.
 
 | Surface | Host | Stack |
 |---|---|---|
-| Marketing site | `roxycloud.com` | Astro 5, EN + FR |
-| Web app | `app.roxycloud.com` | React SPA, components local to this repo |
+| Marketing site | `roxycloud.com` | Angular 22, prerendered, EN + FR |
+| Web app | `app.roxycloud.com` | Angular SPA, components local to this repo |
 | API | `api.roxycloud.com` | Rust, axum 0.8, sqlx, Postgres |
 | WebDAV | `api.roxycloud.com/dav` | Same binary, separate router |
 | CLI | `roxy` | Rust, ships with the server image |
-| Desktop | `app/` | Tauri 2 shell around the same React build |
+| Desktop | `app/` | Tauri 2 shell around the same Angular build |
 
 ## Identity
 
@@ -74,8 +74,8 @@ crates/client/   API client and sync engine, shared by the CLI and the desktop a
 api/             the axum server and the migrations
 cli/             `roxy`, the command-line client and admin tool
 app/             the desktop client: a Tauri shell around web/
-web/             React SPA, the only interface
-site/            Astro marketing and documentation
+web/             Angular SPA, the only interface
+site/            Angular marketing and documentation, prerendered
 deploy/          Dockerfile, compose file, Helm chart
 ```
 
@@ -96,19 +96,19 @@ run with no database, no network and no display in about a tenth of a second.
 
 ### One interface, two hosts
 
-The desktop app is a Tauri 2 shell that loads the same React build as the browser. There is one
+The desktop app is a Tauri 2 shell that loads the same Angular build as the browser. There is one
 interface to design, one to style and one to keep accessible, which is the whole reason for choosing
 Tauri over a native Rust toolkit.
 
 What differs between the two hosts is not the interface but what it is allowed to reach, and that
-lives in one file, `web/src/platform.ts`:
+lives in one file, `web/src/app/platform.ts`:
 
 | Capability | Browser | Desktop |
 |---|---|---|
 | Browse and transfer | `fetch` against the API | `invoke` into Rust, which uses `crates/client` |
 | Local folder sync | Absent | The sync engine, over IPC |
 
-Everything else in the React tree talks to a `Platform` and never to `fetch` or to `invoke`
+Every component injects the `PLATFORM` token and never reaches for `fetch` or for `invoke`
 directly. A component that reaches around that seam will work in one host and break in the other,
 which is the failure mode this design exists to prevent. The Tauri API is behind a dynamic import,
 so the browser bundle does not carry it.

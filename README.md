@@ -23,7 +23,7 @@ the sync engine, and the marketing site.
 
 ```
 api/        Rust: the server, the domain, the migrations
-web/        React app and Astro site (not started)
+web/        Angular app, and the marketing site (not started)
 deploy/     Dockerfile, compose file, Helm chart
 ```
 
@@ -49,9 +49,15 @@ Migrations run on boot. Configuration is environment only:
 | `BOOTSTRAP_ADMIN_EMAIL` | unset | Creates the first administrator on an empty database |
 | `BOOTSTRAP_ADMIN_PASSWORD` | unset | Required alongside the email, minimum 12 characters |
 
-The web app builds with `VITE_SOURCE_URL` pointing at the source of the running version. If you
-deploy a modified RoxyCloud, point it at your fork: the AGPL requires you to offer your users the
-source of the version they are actually using.
+The web app compiles two values in, `ROXYCLOUD_API_URL` and `ROXYCLOUD_SOURCE_URL`. They default to
+a local API and to this repository, and both are overridden at build time:
+
+```bash
+pnpm --filter @roxycloud/web build   --define ROXYCLOUD_API_URL="'https://api.example.com'"   --define ROXYCLOUD_SOURCE_URL="'https://git.example.com/roxycloud'"
+```
+
+If you deploy a modified RoxyCloud, point the source URL at your fork: the AGPL requires you to
+offer your users the source of the version they are actually using.
 
 ## Endpoints
 
