@@ -310,6 +310,22 @@ included: a share token resolves to a node id and a permission set, never to a b
 Backend keys are never exposed to clients. Downloads stream through the API or through a
 short-lived signed URL the API mints, so revoking access takes effect immediately.
 
+### User bytes never render on the app's origin
+
+The API serves the web app, so a file someone uploaded and the page holding their session token
+share an origin. A stored `.html` that a browser renders there would run as the app, with its
+`localStorage` in reach.
+
+`GET /v1/files/{*path}` answers `application/octet-stream` with `Content-Disposition: attachment`
+and `X-Content-Type-Options: nosniff`, whatever the file is called. The web app is unaffected because
+it never reads the type off the response: it fetches the bytes and builds a blob typed from the name,
+and it renders images through `<img>`, where an SVG cannot execute.
+
+The requirement outlives the current shape. A share link exists to serve a file to a browser carrying
+no credentials, which is the one case where stored bytes would otherwise be rendered by a navigation
+rather than fetched by the app. Whatever serves them keeps them off this origin, by these headers at
+a minimum and by a separate hostname if inline rendering of shared files is ever wanted.
+
 ## WebDAV
 
 One router mounted at `/dav`, sharing the domain layer with the REST API. The methods that matter

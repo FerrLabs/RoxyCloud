@@ -59,6 +59,18 @@ pub async fn get(
                 header::CONTENT_LENGTH,
                 HeaderValue::from(u64::try_from(node.size).unwrap_or(0)),
             ),
+            (
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/octet-stream"),
+            ),
+            (
+                header::CONTENT_DISPOSITION,
+                HeaderValue::from_static("attachment"),
+            ),
+            (
+                header::X_CONTENT_TYPE_OPTIONS,
+                HeaderValue::from_static("nosniff"),
+            ),
         ],
         Body::from_stream(ReaderStream::new(file)),
     )
