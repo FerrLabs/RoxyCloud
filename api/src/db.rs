@@ -235,6 +235,96 @@ pub async fn put_file(
     Ok(node)
 }
 
+pub async fn copy_tree(
+    tx: &mut Transaction<'_, Postgres>,
+    owner_id: Uuid,
+    source: &Node,
+    parent: &Node,
+    name: &NodeName,
+) -> Result<Node, ApiError> {
+    lock_owner(tx, owner_id).await?;
+
+    if parent.kind != NodeKind::Directory {
+        return Err(ApiError::WrongKind {
+            expected: "directory",
+        });
+    }
+    if source.kind == NodeKind::Directory && would_nest_inside_itself(tx, source, parent).await? {
+        return Err(ApiError::MoveIntoSelf);
+    }
+    if child(tx, parent.id, name).await?.is_some() {
+        return Err(ApiError::Conflict(name.to_string()));
+    }
+
+    let root = copy_one(tx, owner_id, parent.id, name.as_str(), source).await?;
+    let mut charged = source.size;
+    let mut pending = vec![(source.id, root.id)];
+
+    while let Some((from, into)) = pending.pop() {
+        for original in children_in(tx, from).await? {
+            let copy = copy_one(tx, owner_id, into, &original.name, &original).await?;
+            charged += original.size;
+            if original.kind == NodeKind::Directory {
+                pending.push((original.id, copy.id));
+            }
+        }
+    }
+
+    charge_quota(tx, owner_id, charged).await?;
+    Ok(root)
+}
+
+async fn copy_one(
+    tx: &mut Transaction<'_, Postgres>,
+    owner_id: Uuid,
+    parent_id: Uuid,
+    name: &str,
+    original: &Node,
+) -> Result<Node, ApiError> {
+    let etag = match original.kind {
+        NodeKind::Directory => etag_for_directory(),
+        NodeKind::File => original.etag.clone(),
+    };
+
+    let copy = sqlx::query_as::<_, Node>(concat!(
+        "INSERT INTO nodes (id, owner_id, parent_id, name, kind, blob_hash, size, etag)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING ",
+        node_columns!()
+    ))
+    .bind(Uuid::now_v7())
+    .bind(owner_id)
+    .bind(parent_id)
+    .bind(name)
+    .bind(original.kind)
+    .bind(original.blob_hash)
+    .bind(original.size)
+    .bind(etag)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(|error| name_taken(error, name))?;
+
+    if let Some(hash) = original.blob_hash {
+        acquire_blob(tx, hash).await?;
+    }
+    Ok(copy)
+}
+
+async fn children_in(
+    tx: &mut Transaction<'_, Postgres>,
+    parent_id: Uuid,
+) -> Result<Vec<Node>, ApiError> {
+    sqlx::query_as::<_, Node>(concat!(
+        "SELECT ",
+        node_columns!(),
+        " FROM nodes WHERE parent_id = $1 AND deleted_at IS NULL"
+    ))
+    .bind(parent_id)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(Into::into)
+}
+
 pub async fn rename(
     tx: &mut Transaction<'_, Postgres>,
     node: &Node,

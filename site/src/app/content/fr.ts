@@ -182,7 +182,7 @@ pnpm --filter @roxycloud/web build \\
     description:
       "L'API REST de RoxyCloud : jetons de session, endpoints dossiers et fichiers, et ce qui n'est pas encore implémenté.",
     heading: "L'API",
-    lead: "Une seule surface REST, du JSON dans les deux sens, des jetons bearer. WebDAV arrivera sur le même binaire sous /dav et n'est pas encore écrit.",
+    lead: "Une seule surface REST, du JSON dans les deux sens, des jetons bearer. WebDAV partage le même binaire et le même arbre sous /dav, authentifié par un mot de passe applicatif plutôt que par une session.",
     session: {
       heading: 'Obtenir un jeton',
       body: "Toutes les routes /v1 sauf la connexion attendent un en-tête Authorization. Une session dure douze heures sauf si SESSION_TTL_SECONDS en décide autrement, et il n'y a pas de rafraîchissement : reconnectez-vous. Le compte porte un rôle, admin, member ou reader, et un lecteur reçoit un 403 à l'envoi et à la suppression plutôt qu'une interface qui cache les boutons.",

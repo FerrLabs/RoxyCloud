@@ -182,7 +182,7 @@ pnpm --filter @roxycloud/web build \\
     description:
       'The RoxyCloud REST API: session tokens, the folder and file endpoints, and what is not implemented yet.',
     heading: 'The API',
-    lead: 'One REST surface, JSON in and out, bearer tokens. WebDAV will land on the same binary under /dav, and is not written yet.',
+    lead: 'One REST surface, JSON in and out, bearer tokens. WebDAV shares the same binary and the same tree under /dav, authenticated by an app password rather than a session.',
     session: {
       heading: 'Getting a token',
       body: 'Every /v1 route except login expects an Authorization header. A session lasts twelve hours unless SESSION_TTL_SECONDS says otherwise, and there is no refresh: log in again. The account carries a role, admin, member or reader, and a reader is answered 403 on upload and delete rather than being trusted to hide the buttons.',
