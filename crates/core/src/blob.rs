@@ -81,10 +81,10 @@ mod postgres_impls {
         }
     }
 
-    impl<'q> sqlx::Encode<'q, Postgres> for BlobHash {
+    impl sqlx::Encode<'_, Postgres> for BlobHash {
         fn encode_by_ref(
             &self,
-            buf: &mut <Postgres as sqlx::Database>::ArgumentBuffer<'q>,
+            buf: &mut <Postgres as sqlx::Database>::ArgumentBuffer,
         ) -> Result<IsNull, BoxDynError> {
             <&[u8] as sqlx::Encode<Postgres>>::encode(&self.0[..], buf)
         }
