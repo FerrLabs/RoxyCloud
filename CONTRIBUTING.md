@@ -10,8 +10,18 @@ that is a bug, report it.
 cd api && cargo test
 ```
 
-The domain, storage and database tests need no Postgres and no network. Tests that do need a
-database are marked and skipped when `DATABASE_URL` is unset.
+The unit tests need no Postgres and no network. The suites under `api/tests` do: each one creates a
+database of its own, runs the migrations into it and drops it afterwards, so they can run in
+parallel without fighting over blob refcounts. They skip themselves when `DATABASE_URL` is unset,
+which is why `cargo test` works on a machine with no database:
+
+```bash
+docker run -d --name roxy-db -e POSTGRES_USER=roxy -e POSTGRES_PASSWORD=roxy   -e POSTGRES_DB=roxycloud -p 5432:5432 postgres:17-alpine
+DATABASE_URL=postgres://roxy:roxy@localhost:5432/roxycloud cargo test
+```
+
+`DATABASE_URL` points at any database on the server; the tests only use it to reach the server and
+create their own. The role therefore needs `CREATEDB`.
 
 ## Before opening a pull request
 

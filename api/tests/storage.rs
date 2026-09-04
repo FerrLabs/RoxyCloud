@@ -1,0 +1,187 @@
+mod common;
+
+use roxycloud_api::error::ApiError;
+use roxycloud_core::blob::BlobHash;
+use roxycloud_core::role::Role;
+
+fn hash_of(contents: &[u8]) -> BlobHash {
+    BlobHash::from(blake3::hash(contents))
+}
+
+database_test!(the_root_is_the_one_node_without_a_name, harness, {
+    let owner = harness.account("root@example.com", Role::Member).await;
+
+    let first = harness.root(owner.id).await;
+    let second = harness.root(owner.id).await;
+
+    assert_eq!(first.id, second.id, "ensure_root is idempotent");
+    assert_eq!(first.name, "", "the root carries no name");
+    assert!(first.parent_id.is_none());
+});
+
+database_test!(identical_bytes_are_stored_once, harness, {
+    let owner = harness.account("dedup@example.com", Role::Member).await;
+    let shared = b"the same bytes in two places";
+
+    harness.write(owner.id, "one.txt", shared).await;
+    harness.write(owner.id, "nested/two.txt", shared).await;
+
+    assert_eq!(
+        harness.blob(hash_of(shared)).await,
+        Some((2, false)),
+        "one blob, referenced twice"
+    );
+});
+
+database_test!(
+    a_blob_becomes_collectable_only_when_nothing_points_at_it,
+    harness,
+    {
+        let owner = harness.account("refcount@example.com", Role::Member).await;
+        let shared = b"referenced twice, then not at all";
+
+        let first = harness.write(owner.id, "one.txt", shared).await;
+        let second = harness.write(owner.id, "two.txt", shared).await;
+
+        harness.trash(&first).await;
+        assert_eq!(
+            harness.blob(hash_of(shared)).await,
+            Some((1, false)),
+            "the surviving file still holds the bytes"
+        );
+
+        harness.trash(&second).await;
+        assert_eq!(
+            harness.blob(hash_of(shared)).await,
+            Some((0, true)),
+            "the last reference marks the blob for the sweeper"
+        );
+    }
+);
+
+database_test!(an_overwrite_credits_the_size_it_replaces, harness, {
+    let owner = harness.account("overwrite@example.com", Role::Member).await;
+
+    harness.write(owner.id, "a.txt", &[b'x'; 400]).await;
+    assert_eq!(harness.used_bytes(owner.id).await, 400);
+
+    harness.write(owner.id, "a.txt", &[b'y'; 10]).await;
+    assert_eq!(
+        harness.used_bytes(owner.id).await,
+        10,
+        "the quota holds what the file weighs now, not the sum of what it ever weighed"
+    );
+});
+
+database_test!(an_overwrite_releases_the_bytes_it_replaces, harness, {
+    let owner = harness.account("release@example.com", Role::Member).await;
+    let before = b"the first contents";
+    let after = b"the second contents";
+
+    harness.write(owner.id, "a.txt", before).await;
+    harness.write(owner.id, "a.txt", after).await;
+
+    assert_eq!(
+        harness.blob(hash_of(before)).await,
+        Some((0, true)),
+        "the replaced bytes are no longer referenced"
+    );
+    assert_eq!(harness.blob(hash_of(after)).await, Some((1, false)));
+});
+
+database_test!(rewriting_the_same_bytes_keeps_one_reference, harness, {
+    let owner = harness.account("rewrite@example.com", Role::Member).await;
+    let same = b"unchanged between two uploads";
+
+    harness.write(owner.id, "a.txt", same).await;
+    harness.write(owner.id, "a.txt", same).await;
+
+    assert_eq!(
+        harness.blob(hash_of(same)).await,
+        Some((1, false)),
+        "acquiring then releasing the same blob nets out"
+    );
+    assert_eq!(
+        harness.used_bytes(owner.id).await,
+        i64::try_from(same.len()).expect("small test payload")
+    );
+});
+
+database_test!(a_write_past_the_quota_changes_nothing, harness, {
+    let owner = harness.account("quota@example.com", Role::Member).await;
+    harness.root(owner.id).await;
+    harness.set_quota(owner.id, 100).await;
+
+    harness.write(owner.id, "small.txt", &[b'x'; 60]).await;
+    let refused = harness.try_write(owner.id, "big.txt", &[b'y'; 60]).await;
+
+    assert!(
+        matches!(refused, Err(ApiError::QuotaExceeded)),
+        "the second write does not fit"
+    );
+    assert_eq!(
+        harness.used_bytes(owner.id).await,
+        60,
+        "the refused write left the quota alone"
+    );
+    let root = harness.root(owner.id).await;
+    assert_eq!(harness.children(&root).await, ["small.txt"]);
+});
+
+database_test!(a_file_cannot_take_the_name_of_a_directory, harness, {
+    let owner = harness.account("kind@example.com", Role::Member).await;
+    harness.write(owner.id, "photos/x.txt", b"inside").await;
+
+    let clash = harness
+        .try_write(owner.id, "photos", b"on top of the folder")
+        .await;
+
+    assert!(matches!(clash, Err(ApiError::Conflict(_))), "got {clash:?}");
+});
+
+database_test!(a_name_belongs_to_one_node_per_directory, harness, {
+    let owner = harness.account("unique@example.com", Role::Member).await;
+
+    let first = harness.write(owner.id, "a.txt", b"first").await;
+    let second = harness.write(owner.id, "a.txt", b"second").await;
+
+    assert_eq!(
+        first.id, second.id,
+        "the second write updates the first node"
+    );
+    let root = harness.root(owner.id).await;
+    assert_eq!(harness.children(&root).await, ["a.txt"]);
+});
+
+database_test!(a_trashed_node_leaves_the_listing, harness, {
+    let owner = harness.account("listing@example.com", Role::Member).await;
+    harness.write(owner.id, "kept.txt", b"kept").await;
+    let doomed = harness.write(owner.id, "gone.txt", b"gone").await;
+
+    harness.trash(&doomed).await;
+
+    let root = harness.root(owner.id).await;
+    assert_eq!(harness.children(&root).await, ["kept.txt"]);
+});
+
+database_test!(
+    trashing_the_same_node_twice_leaves_the_quota_honest,
+    harness,
+    {
+        let owner = harness.account("double@example.com", Role::Member).await;
+        let node = harness.write(owner.id, "a.txt", b"written once").await;
+
+        harness.trash(&node).await;
+        harness.trash(&node).await;
+
+        assert_eq!(
+            harness.used_bytes(owner.id).await,
+            0,
+            "a second trash is a no-op, not a second refund"
+        );
+        assert_eq!(
+            harness.blob(hash_of(b"written once")).await,
+            Some((0, true))
+        );
+    }
+);

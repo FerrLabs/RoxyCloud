@@ -27,6 +27,20 @@ jobs:
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: roxy
+          POSTGRES_PASSWORD: roxy
+          POSTGRES_DB: roxycloud
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U roxy"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -37,6 +51,8 @@ jobs:
       # roxycloud-app is excluded: it has no tests, and building it would need
       # both the webview toolchain and a built web/dist for generate_context!.
       - run: cargo tarpaulin --workspace --exclude roxycloud-app --out xml --skip-clean
+        env:
+          DATABASE_URL: postgres://roxy:roxy@localhost:5432/roxycloud
       - uses: actions/upload-artifact@v7
         with:
           name: coverage-cobertura
