@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.14.1] - 2026-09-04
+
+### Bug Fixes
+
+- fix(api): user bytes never render on the app's origin (#75)
+
 ## [0.14.0] - 2026-09-04
 
 ### Features
