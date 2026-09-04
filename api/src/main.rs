@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
         );
     }
 
-    let app = build_router(state, &cfg.cors_allowed_origins);
+    let app = build_router(state, &cfg.cors_allowed_origins, cfg.web_root.as_deref());
     let bind = format!("0.0.0.0:{}", cfg.port);
     info!(%bind, "starting RoxyCloud API");
 

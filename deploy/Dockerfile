@@ -1,3 +1,14 @@
+FROM node:24-slim AS web
+WORKDIR /build
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY web/package.json web/
+COPY site/package.json site/
+RUN pnpm install --frozen-lockfile --filter @roxycloud/web...
+COPY web web
+# Same origin as the API that serves it, so the image carries no deployment's URL.
+RUN pnpm --filter @roxycloud/web build --define ROXYCLOUD_API_URL="''"
+
 FROM rust:1.98-slim-bookworm AS builder
 WORKDIR /build
 RUN apt-get update \
@@ -29,8 +40,9 @@ RUN apt-get update \
  && mkdir -p /var/lib/roxycloud \
  && chown roxy:roxy /var/lib/roxycloud
 COPY --from=builder /build/target/release/roxycloud-api /usr/local/bin/roxycloud-api
+COPY --from=web /build/web/dist /srv/roxycloud-web
 USER roxy
-ENV PORT=3001 BLOB_ROOT=/var/lib/roxycloud
+ENV PORT=3001 BLOB_ROOT=/var/lib/roxycloud WEB_ROOT=/srv/roxycloud-web
 VOLUME /var/lib/roxycloud
 EXPOSE 3001
 ENTRYPOINT ["/usr/local/bin/roxycloud-api"]

@@ -10,7 +10,7 @@ use tower::ServiceExt;
 use common::Harness;
 
 async fn send(harness: &Harness, request: Request<Body>) -> axum::response::Response {
-    build_router(harness.state.clone(), &[])
+    build_router(harness.state.clone(), &[], None)
         .oneshot(request)
         .await
         .expect("the router answers")
@@ -385,3 +385,81 @@ database_test!(
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
 );
+
+fn web_root(harness: &Harness) -> std::path::PathBuf {
+    let root = harness.blob_root.join("web");
+    std::fs::create_dir_all(&root).expect("a web root");
+    std::fs::write(root.join("index.html"), "<title>RoxyCloud</title>").expect("an entry point");
+    std::fs::write(root.join("main.js"), "console.log('bundle')").expect("a bundle");
+    root
+}
+
+async fn from_the_web_root(harness: &Harness, path: &str) -> (StatusCode, String) {
+    let response = build_router(harness.state.clone(), &[], Some(&web_root(harness)))
+        .oneshot(
+            Request::builder()
+                .uri(path)
+                .body(Body::empty())
+                .expect("a well formed request"),
+        )
+        .await
+        .expect("the router answers");
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("reading the body")
+        .to_bytes();
+    (status, String::from_utf8_lossy(&body).into_owned())
+}
+
+database_test!(the_web_app_is_served_when_a_root_is_configured, harness, {
+    let (status, body) = from_the_web_root(&harness, "/").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains("RoxyCloud"), "{body}");
+
+    let (status, body) = from_the_web_root(&harness, "/main.js").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains("bundle"), "{body}");
+});
+
+database_test!(an_unknown_api_path_is_still_not_found, harness, {
+    let (status, body) = from_the_web_root(&harness, "/v1/nonsense").await;
+
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "the app must not answer for the API, or a typo in a client reads as a page: {body}"
+    );
+    assert!(!body.contains("RoxyCloud"), "{body}");
+});
+
+database_test!(the_api_still_answers_with_the_app_alongside_it, harness, {
+    let (status, body) = from_the_web_root(&harness, "/health").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains("ok"), "{body}");
+
+    let (status, _) = from_the_web_root(&harness, "/v1/folders").await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "a route that exists still enforces its own rules"
+    );
+});
+
+database_test!(a_path_outside_the_web_root_is_refused, harness, {
+    for climb in ["/../Cargo.toml", "/%2e%2e/Cargo.toml", "/..%2fCargo.toml"] {
+        let (status, body) = from_the_web_root(&harness, climb).await;
+        assert!(
+            !body.contains("[package]"),
+            "{climb} escaped the web root: {body}"
+        );
+        assert!(
+            status == StatusCode::NOT_FOUND || status == StatusCode::OK,
+            "{climb} answered {status}"
+        );
+    }
+});

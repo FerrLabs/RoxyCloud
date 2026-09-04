@@ -6,6 +6,7 @@ pub struct Config {
     pub port: u16,
     pub database_url: String,
     pub blob_root: PathBuf,
+    pub web_root: Option<PathBuf>,
     pub jwt_secret: String,
     pub cors_allowed_origins: Vec<String>,
     pub default_quota_bytes: i64,
@@ -43,6 +44,7 @@ impl Config {
             port: parse_or("PORT", 3001)?,
             database_url: required("DATABASE_URL")?,
             blob_root: PathBuf::from(optional("BLOB_ROOT").unwrap_or_else(|| "./data".to_owned())),
+            web_root: optional("WEB_ROOT").map(PathBuf::from),
             jwt_secret: required("JWT_SECRET")?,
             cors_allowed_origins: optional("CORS_ALLOWED_ORIGINS")
                 .unwrap_or_default()
