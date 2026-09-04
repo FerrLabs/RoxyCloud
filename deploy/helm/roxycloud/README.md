@@ -17,8 +17,8 @@ web server or object store can host, with the API URL compiled in.
 push your own until it does:
 
 ```bash
-docker build -f deploy/Dockerfile -t your.registry/roxycloud-api:0.12.0 .
-docker push your.registry/roxycloud-api:0.12.0
+docker build -f deploy/Dockerfile -t your.registry/roxycloud-api:0.13.0 .
+docker push your.registry/roxycloud-api:0.13.0
 ```
 
 ## Installing
