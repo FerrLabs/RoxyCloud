@@ -498,3 +498,46 @@ database_test!(a_path_outside_the_web_root_is_refused, harness, {
         );
     }
 });
+
+database_test!(an_uploaded_page_never_comes_back_as_one, harness, {
+    let member = harness.account("stored@example.com", Role::Member).await;
+    let token = harness.state.sessions.issue(member.id).expect("a token");
+    let page = "<script>fetch('/v1/auth/me').then(console.log)</script>";
+
+    let (created, _) = call(
+        &harness,
+        authorised("PUT", "/v1/files/evil.html", &token, Body::from(page)),
+    )
+    .await;
+    assert_eq!(created, StatusCode::CREATED);
+
+    let response = send(
+        &harness,
+        authorised("GET", "/v1/files/evil.html", &token, Body::empty()),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let headers = response.headers();
+    assert_eq!(
+        headers
+            .get(header::CONTENT_TYPE)
+            .map(|v| v.to_str().unwrap()),
+        Some("application/octet-stream"),
+        "the app and these bytes share an origin, so the type is never taken from the name"
+    );
+    assert_eq!(
+        headers
+            .get(header::CONTENT_DISPOSITION)
+            .map(|v| v.to_str().unwrap()),
+        Some("attachment"),
+        "a browser that reaches this must save it, not render it"
+    );
+    assert_eq!(
+        headers
+            .get(header::X_CONTENT_TYPE_OPTIONS)
+            .map(|v| v.to_str().unwrap()),
+        Some("nosniff"),
+        "and must not talk itself into rendering it either"
+    );
+});

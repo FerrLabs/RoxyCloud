@@ -1,7 +1,7 @@
 use axum::Json;
 use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::{HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
@@ -60,9 +60,30 @@ pub async fn get(
                 HeaderValue::from(u64::try_from(node.size).unwrap_or(0)),
             ),
         ],
+        never_rendered(),
         Body::from_stream(ReaderStream::new(file)),
     )
         .into_response())
+}
+
+/// Every route that answers with bytes a user uploaded carries these, because the API serves the
+/// web app and a page rendered here would run with its session in reach. See `ARCHITECTURE.md`.
+#[must_use]
+pub fn never_rendered() -> [(HeaderName, HeaderValue); 3] {
+    [
+        (
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/octet-stream"),
+        ),
+        (
+            header::CONTENT_DISPOSITION,
+            HeaderValue::from_static("attachment"),
+        ),
+        (
+            header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ),
+    ]
 }
 
 fn etag_header(node: &Node) -> Result<HeaderValue, ApiError> {
