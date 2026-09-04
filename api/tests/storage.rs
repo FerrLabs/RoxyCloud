@@ -48,13 +48,21 @@ database_test!(
         let second = harness.write(owner.id, "two.txt", shared).await;
 
         harness.trash(&first).await;
+        harness.trash(&second).await;
+        assert_eq!(
+            harness.blob(hash_of(shared)).await,
+            Some((2, false)),
+            "the trash still points at the bytes, which is what makes a restore possible"
+        );
+
+        harness.purge(owner.id, first.id).await;
         assert_eq!(
             harness.blob(hash_of(shared)).await,
             Some((1, false)),
-            "the surviving file still holds the bytes"
+            "the other trashed file still holds them"
         );
 
-        harness.trash(&second).await;
+        harness.purge(owner.id, second.id).await;
         assert_eq!(
             harness.blob(hash_of(shared)).await,
             Some((0, true)),
@@ -182,10 +190,6 @@ database_test!(
             harness.used_bytes(owner.id).await,
             0,
             "a second trash is a no-op, not a second refund"
-        );
-        assert_eq!(
-            harness.blob(hash_of(b"written once")).await,
-            Some((0, true))
         );
     }
 );
@@ -464,7 +468,7 @@ database_test!(
 );
 
 database_test!(
-    trashing_a_directory_releases_the_blobs_underneath_it,
+    purging_a_directory_releases_the_blobs_underneath_it,
     harness,
     {
         let owner = harness
@@ -478,6 +482,13 @@ database_test!(
         let photos = harness.resolve(owner.id, "photos").await;
 
         harness.trash(&photos).await;
+        assert_eq!(
+            harness.blob(hash_of(buried)).await,
+            Some((1, false)),
+            "a trashed file keeps its bytes, or a restore would find nothing to restore"
+        );
+
+        harness.purge(owner.id, photos.id).await;
 
         assert_eq!(
             harness.blob(hash_of(buried)).await,
@@ -507,11 +518,171 @@ database_test!(
         harness.trash(&photos).await;
         harness.trash(&photos).await;
 
-        assert_eq!(harness.used_bytes(owner.id).await, 0);
         assert_eq!(
-            harness.blob(hash_of(b"written once")).await,
-            Some((0, true)),
-            "a second cascade is a no-op, not a second release"
+            harness.used_bytes(owner.id).await,
+            0,
+            "a second cascade is a no-op, not a second refund"
         );
     }
 );
+
+database_test!(a_deleted_file_comes_back_with_its_bytes, harness, {
+    let owner = harness.account("restore@example.com", Role::Member).await;
+    let contents = b"deleted by accident";
+    let node = harness.write(owner.id, "notes.txt", contents).await;
+    let used = harness.used_bytes(owner.id).await;
+
+    harness.trash(&node).await;
+    let restored = harness.restore(owner.id, node.id).await;
+
+    assert_eq!(restored.id, node.id, "the same node, not a copy of it");
+    assert!(restored.deleted_at.is_none());
+    assert_eq!(
+        harness.used_bytes(owner.id).await,
+        used,
+        "the quota is back where it started"
+    );
+    assert_eq!(harness.blob(hash_of(contents)).await, Some((1, false)));
+    let root = harness.root(owner.id).await;
+    assert_eq!(harness.children(&root).await, ["notes.txt"]);
+});
+
+database_test!(
+    the_trash_lists_what_was_deleted_not_what_came_with_it,
+    harness,
+    {
+        let owner = harness.account("trashlist@example.com", Role::Member).await;
+        harness
+            .write(owner.id, "photos/summer/x.txt", b"deep")
+            .await;
+        harness.write(owner.id, "loose.txt", b"on its own").await;
+        let photos = harness.resolve(owner.id, "photos").await;
+        let loose = harness.resolve(owner.id, "loose.txt").await;
+
+        harness.trash(&photos).await;
+        harness.trash(&loose).await;
+
+        assert_eq!(
+            harness.trashed(owner.id).await,
+            ["loose.txt", "photos"],
+            "the subtree that came along is not something the user chose to delete"
+        );
+    }
+);
+
+database_test!(restoring_a_directory_brings_its_contents_back, harness, {
+    let owner = harness
+        .account("restoredir@example.com", Role::Member)
+        .await;
+    harness
+        .write(owner.id, "photos/summer/x.txt", &[b'x'; 90])
+        .await;
+    harness.write(owner.id, "photos/y.txt", &[b'y'; 10]).await;
+    let photos = harness.resolve(owner.id, "photos").await;
+
+    harness.trash(&photos).await;
+    harness.restore(owner.id, photos.id).await;
+
+    assert_eq!(harness.live_nodes(owner.id).await, 4);
+    assert_eq!(harness.used_bytes(owner.id).await, 100);
+    let summer = harness.resolve(owner.id, "photos/summer").await;
+    assert_eq!(harness.children(&summer).await, ["x.txt"]);
+});
+
+database_test!(
+    restoring_a_node_whose_parent_was_trashed_puts_the_parent_back,
+    harness,
+    {
+        let owner = harness
+            .account("restorechain@example.com", Role::Member)
+            .await;
+        harness
+            .write(owner.id, "photos/summer/x.txt", b"deep")
+            .await;
+        let buried = harness.resolve(owner.id, "photos/summer/x.txt").await;
+        let photos = harness.resolve(owner.id, "photos").await;
+
+        harness.trash(&buried).await;
+        harness.trash(&photos).await;
+        harness.restore(owner.id, buried.id).await;
+
+        assert_eq!(
+            harness.resolve(owner.id, "photos/summer/x.txt").await.id,
+            buried.id,
+            "a file restores where it was, so the directories above it come back with it"
+        );
+        let root = harness.root(owner.id).await;
+        assert_eq!(harness.children(&root).await, ["photos"]);
+    }
+);
+
+database_test!(restoring_into_a_name_taken_since_conflicts, harness, {
+    let owner = harness
+        .account("restoreclash@example.com", Role::Member)
+        .await;
+    let first = harness.write(owner.id, "a.txt", b"the original").await;
+    harness.trash(&first).await;
+    let second = harness
+        .write(owner.id, "a.txt", b"written after the delete")
+        .await;
+
+    let refused = harness.try_restore(owner.id, first.id).await;
+
+    assert!(
+        matches!(refused, Err(ApiError::Conflict(_))),
+        "the name is taken, and picking a new one is the caller's call: {refused:?}"
+    );
+    let root = harness.root(owner.id).await;
+    assert_eq!(harness.children(&root).await, ["a.txt"]);
+    assert_eq!(harness.resolve(owner.id, "a.txt").await.id, second.id);
+});
+
+database_test!(restoring_past_the_quota_is_refused, harness, {
+    let owner = harness
+        .account("restorefull@example.com", Role::Member)
+        .await;
+    harness.root(owner.id).await;
+    harness.set_quota(owner.id, 100).await;
+    let deleted = harness.write(owner.id, "old.txt", &[b'o'; 60]).await;
+    harness.trash(&deleted).await;
+    harness.write(owner.id, "new.txt", &[b'n'; 60]).await;
+
+    let refused = harness.try_restore(owner.id, deleted.id).await;
+
+    assert!(
+        matches!(refused, Err(ApiError::QuotaExceeded)),
+        "the space was taken while it sat in the trash: {refused:?}"
+    );
+    assert_eq!(harness.used_bytes(owner.id).await, 60);
+    assert_eq!(harness.trashed(owner.id).await, ["old.txt"]);
+});
+
+database_test!(purging_leaves_nothing_to_restore, harness, {
+    let owner = harness.account("purge@example.com", Role::Member).await;
+    let node = harness.write(owner.id, "gone.txt", b"gone for good").await;
+    harness.trash(&node).await;
+
+    harness.purge(owner.id, node.id).await;
+
+    assert!(harness.trashed(owner.id).await.is_empty());
+    assert!(
+        matches!(
+            harness.try_restore(owner.id, node.id).await,
+            Err(ApiError::NotFound)
+        ),
+        "the row is gone, not merely marked"
+    );
+    assert_eq!(harness.used_bytes(owner.id).await, 0);
+});
+
+database_test!(one_account_cannot_reach_another_account_s_trash, harness, {
+    let owner = harness.account("mine@example.com", Role::Member).await;
+    let stranger = harness.account("theirs@example.com", Role::Member).await;
+    let node = harness.write(owner.id, "private.txt", b"not yours").await;
+    harness.trash(&node).await;
+
+    let restored = harness.try_restore(stranger.id, node.id).await;
+
+    assert!(matches!(restored, Err(ApiError::NotFound)), "{restored:?}");
+    assert_eq!(harness.trashed(owner.id).await, ["private.txt"]);
+});

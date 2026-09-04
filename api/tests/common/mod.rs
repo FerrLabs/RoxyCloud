@@ -8,7 +8,7 @@ use std::sync::Arc;
 use roxycloud_api::auth::Sessions;
 use roxycloud_api::state::AppState;
 use roxycloud_api::storage::LocalBlobStore;
-use roxycloud_api::{db, users};
+use roxycloud_api::{db, trash, users};
 use roxycloud_core::blob::BlobHash;
 use roxycloud_core::node::Node;
 use roxycloud_core::role::Role;
@@ -220,7 +220,7 @@ impl Harness {
 
     pub async fn trash(&self, node: &Node) {
         let mut tx = self.state.db.begin().await.expect("begin");
-        db::trash(&mut tx, node).await.expect("trashing");
+        trash::send(&mut tx, node).await.expect("trashing");
         tx.commit().await.expect("commit");
     }
 
@@ -228,6 +228,36 @@ impl Harness {
         db::list_children(&self.state.db, parent.id)
             .await
             .expect("listing")
+            .into_iter()
+            .map(|node| node.name)
+            .collect()
+    }
+
+    pub async fn restore(&self, owner: Uuid, id: Uuid) -> Node {
+        self.try_restore(owner, id).await.expect("restoring")
+    }
+
+    pub async fn try_restore(
+        &self,
+        owner: Uuid,
+        id: Uuid,
+    ) -> Result<Node, roxycloud_api::error::ApiError> {
+        let mut tx = self.state.db.begin().await.expect("begin");
+        let restored = trash::restore(&mut tx, owner, id).await?;
+        tx.commit().await.expect("commit");
+        Ok(restored)
+    }
+
+    pub async fn purge(&self, owner: Uuid, id: Uuid) {
+        let mut tx = self.state.db.begin().await.expect("begin");
+        trash::purge(&mut tx, owner, id).await.expect("purging");
+        tx.commit().await.expect("commit");
+    }
+
+    pub async fn trashed(&self, owner: Uuid) -> Vec<String> {
+        trash::list(&self.state.db, owner)
+            .await
+            .expect("listing the trash")
             .into_iter()
             .map(|node| node.name)
             .collect()

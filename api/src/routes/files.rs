@@ -10,6 +10,7 @@ use crate::auth::{Caller, Writer};
 use crate::db;
 use crate::error::ApiError;
 use crate::state::AppState;
+use crate::trash;
 use roxycloud_core::name::parse_path;
 use roxycloud_core::node::{Node, NodeKind};
 
@@ -117,7 +118,7 @@ pub async fn delete(
     let mut tx = state.db.begin().await?;
     let root = db::ensure_root(&mut tx, caller.user_id, state.default_quota_bytes).await?;
     let node = db::resolve(&mut tx, &root, &segments).await?;
-    db::trash(&mut tx, &node).await?;
+    trash::send(&mut tx, &node).await?;
     tx.commit().await?;
 
     Ok(StatusCode::NO_CONTENT)

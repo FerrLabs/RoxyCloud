@@ -9,7 +9,10 @@ use roxycloud_core::node::{Node, NodeKind, etag_for_directory, etag_for_file};
 
 const NAME_PER_PARENT: &str = "nodes_unique_name_per_parent";
 
-async fn lock_owner(tx: &mut Transaction<'_, Postgres>, owner_id: Uuid) -> Result<(), ApiError> {
+pub(crate) async fn lock_owner(
+    tx: &mut Transaction<'_, Postgres>,
+    owner_id: Uuid,
+) -> Result<(), ApiError> {
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))")
         .bind(owner_id)
         .execute(&mut **tx)
@@ -17,12 +20,12 @@ async fn lock_owner(tx: &mut Transaction<'_, Postgres>, owner_id: Uuid) -> Resul
     Ok(())
 }
 
-fn name_taken(error: sqlx::Error, name: &NodeName) -> ApiError {
+pub(crate) fn name_taken(error: sqlx::Error, name: &str) -> ApiError {
     match error
         .as_database_error()
         .and_then(DatabaseError::constraint)
     {
-        Some(NAME_PER_PARENT) => ApiError::Conflict(name.to_string()),
+        Some(NAME_PER_PARENT) => ApiError::Conflict(name.to_owned()),
         _ => ApiError::Database(error),
     }
 }
@@ -32,6 +35,8 @@ macro_rules! node_columns {
         "id, owner_id, parent_id, name, kind, blob_hash, size, etag, created_at, updated_at, deleted_at"
     };
 }
+
+pub(crate) use node_columns;
 
 pub async fn ensure_root(
     tx: &mut Transaction<'_, Postgres>,
@@ -268,7 +273,7 @@ pub async fn rename(
     .bind(etag)
     .fetch_one(&mut **tx)
     .await
-    .map_err(|error| name_taken(error, name))
+    .map_err(|error| name_taken(error, name.as_str()))
 }
 
 async fn would_nest_inside_itself(
@@ -293,37 +298,6 @@ async fn would_nest_inside_itself(
     .map_err(Into::into)
 }
 
-pub async fn trash(tx: &mut Transaction<'_, Postgres>, node: &Node) -> Result<(), ApiError> {
-    lock_owner(tx, node.owner_id).await?;
-
-    let trashed = sqlx::query_as::<_, (Option<BlobHash>, i64)>(
-        "WITH RECURSIVE subtree AS (
-             SELECT id, blob_hash, size FROM nodes WHERE id = $1 AND deleted_at IS NULL
-             UNION ALL
-             SELECT descendant.id, descendant.blob_hash, descendant.size
-             FROM nodes descendant
-             JOIN subtree ON descendant.parent_id = subtree.id
-             WHERE descendant.deleted_at IS NULL
-         ) CYCLE id SET looped USING trail
-         UPDATE nodes SET deleted_at = now()
-         WHERE id IN (SELECT id FROM subtree)
-         RETURNING blob_hash, size",
-    )
-    .bind(node.id)
-    .fetch_all(&mut **tx)
-    .await?;
-
-    let mut freed = 0;
-    for (blob_hash, size) in trashed {
-        if let Some(hash) = blob_hash {
-            release_blob(tx, hash).await?;
-        }
-        freed += size;
-    }
-    charge_quota(tx, node.owner_id, -freed).await?;
-    Ok(())
-}
-
 async fn acquire_blob(tx: &mut Transaction<'_, Postgres>, hash: BlobHash) -> Result<(), ApiError> {
     sqlx::query(
         "UPDATE blobs SET ref_count = ref_count + 1, unreferenced_since = NULL WHERE hash = $1",
@@ -334,7 +308,10 @@ async fn acquire_blob(tx: &mut Transaction<'_, Postgres>, hash: BlobHash) -> Res
     Ok(())
 }
 
-async fn release_blob(tx: &mut Transaction<'_, Postgres>, hash: BlobHash) -> Result<(), ApiError> {
+pub(crate) async fn release_blob(
+    tx: &mut Transaction<'_, Postgres>,
+    hash: BlobHash,
+) -> Result<(), ApiError> {
     sqlx::query(
         "UPDATE blobs
          SET ref_count = ref_count - 1,
@@ -347,7 +324,7 @@ async fn release_blob(tx: &mut Transaction<'_, Postgres>, hash: BlobHash) -> Res
     Ok(())
 }
 
-async fn charge_quota(
+pub(crate) async fn charge_quota(
     tx: &mut Transaction<'_, Postgres>,
     owner_id: Uuid,
     delta: i64,

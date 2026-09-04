@@ -15,6 +15,7 @@ path = "src/main.rs"
 [dependencies]
 roxycloud-client = { workspace = true }
 roxycloud-core = { workspace = true }
+uuid = { workspace = true }
 
 clap = { workspace = true }
 tokio = { workspace = true }
