@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.4] - 2026-09-04
+
+### Bug Fixes
+
+- fix(deps): update rust crate sqlx to 0.9 (#50)
+
 ## [0.9.3] - 2026-09-04
 
 ### Bug Fixes
