@@ -3727,7 +3727,7 @@ dependencies = [
 
 [[package]]
 name = "roxycloud-api"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "anyhow",
  "argon2",
@@ -3755,7 +3755,7 @@ dependencies = [
 
 [[package]]
 name = "roxycloud-app"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "roxycloud-client",
  "roxycloud-core",
@@ -3767,7 +3767,7 @@ dependencies = [
 
 [[package]]
 name = "roxycloud-cli"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -3779,7 +3779,7 @@ dependencies = [
 
 [[package]]
 name = "roxycloud-client"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "blake3",
  "bytes",
@@ -3800,7 +3800,7 @@ dependencies = [
 
 [[package]]
 name = "roxycloud-core"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "blake3",
  "chrono",

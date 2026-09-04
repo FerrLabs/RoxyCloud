@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.13.1] - 2026-09-04
+
+### Bug Fixes
+
+- fix(deploy): put the chart version in step with the release (#69)
+
 ## [0.13.0] - 2026-09-04
 
 ### Features
