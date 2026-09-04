@@ -6,6 +6,7 @@ pub mod password;
 pub mod routes;
 pub mod state;
 pub mod storage;
+pub mod sweeper;
 pub mod trash;
 pub mod users;
 

@@ -33,6 +33,7 @@ pub async fn put(
     let parent = db::create_directories(&mut tx, caller.user_id, &root, &segments).await?;
     let node = db::put_file(&mut tx, caller.user_id, &parent, &name, written.hash, size).await?;
     tx.commit().await?;
+    state.blobs.settle(&written).await?;
 
     let etag = etag_header(&node)?;
     Ok((StatusCode::CREATED, [(header::ETAG, etag)], Json(node)).into_response())

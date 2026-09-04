@@ -17,11 +17,12 @@ pub enum StorageError {
     Io(#[from] std::io::Error),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Written {
     pub hash: BlobHash,
     pub size: u64,
     pub deduplicated: bool,
+    staged: Option<PathBuf>,
 }
 
 pub struct LocalBlobStore {
@@ -72,11 +73,11 @@ impl LocalBlobStore {
         let destination = self.path_for(hash);
 
         if fs::try_exists(&destination).await? {
-            fs::remove_file(&staged).await?;
             return Ok(Written {
                 hash,
                 size,
                 deduplicated: true,
+                staged: Some(staged),
             });
         }
 
@@ -89,7 +90,25 @@ impl LocalBlobStore {
             hash,
             size,
             deduplicated: false,
+            staged: None,
         })
+    }
+
+    pub async fn settle(&self, written: &Written) -> Result<(), StorageError> {
+        let Some(staged) = &written.staged else {
+            return Ok(());
+        };
+
+        let destination = self.path_for(written.hash);
+        if fs::try_exists(&destination).await? {
+            let _ = fs::remove_file(staged).await;
+            return Ok(());
+        }
+
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        rename_or_discard(staged, &destination).await
     }
 
     pub async fn read(&self, hash: BlobHash) -> Result<fs::File, StorageError> {
