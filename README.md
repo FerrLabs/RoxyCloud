@@ -132,8 +132,9 @@ write a temp file, rename it, and touch the directory therefore produce one sync
 stops it.
 
 Two things it deliberately does not do. An empty local directory is not created on the server, since
-there is no endpoint for that yet, and a directory removed locally is not removed on the server,
-because the API trashes a directory node without cascading to its children.
+there is no endpoint for that yet, and a directory removed locally is not removed on the server. The
+API cascades that delete over the whole subtree now, so what is left is teaching the reconciler to
+plan one.
 
 ## Development
 

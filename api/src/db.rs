@@ -9,6 +9,14 @@ use roxycloud_core::node::{Node, NodeKind, etag_for_directory, etag_for_file};
 
 const NAME_PER_PARENT: &str = "nodes_unique_name_per_parent";
 
+async fn lock_owner(tx: &mut Transaction<'_, Postgres>, owner_id: Uuid) -> Result<(), ApiError> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))")
+        .bind(owner_id)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
 fn name_taken(error: sqlx::Error, name: &NodeName) -> ApiError {
     match error
         .as_database_error()
@@ -228,10 +236,7 @@ pub async fn rename(
     parent: &Node,
     name: &NodeName,
 ) -> Result<Node, ApiError> {
-    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))")
-        .bind(node.owner_id)
-        .execute(&mut **tx)
-        .await?;
+    lock_owner(tx, node.owner_id).await?;
 
     if parent.kind != NodeKind::Directory {
         return Err(ApiError::WrongKind {
@@ -289,20 +294,33 @@ async fn would_nest_inside_itself(
 }
 
 pub async fn trash(tx: &mut Transaction<'_, Postgres>, node: &Node) -> Result<(), ApiError> {
-    let trashed =
-        sqlx::query("UPDATE nodes SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL")
-            .bind(node.id)
-            .execute(&mut **tx)
-            .await?;
+    lock_owner(tx, node.owner_id).await?;
 
-    if trashed.rows_affected() == 0 {
-        return Ok(());
-    }
+    let trashed = sqlx::query_as::<_, (Option<BlobHash>, i64)>(
+        "WITH RECURSIVE subtree AS (
+             SELECT id, blob_hash, size FROM nodes WHERE id = $1 AND deleted_at IS NULL
+             UNION ALL
+             SELECT descendant.id, descendant.blob_hash, descendant.size
+             FROM nodes descendant
+             JOIN subtree ON descendant.parent_id = subtree.id
+             WHERE descendant.deleted_at IS NULL
+         ) CYCLE id SET looped USING trail
+         UPDATE nodes SET deleted_at = now()
+         WHERE id IN (SELECT id FROM subtree)
+         RETURNING blob_hash, size",
+    )
+    .bind(node.id)
+    .fetch_all(&mut **tx)
+    .await?;
 
-    if let Some(hash) = node.blob_hash {
-        release_blob(tx, hash).await?;
+    let mut freed = 0;
+    for (blob_hash, size) in trashed {
+        if let Some(hash) = blob_hash {
+            release_blob(tx, hash).await?;
+        }
+        freed += size;
     }
-    charge_quota(tx, node.owner_id, -node.size).await?;
+    charge_quota(tx, node.owner_id, -freed).await?;
     Ok(())
 }
 

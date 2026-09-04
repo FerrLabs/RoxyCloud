@@ -233,6 +233,17 @@ impl Harness {
             .collect()
     }
 
+    pub async fn live_nodes(&self, owner: Uuid) -> i64 {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM nodes
+             WHERE owner_id = $1 AND parent_id IS NOT NULL AND deleted_at IS NULL",
+        )
+        .bind(owner)
+        .fetch_one(&self.state.db)
+        .await
+        .expect("counting the live nodes")
+    }
+
     pub async fn used_bytes(&self, owner: Uuid) -> i64 {
         sqlx::query_scalar::<_, i64>("SELECT bytes_used FROM quotas WHERE owner_id = $1")
             .bind(owner)
