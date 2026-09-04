@@ -61,7 +61,11 @@ pub async fn sweep(state: &AppState, grace: Duration) -> Result<Collected, ApiEr
             continue;
         }
 
-        state.blobs.remove(hash).await?;
+        if let Err(error) = state.blobs.remove(hash).await {
+            error!(%error, %hash, "could not remove the bytes, keeping the row");
+            tx.rollback().await?;
+            continue;
+        }
         tx.commit().await?;
 
         collected.blobs += 1;
@@ -74,7 +78,8 @@ pub async fn sweep(state: &AppState, grace: Duration) -> Result<Collected, ApiEr
 async fn orphaned(pool: &PgPool, grace: Duration) -> Result<Vec<BlobHash>, ApiError> {
     sqlx::query_scalar::<_, BlobHash>(
         "SELECT hash FROM blobs
-         WHERE ref_count = 0 AND unreferenced_since < now() - $1::INTERVAL",
+         WHERE ref_count = 0 AND unreferenced_since < now() - $1::INTERVAL
+         LIMIT 10000",
     )
     .bind(interval_of(grace))
     .fetch_all(pool)

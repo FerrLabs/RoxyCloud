@@ -219,6 +219,12 @@ older than the grace period. A crash between the two leaves a row with no file, 
 finishes. A file younger than the grace was written by something, most likely an upload that raced
 the sweep and is about to insert its own row, so the stale row goes and the bytes stay.
 
+An upload that deduplicates never touches the file it adopts, so its mtime says nothing about it. It
+keeps its staged copy instead of discarding it, and once the node is committed it renames that copy
+back into place if the destination has gone. By then the reference exists and the sweep can no longer
+match the row, so the bytes are safe from that point on. This is why a 201 always means the bytes are
+there, even when a sweep ran in the middle of the request.
+
 `etag` changes on every content or metadata write. WebDAV clients depend on it for conditional
 requests, and the SPA uses it for optimistic concurrency.
 

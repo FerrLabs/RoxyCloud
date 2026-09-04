@@ -154,3 +154,37 @@ database_test!(a_blob_referenced_again_mid_sweep_survives, harness, {
     assert_eq!(harness.blob(hash_of(contents)).await, Some((1, false)));
     assert!(harness.blob_file_exists(hash_of(contents)).await);
 });
+
+database_test!(
+    a_sweep_cannot_take_the_bytes_an_upload_is_adopting,
+    harness,
+    {
+        let owner = harness.account("adopting@example.com", Role::Member).await;
+        let contents = b"uploaded twice, collected in between";
+        let first = harness.write(owner.id, "first.txt", contents).await;
+        harness.trash(&first).await;
+        harness.purge(owner.id, first.id).await;
+        assert!(harness.blob_file_exists(hash_of(contents)).await);
+
+        let written = harness.stage_kept(contents).await;
+        assert!(written.deduplicated, "the bytes were already on disk");
+
+        let collected = sweep(&harness.state, Duration::ZERO)
+            .await
+            .expect("sweeping");
+        assert_eq!(collected.blobs, 1, "the upload had taken no reference yet");
+
+        let node = harness.finish_write(owner.id, "second.txt", &written).await;
+
+        assert_eq!(
+            harness.blob(hash_of(contents)).await,
+            Some((1, false)),
+            "the upload wrote its own row"
+        );
+        assert!(
+            harness.blob_file_exists(hash_of(contents)).await,
+            "an upload that answers 201 has to leave the bytes behind it"
+        );
+        assert_eq!(node.blob_hash, Some(hash_of(contents)));
+    }
+);

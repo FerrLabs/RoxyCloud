@@ -142,6 +142,7 @@ impl Harness {
         )
         .await?;
         tx.commit().await.expect("commit");
+        self.state.blobs.settle(&written).await.expect("settling");
         Ok(node)
     }
 
@@ -158,6 +159,47 @@ impl Harness {
             written.hash,
             i64::try_from(written.size).expect("small test payload"),
         )
+    }
+
+    pub async fn stage_kept(&self, contents: &[u8]) -> roxycloud_api::storage::Written {
+        self.state
+            .blobs
+            .write(futures::stream::iter([Ok::<_, std::io::Error>(
+                bytes::Bytes::copy_from_slice(contents),
+            )]))
+            .await
+            .expect("writing the blob")
+    }
+
+    pub async fn finish_write(
+        &self,
+        owner: Uuid,
+        path: &str,
+        written: &roxycloud_api::storage::Written,
+    ) -> Node {
+        let mut segments = roxycloud_core::name::parse_path(path).expect("valid path");
+        let name = segments.pop().expect("a file name");
+
+        let mut tx = self.state.db.begin().await.expect("begin");
+        let root = db::ensure_root(&mut tx, owner, self.state.default_quota_bytes)
+            .await
+            .expect("root");
+        let parent = db::create_directories(&mut tx, owner, &root, &segments)
+            .await
+            .expect("directories");
+        let node = db::put_file(
+            &mut tx,
+            owner,
+            &parent,
+            &name,
+            written.hash,
+            i64::try_from(written.size).expect("small test payload"),
+        )
+        .await
+        .expect("writing the file");
+        tx.commit().await.expect("commit");
+        self.state.blobs.settle(written).await.expect("settling");
+        node
     }
 
     pub async fn wait_until_blocked_on(&self, statement: &str) {
