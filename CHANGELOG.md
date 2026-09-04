@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.13.0] - 2026-09-04
+
+### Features
+
+- feat(client): remove a remote directory the user removed locally (#66)
+
 ## [0.12.0] - 2026-09-04
 
 ### Features
