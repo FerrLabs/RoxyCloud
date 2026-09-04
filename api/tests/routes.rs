@@ -9,11 +9,15 @@ use tower::ServiceExt;
 
 use common::Harness;
 
-async fn call(harness: &Harness, request: Request<Body>) -> (StatusCode, Vec<u8>) {
-    let response = build_router(harness.state.clone(), &[])
+async fn send(harness: &Harness, request: Request<Body>) -> axum::response::Response {
+    build_router(harness.state.clone(), &[])
         .oneshot(request)
         .await
-        .expect("the router answers");
+        .expect("the router answers")
+}
+
+async fn call(harness: &Harness, request: Request<Body>) -> (StatusCode, Vec<u8>) {
+    let response = send(harness, request).await;
     let status = response.status();
     let body = response
         .into_body()
@@ -206,9 +210,19 @@ database_test!(a_move_answers_with_the_moved_node, harness, {
     harness.write(member.id, "inbox/a.txt", b"moving out").await;
     let token = harness.state.sessions.issue(member.id).expect("a token");
 
-    let (status, body) = call(&harness, move_request(&token, "/inbox/a.txt", "/b.txt")).await;
+    let response = send(&harness, move_request(&token, "/inbox/a.txt", "/b.txt")).await;
 
-    assert_eq!(status, StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response.headers().contains_key(header::ETAG),
+        "a client that caches on the header should not have to GET the node to learn its tag"
+    );
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("reading the body")
+        .to_bytes();
     assert!(
         String::from_utf8_lossy(&body).contains(r#""name":"b.txt""#),
         "the response describes the node at its new place"

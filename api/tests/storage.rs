@@ -1,7 +1,11 @@
 mod common;
 
+use std::time::Duration;
+
+use roxycloud_api::db;
 use roxycloud_api::error::ApiError;
 use roxycloud_core::blob::BlobHash;
+use roxycloud_core::name::NodeName;
 use roxycloud_core::role::Role;
 
 fn hash_of(contents: &[u8]) -> BlobHash {
@@ -313,4 +317,30 @@ database_test!(a_renamed_directory_gets_a_fresh_etag, harness, {
         after.etag, before.etag,
         "a directory's etag is a change token, not a content hash"
     );
+});
+
+database_test!(a_second_move_waits_for_the_first_to_commit, harness, {
+    let owner = harness.account("serial@example.com", Role::Member).await;
+    harness.write(owner.id, "a.txt", b"the first mover").await;
+    harness.write(owner.id, "b.txt", b"the second mover").await;
+    let first = harness.resolve(owner.id, "a.txt").await;
+    let root = harness.root(owner.id).await;
+    let destination = "moved-a.txt".parse::<NodeName>().expect("a valid name");
+
+    let mut held = harness.state.db.begin().await.expect("begin");
+    db::rename(&mut held, &first, &root, &destination)
+        .await
+        .expect("the first move");
+
+    let second = tokio::time::timeout(
+        Duration::from_millis(500),
+        harness.try_rename(owner.id, "b.txt", "moved-b.txt"),
+    )
+    .await;
+
+    assert!(
+        second.is_err(),
+        "two moves reading the ancestry at once can each pass the cycle check and together build a loop nothing can undo"
+    );
+    held.rollback().await.expect("rollback");
 });

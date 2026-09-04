@@ -136,7 +136,10 @@ impl Remote {
             .json(&serde_json::json!({ "from": from, "to": to }))
             .send()
             .await?;
-        check(response.status(), to)?;
+        if response.status() == StatusCode::CONFLICT {
+            return Err(RemoteError::Conflict(to.to_owned()));
+        }
+        check(response.status(), &format!("{from} or {to}"))?;
         Ok(response.json().await?)
     }
 

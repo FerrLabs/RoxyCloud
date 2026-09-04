@@ -33,9 +33,7 @@ pub async fn put(
     let node = db::put_file(&mut tx, caller.user_id, &parent, &name, written.hash, size).await?;
     tx.commit().await?;
 
-    let etag = HeaderValue::from_str(&node.etag).map_err(|_| ApiError::WrongKind {
-        expected: "printable etag",
-    })?;
+    let etag = etag_header(&node)?;
     Ok((StatusCode::CREATED, [(header::ETAG, etag)], Json(node)).into_response())
 }
 
@@ -50,9 +48,7 @@ pub async fn get(
     };
 
     let file = state.blobs.read(hash).await?;
-    let etag = HeaderValue::from_str(&node.etag).map_err(|_| ApiError::WrongKind {
-        expected: "printable etag",
-    })?;
+    let etag = etag_header(&node)?;
 
     Ok((
         [
@@ -67,6 +63,12 @@ pub async fn get(
         .into_response())
 }
 
+fn etag_header(node: &Node) -> Result<HeaderValue, ApiError> {
+    HeaderValue::from_str(&node.etag).map_err(|_| ApiError::WrongKind {
+        expected: "printable etag",
+    })
+}
+
 #[derive(Deserialize)]
 pub struct Move {
     from: String,
@@ -77,7 +79,7 @@ pub async fn rename(
     State(state): State<AppState>,
     caller: Writer,
     Json(request): Json<Move>,
-) -> Result<Json<Node>, ApiError> {
+) -> Result<Response, ApiError> {
     let source = parse_path(&request.from)?;
     let mut destination = parse_path(&request.to)?;
     let name = destination.pop().ok_or(ApiError::WrongKind {
@@ -96,7 +98,8 @@ pub async fn rename(
     let moved = db::rename(&mut tx, &node, &parent, &name).await?;
     tx.commit().await?;
 
-    Ok(Json(moved))
+    let etag = etag_header(&moved)?;
+    Ok(([(header::ETAG, etag)], Json(moved)).into_response())
 }
 
 pub async fn delete(

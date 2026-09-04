@@ -187,6 +187,11 @@ pub async fn rename(
     parent: &Node,
     name: &NodeName,
 ) -> Result<Node, ApiError> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))")
+        .bind(node.owner_id)
+        .execute(&mut **tx)
+        .await?;
+
     if parent.kind != NodeKind::Directory {
         return Err(ApiError::WrongKind {
             expected: "directory",
@@ -231,7 +236,7 @@ async fn would_nest_inside_itself(
              SELECT ancestor.id, ancestor.parent_id
              FROM nodes ancestor
              JOIN ancestry ON ancestor.id = ancestry.parent_id
-         )
+         ) CYCLE id SET looped USING trail
          SELECT EXISTS (SELECT 1 FROM ancestry WHERE id = $2)",
     )
     .bind(parent.id)
