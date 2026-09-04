@@ -89,12 +89,14 @@ POSTGRES_PASSWORD=... JWT_SECRET=... docker compose -f deploy/docker-compose.yml
 
 On Kubernetes, `deploy/helm/roxycloud` deploys the API against a database you already run, with a
 volume for the blobs and an optional ingress. It does not bundle Postgres and does not serve the web
-app, and nothing publishes an image yet, so build one first. `deploy/helm/roxycloud/README.md` has
-the values and the reasoning.
+app. `deploy/helm/roxycloud/README.md` has the values and the reasoning.
 
 ```bash
-helm install roxycloud deploy/helm/roxycloud   --set image.repository=your.registry/roxycloud-api   --set database.url='postgres://roxycloud:password@postgres/roxycloud'   --set jwt.secret="$(openssl rand -hex 32)"
+helm install roxycloud deploy/helm/roxycloud   --set database.url='postgres://roxycloud:password@postgres/roxycloud'   --set jwt.secret="$(openssl rand -hex 32)"
 ```
+
+The image is `ghcr.io/ferrlabs/roxycloud-api`, published for amd64 and arm64 by the release
+workflow, so the chart's default needs no override.
 
 ## Endpoints
 

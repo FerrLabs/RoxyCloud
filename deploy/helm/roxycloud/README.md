@@ -13,8 +13,13 @@ opinion about that already.
 **It does not serve the web app.** The image carries the API. `web/` builds to static files that any
 web server or object store can host, with the API URL compiled in.
 
-**It does not publish an image.** Nothing pushes `ghcr.io/ferrlabs/roxycloud-api` yet, so build and
-push your own until it does:
+## The image
+
+`ghcr.io/ferrlabs/roxycloud-api` is published by the release workflow, for `linux/amd64` and
+`linux/arm64`, tagged with the exact version, the minor line and `latest`. The chart pins the exact
+version through `appVersion`, so an upgrade moves the image and the chart together.
+
+Building your own is still one command, which is what you want for a fork or an unreleased commit:
 
 ```bash
 docker build -f deploy/Dockerfile -t your.registry/roxycloud-api:0.13.0 .
