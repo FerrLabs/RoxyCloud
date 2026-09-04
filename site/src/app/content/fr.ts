@@ -30,7 +30,7 @@ export const fr: SiteContent = {
       shipped: [
         "Un stockage local adressé par contenu, qui déduplique les envois identiques",
         "L'arbre des nœuds, avec les quotas par utilisateur et le comptage de références sur les blobs",
-        'Envoi, téléchargement, listage et corbeille via REST',
+        'Envoi, téléchargement, listage, corbeille et restauration via REST',
         "Des comptes par mot de passe en Argon2id, des jetons de session, et la connexion depuis l'application web, la fenêtre desktop et la ligne de commande",
       ],
       plannedHeading: "Ce qui n'est pas encore écrit",
@@ -209,6 +209,9 @@ pnpm --filter @roxycloud/web build \\
         ['GET', '/v1/files/{*path}', 'Télécharger'],
         ['DELETE', '/v1/files/{*path}', 'Mettre à la corbeille'],
         ['POST', '/v1/move', 'Renommer un nœud, ou le déplacer sous un autre répertoire'],
+        ['GET', '/v1/trash', "Ce que le compte a supprimé"],
+        ['POST', '/v1/trash/{id}/restore', 'Le restaurer, avec les répertoires nécessaires'],
+        ['DELETE', '/v1/trash/{id}', 'Le supprimer définitivement et libérer ses octets'],
       ],
     },
     transfers: {
@@ -245,7 +248,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'Ce qui manque',
-      body: "Restaurer depuis la corbeille, chercher, partager par lien, les mots de passe applicatifs, WebDAV et les envois reprenables sont suivis en issues, et aucun n'est implémenté. Un chemin absent du tableau ci-dessus répond 404.",
+      body: "Chercher, partager par lien, les mots de passe applicatifs, WebDAV et les envois reprenables sont suivis en issues, et aucun n'est implémenté. Un chemin absent du tableau ci-dessus répond 404.",
     },
   },
 };

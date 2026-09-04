@@ -23,7 +23,7 @@ Your files, on hardware you own, under the AGPL.
 Early, and not yet usable end to end.
 
 Done: content-addressed local blob store with dedup, the node tree with quotas and blob refcounts,
-and upload, download, listing and trash over REST.
+and upload, download, listing, trash and restore over REST.
 
 Done too: password accounts with Argon2id, session tokens, and login from the web app, the desktop
 shell and the CLI, plus the marketing and documentation site in English and French.
@@ -87,9 +87,21 @@ PUT    /v1/files/{*path}      upload, creating parent directories
 GET    /v1/files/{*path}      download
 DELETE /v1/files/{*path}      move to trash
 POST   /v1/move               rename a node, or move it under another directory
+GET    /v1/trash              what the account has deleted
+POST   /v1/trash/{id}/restore bring it back, with the directories it needs
+DELETE /v1/trash/{id}         delete it for good, and release its bytes
 ```
 
 Every `/v1` route except login takes `Authorization: Bearer <session token>`.
+
+Deleting is reversible. `DELETE /v1/files/{*path}` marks the node and everything under it, credits
+the quota and leaves the bytes alone, so `GET /v1/trash` lists what was deleted and a restore puts it
+back where it was, recreating any directory above it that was deleted in the meantime. A name taken
+since the delete answers 409 rather than inventing a new one: move the occupant, then restore. What
+was deleted separately stays separate, so restoring a file out of a folder someone deleted later
+leaves the rest of that folder in the trash, listed on its own. Only a purge releases the blobs,
+which is what makes it the one irreversible call, and purging a folder takes everything trashed
+under it, including what was deleted before it.
 
 Each account carries a role: `admin`, `member` or `reader`. A reader may list and download; upload
 and delete answer 403. The check sits in the API rather than in the interface, so it holds for curl

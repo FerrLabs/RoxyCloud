@@ -5,6 +5,7 @@ use reqwest::{Client, StatusCode};
 use roxycloud_core::name::{InvalidNodeName, parse_path};
 use roxycloud_core::node::Node;
 use serde::Deserialize;
+use uuid::Uuid;
 
 const PATH_SEGMENT: &AsciiSet = &CONTROLS
     .add(b' ')
@@ -141,6 +142,41 @@ impl Remote {
         }
         check(response.status(), &format!("{from} or {to}"))?;
         Ok(response.json().await?)
+    }
+
+    pub async fn trash(&self) -> Result<Vec<Node>, RemoteError> {
+        let response = self
+            .http
+            .get(format!("{}/v1/trash", self.base))
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
+        check(response.status(), "the trash")?;
+        Ok(response.json().await?)
+    }
+
+    pub async fn restore(&self, id: Uuid) -> Result<Node, RemoteError> {
+        let response = self
+            .http
+            .post(format!("{}/v1/trash/{id}/restore", self.base))
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
+        if response.status() == StatusCode::CONFLICT {
+            return Err(RemoteError::Conflict(id.to_string()));
+        }
+        check(response.status(), &id.to_string())?;
+        Ok(response.json().await?)
+    }
+
+    pub async fn purge(&self, id: Uuid) -> Result<(), RemoteError> {
+        let response = self
+            .http
+            .delete(format!("{}/v1/trash/{id}", self.base))
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
+        check(response.status(), &id.to_string())
     }
 
     pub async fn delete(&self, path: &str) -> Result<(), RemoteError> {

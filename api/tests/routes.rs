@@ -273,3 +273,115 @@ database_test!(
         );
     }
 );
+
+database_test!(the_trash_lists_what_the_caller_deleted, harness, {
+    let member = harness.account("trashlist@example.com", Role::Member).await;
+    harness.write(member.id, "photos/x.txt", b"deep").await;
+    let photos = harness.resolve(member.id, "photos").await;
+    harness.trash(&photos).await;
+    let token = harness.state.sessions.issue(member.id).expect("a token");
+
+    let (status, body) = call(
+        &harness,
+        authorised("GET", "/v1/trash", &token, Body::empty()),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    let listed = String::from_utf8_lossy(&body);
+    assert!(listed.contains(r#""name":"photos""#), "{listed}");
+    assert!(
+        !listed.contains(r#""name":"x.txt""#),
+        "the child came along with the delete, the user did not choose it: {listed}"
+    );
+});
+
+database_test!(a_restore_answers_with_the_node, harness, {
+    let member = harness.account("restore@example.com", Role::Member).await;
+    let node = harness.write(member.id, "notes.md", b"back again").await;
+    harness.trash(&node).await;
+    let token = harness.state.sessions.issue(member.id).expect("a token");
+
+    let (status, body) = call(
+        &harness,
+        authorised(
+            "POST",
+            &format!("/v1/trash/{}/restore", node.id),
+            &token,
+            Body::empty(),
+        ),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(String::from_utf8_lossy(&body).contains(r#""name":"notes.md""#));
+    let root = harness.root(member.id).await;
+    assert_eq!(harness.children(&root).await, ["notes.md"]);
+});
+
+database_test!(a_purge_answers_no_content, harness, {
+    let member = harness.account("purge@example.com", Role::Member).await;
+    let node = harness.write(member.id, "gone.txt", b"for good").await;
+    harness.trash(&node).await;
+    let token = harness.state.sessions.issue(member.id).expect("a token");
+
+    let (status, _) = call(
+        &harness,
+        authorised(
+            "DELETE",
+            &format!("/v1/trash/{}", node.id),
+            &token,
+            Body::empty(),
+        ),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert!(harness.trashed(member.id).await.is_empty());
+});
+
+database_test!(a_reader_may_not_restore, harness, {
+    let reader = harness.account("noretore@example.com", Role::Reader).await;
+    let node = harness
+        .write(reader.id, "a.txt", b"stays in the trash")
+        .await;
+    harness.trash(&node).await;
+    let token = harness.state.sessions.issue(reader.id).expect("a token");
+
+    let (status, _) = call(
+        &harness,
+        authorised(
+            "POST",
+            &format!("/v1/trash/{}/restore", node.id),
+            &token,
+            Body::empty(),
+        ),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(harness.trashed(reader.id).await, ["a.txt"]);
+});
+
+database_test!(
+    restoring_something_that_was_never_deleted_is_not_found,
+    harness,
+    {
+        let member = harness.account("nothere@example.com", Role::Member).await;
+        let node = harness.write(member.id, "live.txt", b"still here").await;
+        let token = harness.state.sessions.issue(member.id).expect("a token");
+
+        let (status, _) = call(
+            &harness,
+            authorised(
+                "POST",
+                &format!("/v1/trash/{}/restore", node.id),
+                &token,
+                Body::empty(),
+            ),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+);

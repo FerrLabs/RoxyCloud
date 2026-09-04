@@ -30,7 +30,7 @@ export const en: SiteContent = {
       shipped: [
         'A content-addressed blob store on local disk, deduplicating identical uploads',
         'The node tree, with per-user quotas and refcounts on the blobs',
-        'Upload, download, listing and trash over REST',
+        'Upload, download, listing, trash and restore over REST',
         'Password accounts with Argon2id, session tokens, and login from the web app, the desktop window and the CLI',
       ],
       plannedHeading: 'Not written yet',
@@ -209,6 +209,9 @@ pnpm --filter @roxycloud/web build \\
         ['GET', '/v1/files/{*path}', 'Download'],
         ['DELETE', '/v1/files/{*path}', 'Move to the trash'],
         ['POST', '/v1/move', 'Rename a node, or move it under another directory'],
+        ['GET', '/v1/trash', 'What the account has deleted'],
+        ['POST', '/v1/trash/{id}/restore', 'Bring it back, with the directories it needs'],
+        ['DELETE', '/v1/trash/{id}', 'Delete it for good, and release its bytes'],
       ],
     },
     transfers: {
@@ -245,7 +248,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'What is missing',
-      body: 'Restore from the trash, search, share links, app passwords, WebDAV and resumable uploads are tracked as issues, and none of them are implemented. A path that is not in the table above answers 404.',
+      body: 'Search, share links, app passwords, WebDAV and resumable uploads are tracked as issues, and none of them are implemented. A path that is not in the table above answers 404.',
     },
   },
 };

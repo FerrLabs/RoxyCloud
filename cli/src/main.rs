@@ -6,6 +6,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use roxycloud_client::{Engine, Remote};
 use roxycloud_core::node::NodeKind;
+use uuid::Uuid;
 
 #[derive(Parser)]
 #[command(name = "roxy", version, about = "Command-line client for RoxyCloud")]
@@ -42,6 +43,12 @@ enum Command {
     Mv { from: String, to: String },
     /// Move a remote file to the trash
     Rm { path: String },
+    /// List what is in the trash
+    Trash,
+    /// Bring something back from the trash
+    Restore { id: Uuid },
+    /// Delete something from the trash for good
+    Purge { id: Uuid },
     /// Reconcile a local folder with the server
     Sync {
         folder: PathBuf,
@@ -76,6 +83,21 @@ async fn main() -> Result<()> {
         }
         Command::Rm { path } => {
             connect(&cli)?.delete(path).await?;
+        }
+        Command::Trash => {
+            for node in connect(&cli)?.trash().await? {
+                let deleted = node
+                    .deleted_at
+                    .map(|at| at.format("%Y-%m-%d %H:%M").to_string())
+                    .unwrap_or_default();
+                println!("{}  {deleted}  {}", node.id, node.name);
+            }
+        }
+        Command::Restore { id } => {
+            connect(&cli)?.restore(*id).await?;
+        }
+        Command::Purge { id } => {
+            connect(&cli)?.purge(*id).await?;
         }
         Command::Sync { folder, watch } => {
             let mut engine =
