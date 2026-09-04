@@ -19,7 +19,7 @@ tokio-util = { workspace = true }
 futures = { workspace = true }
 bytes = { workspace = true }
 
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.9", features = [
     "runtime-tokio-rustls",
     "postgres",
     "chrono",
