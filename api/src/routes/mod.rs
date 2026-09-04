@@ -13,6 +13,7 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/v1/auth/login", post(auth::login))
         .route("/v1/auth/me", get(auth::me))
+        .route("/v1/move", post(files::rename))
         .route("/v1/folders", get(files::list_root))
         .route("/v1/folders/{*path}", get(files::list))
         .route(

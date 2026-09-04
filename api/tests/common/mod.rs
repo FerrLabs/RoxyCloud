@@ -142,6 +142,44 @@ impl Harness {
         Ok(node)
     }
 
+    pub async fn resolve(&self, owner: Uuid, path: &str) -> Node {
+        let segments = roxycloud_core::name::parse_path(path).expect("valid path");
+        let mut tx = self.state.db.begin().await.expect("begin");
+        let root = db::ensure_root(&mut tx, owner, self.state.default_quota_bytes)
+            .await
+            .expect("ensuring the root");
+        let node = db::resolve(&mut tx, &root, &segments)
+            .await
+            .expect("resolving the path");
+        tx.commit().await.expect("commit");
+        node
+    }
+
+    pub async fn rename(&self, owner: Uuid, from: &str, to: &str) -> Node {
+        self.try_rename(owner, from, to)
+            .await
+            .expect("renaming the node")
+    }
+
+    pub async fn try_rename(
+        &self,
+        owner: Uuid,
+        from: &str,
+        to: &str,
+    ) -> Result<Node, roxycloud_api::error::ApiError> {
+        let source = roxycloud_core::name::parse_path(from).expect("valid path");
+        let mut destination = roxycloud_core::name::parse_path(to).expect("valid path");
+        let name = destination.pop().expect("a destination name");
+
+        let mut tx = self.state.db.begin().await.expect("begin");
+        let root = db::ensure_root(&mut tx, owner, self.state.default_quota_bytes).await?;
+        let node = db::resolve(&mut tx, &root, &source).await?;
+        let parent = db::resolve(&mut tx, &root, &destination).await?;
+        let renamed = db::rename(&mut tx, &node, &parent, &name).await?;
+        tx.commit().await.expect("commit");
+        Ok(renamed)
+    }
+
     pub async fn trash(&self, node: &Node) {
         let mut tx = self.state.db.begin().await.expect("begin");
         db::trash(&mut tx, node).await.expect("trashing");

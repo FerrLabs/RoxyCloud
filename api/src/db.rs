@@ -181,6 +181,66 @@ pub async fn put_file(
     Ok(node)
 }
 
+pub async fn rename(
+    tx: &mut Transaction<'_, Postgres>,
+    node: &Node,
+    parent: &Node,
+    name: &NodeName,
+) -> Result<Node, ApiError> {
+    if parent.kind != NodeKind::Directory {
+        return Err(ApiError::WrongKind {
+            expected: "directory",
+        });
+    }
+    if node.kind == NodeKind::Directory && would_nest_inside_itself(tx, node, parent).await? {
+        return Err(ApiError::MoveIntoSelf);
+    }
+    if child(tx, parent.id, name).await?.is_some() {
+        return Err(ApiError::Conflict(name.to_string()));
+    }
+
+    let etag = match node.kind {
+        NodeKind::Directory => etag_for_directory(),
+        NodeKind::File => node.etag.clone(),
+    };
+
+    sqlx::query_as::<_, Node>(&format!(
+        "UPDATE nodes
+         SET parent_id = $2, name = $3, etag = $4, updated_at = now()
+         WHERE id = $1
+         RETURNING {NODE_COLUMNS}"
+    ))
+    .bind(node.id)
+    .bind(parent.id)
+    .bind(name.as_str())
+    .bind(etag)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(Into::into)
+}
+
+async fn would_nest_inside_itself(
+    tx: &mut Transaction<'_, Postgres>,
+    node: &Node,
+    parent: &Node,
+) -> Result<bool, ApiError> {
+    sqlx::query_scalar::<_, bool>(
+        "WITH RECURSIVE ancestry AS (
+             SELECT id, parent_id FROM nodes WHERE id = $1
+             UNION ALL
+             SELECT ancestor.id, ancestor.parent_id
+             FROM nodes ancestor
+             JOIN ancestry ON ancestor.id = ancestry.parent_id
+         )
+         SELECT EXISTS (SELECT 1 FROM ancestry WHERE id = $2)",
+    )
+    .bind(parent.id)
+    .bind(node.id)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(Into::into)
+}
+
 pub async fn trash(tx: &mut Transaction<'_, Postgres>, node: &Node) -> Result<(), ApiError> {
     let trashed =
         sqlx::query("UPDATE nodes SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL")

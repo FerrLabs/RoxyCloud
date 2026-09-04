@@ -27,6 +27,8 @@ pub enum RemoteError {
     Unauthenticated,
     #[error("{0} is not on the server")]
     NotFound(String),
+    #[error("{0} clashes with something already on the server")]
+    Conflict(String),
     #[error("the server answered {0}")]
     Status(StatusCode),
     #[error("talking to the server failed")]
@@ -124,6 +126,20 @@ impl Remote {
         Ok(response.json().await?)
     }
 
+    pub async fn rename(&self, from: &str, to: &str) -> Result<Node, RemoteError> {
+        parse_path(from)?;
+        parse_path(to)?;
+        let response = self
+            .http
+            .post(format!("{}/v1/move", self.base))
+            .bearer_auth(&self.token)
+            .json(&serde_json::json!({ "from": from, "to": to }))
+            .send()
+            .await?;
+        check(response.status(), to)?;
+        Ok(response.json().await?)
+    }
+
     pub async fn delete(&self, path: &str) -> Result<(), RemoteError> {
         let url = self.endpoint("files", path)?;
         let response = self
@@ -141,6 +157,7 @@ pub(crate) fn check(status: StatusCode, path: &str) -> Result<(), RemoteError> {
         s if s.is_success() => Ok(()),
         StatusCode::UNAUTHORIZED => Err(RemoteError::Unauthenticated),
         StatusCode::NOT_FOUND => Err(RemoteError::NotFound(path.to_owned())),
+        StatusCode::CONFLICT => Err(RemoteError::Conflict(path.to_owned())),
         other => Err(RemoteError::Status(other)),
     }
 }
@@ -181,6 +198,14 @@ mod tests {
     fn a_slash_inside_a_name_cannot_forge_a_path() {
         let sneaky = utf8_percent_encode("a/b", PATH_SEGMENT).to_string();
         assert_eq!(sneaky, "a%2Fb");
+    }
+
+    #[tokio::test]
+    async fn a_traversing_destination_never_reaches_the_server() {
+        assert!(matches!(
+            remote().rename("a.txt", "../../etc/passwd").await,
+            Err(RemoteError::Path(_))
+        ));
     }
 
     #[test]

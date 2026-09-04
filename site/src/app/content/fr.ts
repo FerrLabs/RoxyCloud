@@ -208,6 +208,7 @@ pnpm --filter @roxycloud/web build \\
         ['PUT', '/v1/files/{*path}', 'Envoyer, en créant les répertoires parents'],
         ['GET', '/v1/files/{*path}', 'Télécharger'],
         ['DELETE', '/v1/files/{*path}', 'Mettre à la corbeille'],
+        ['POST', '/v1/move', 'Renommer un nœud, ou le déplacer sous un autre répertoire'],
       ],
     },
     transfers: {
@@ -221,6 +222,18 @@ pnpm --filter @roxycloud/web build \\
   --data-binary @todo.md`,
         },
         {
+          caption: 'Renommer un fichier, puis le déplacer dans un répertoire',
+          code: `curl -X POST http://localhost:3001/v1/move \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"from": "/brouillon.md", "to": "/a-faire.md"}'
+
+curl -X POST http://localhost:3001/v1/move \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"from": "/a-faire.md", "to": "/notes/a-faire.md"}'`,
+        },
+        {
           caption: 'Lister un répertoire, puis y télécharger',
           code: `curl http://localhost:3001/v1/folders/notes \\
   -H "Authorization: Bearer $TOKEN"
@@ -232,7 +245,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'Ce qui manque',
-      body: "Renommer et déplacer, restaurer depuis la corbeille, chercher, partager par lien, les mots de passe applicatifs, WebDAV et les envois reprenables sont suivis en issues, et aucun n'est implémenté. Un chemin absent du tableau ci-dessus répond 404.",
+      body: "Restaurer depuis la corbeille, chercher, partager par lien, les mots de passe applicatifs, WebDAV et les envois reprenables sont suivis en issues, et aucun n'est implémenté. Un chemin absent du tableau ci-dessus répond 404.",
     },
   },
 };

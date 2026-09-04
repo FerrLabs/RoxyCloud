@@ -34,6 +34,16 @@ fn authorised(method: &str, path: &str, token: &str, body: Body) -> Request<Body
         .expect("a well formed request")
 }
 
+fn move_request(token: &str, from: &str, to: &str) -> Request<Body> {
+    Request::builder()
+        .method("POST")
+        .uri("/v1/move")
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(format!(r#"{{"from":"{from}","to":"{to}"}}"#)))
+        .expect("a well formed request")
+}
+
 database_test!(a_first_upload_answers_created, harness, {
     let owner = harness.account("first@example.com", Role::Member).await;
     let token = harness.state.sessions.issue(owner.id).expect("a token");
@@ -190,3 +200,62 @@ database_test!(a_path_that_climbs_out_of_the_root_is_refused, harness, {
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
 });
+
+database_test!(a_move_answers_with_the_moved_node, harness, {
+    let member = harness.account("mover@example.com", Role::Member).await;
+    harness.write(member.id, "inbox/a.txt", b"moving out").await;
+    let token = harness.state.sessions.issue(member.id).expect("a token");
+
+    let (status, body) = call(&harness, move_request(&token, "/inbox/a.txt", "/b.txt")).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        String::from_utf8_lossy(&body).contains(r#""name":"b.txt""#),
+        "the response describes the node at its new place"
+    );
+    let root = harness.root(member.id).await;
+    assert_eq!(harness.children(&root).await, ["b.txt", "inbox"]);
+});
+
+database_test!(a_reader_may_not_move, harness, {
+    let reader = harness.account("nomove@example.com", Role::Reader).await;
+    harness.write(reader.id, "a.txt", b"stays put").await;
+    let token = harness.state.sessions.issue(reader.id).expect("a token");
+
+    let (status, _) = call(&harness, move_request(&token, "/a.txt", "/b.txt")).await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let root = harness.root(reader.id).await;
+    assert_eq!(harness.children(&root).await, ["a.txt"]);
+});
+
+database_test!(a_move_onto_an_occupied_name_answers_conflict, harness, {
+    let member = harness.account("clash@example.com", Role::Member).await;
+    harness.write(member.id, "a.txt", b"the occupant").await;
+    harness.write(member.id, "b.txt", b"the arrival").await;
+    let token = harness.state.sessions.issue(member.id).expect("a token");
+
+    let (status, _) = call(&harness, move_request(&token, "/b.txt", "/a.txt")).await;
+
+    assert_eq!(status, StatusCode::CONFLICT);
+});
+
+database_test!(
+    a_move_into_an_unknown_directory_answers_not_found,
+    harness,
+    {
+        let member = harness.account("nowhere@example.com", Role::Member).await;
+        harness
+            .write(member.id, "a.txt", b"has nowhere to go")
+            .await;
+        let token = harness.state.sessions.issue(member.id).expect("a token");
+
+        let (status, _) = call(&harness, move_request(&token, "/a.txt", "/absent/a.txt")).await;
+
+        assert_eq!(
+            status,
+            StatusCode::NOT_FOUND,
+            "a move does not create the directories it lands in"
+        );
+    }
+);

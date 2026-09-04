@@ -3,6 +3,7 @@ use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 
 use crate::auth::{Caller, Writer};
@@ -64,6 +65,38 @@ pub async fn get(
         Body::from_stream(ReaderStream::new(file)),
     )
         .into_response())
+}
+
+#[derive(Deserialize)]
+pub struct Move {
+    from: String,
+    to: String,
+}
+
+pub async fn rename(
+    State(state): State<AppState>,
+    caller: Writer,
+    Json(request): Json<Move>,
+) -> Result<Json<Node>, ApiError> {
+    let source = parse_path(&request.from)?;
+    let mut destination = parse_path(&request.to)?;
+    let name = destination.pop().ok_or(ApiError::WrongKind {
+        expected: "path below the root",
+    })?;
+    if source.is_empty() {
+        return Err(ApiError::WrongKind {
+            expected: "path below the root",
+        });
+    }
+
+    let mut tx = state.db.begin().await?;
+    let root = db::ensure_root(&mut tx, caller.user_id, state.default_quota_bytes).await?;
+    let node = db::resolve(&mut tx, &root, &source).await?;
+    let parent = db::resolve(&mut tx, &root, &destination).await?;
+    let moved = db::rename(&mut tx, &node, &parent, &name).await?;
+    tx.commit().await?;
+
+    Ok(Json(moved))
 }
 
 pub async fn delete(

@@ -208,6 +208,7 @@ pnpm --filter @roxycloud/web build \\
         ['PUT', '/v1/files/{*path}', 'Upload, creating the parent directories'],
         ['GET', '/v1/files/{*path}', 'Download'],
         ['DELETE', '/v1/files/{*path}', 'Move to the trash'],
+        ['POST', '/v1/move', 'Rename a node, or move it under another directory'],
       ],
     },
     transfers: {
@@ -221,6 +222,18 @@ pnpm --filter @roxycloud/web build \\
   --data-binary @todo.md`,
         },
         {
+          caption: 'Rename a file, then move it into a directory',
+          code: `curl -X POST http://localhost:3001/v1/move \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"from": "/draft.md", "to": "/todo.md"}'
+
+curl -X POST http://localhost:3001/v1/move \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"from": "/todo.md", "to": "/notes/todo.md"}'`,
+        },
+        {
           caption: 'List a directory, then download from it',
           code: `curl http://localhost:3001/v1/folders/notes \\
   -H "Authorization: Bearer $TOKEN"
@@ -232,7 +245,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'What is missing',
-      body: 'Rename and move, restore from the trash, search, share links, app passwords, WebDAV and resumable uploads are tracked as issues, and none of them are implemented. A path that is not in the table above answers 404.',
+      body: 'Restore from the trash, search, share links, app passwords, WebDAV and resumable uploads are tracked as issues, and none of them are implemented. A path that is not in the table above answers 404.',
     },
   },
 };

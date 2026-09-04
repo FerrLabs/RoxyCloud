@@ -38,6 +38,8 @@ enum Command {
         #[arg(default_value = "/")]
         path: String,
     },
+    /// Rename a remote node, or move it under another directory
+    Mv { from: String, to: String },
     /// Move a remote file to the trash
     Rm { path: String },
     /// Reconcile a local folder with the server
@@ -68,6 +70,9 @@ async fn main() -> Result<()> {
                 };
                 println!("{:>12}  {}{marker}", node.size, node.name);
             }
+        }
+        Command::Mv { from, to } => {
+            connect(&cli)?.rename(from, to).await?;
         }
         Command::Rm { path } => {
             connect(&cli)?.delete(path).await?;
