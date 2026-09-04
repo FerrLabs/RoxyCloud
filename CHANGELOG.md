@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.1] - 2026-09-04
+
+### Bug Fixes
+
+- fix(api): answer 409 when a concurrent write takes the name (#60)
+
 ## [0.9.0] - 2026-09-04
 
 ### Features
