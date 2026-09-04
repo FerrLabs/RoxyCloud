@@ -426,15 +426,50 @@ database_test!(the_web_app_is_served_when_a_root_is_configured, harness, {
 });
 
 database_test!(an_unknown_api_path_is_still_not_found, harness, {
-    let (status, body) = from_the_web_root(&harness, "/v1/nonsense").await;
+    for path in ["/v1/nonsense", "/v1", "/v1/"] {
+        let (status, body) = from_the_web_root(&harness, path).await;
 
-    assert_eq!(
-        status,
-        StatusCode::NOT_FOUND,
-        "the app must not answer for the API, or a typo in a client reads as a page: {body}"
-    );
-    assert!(!body.contains("RoxyCloud"), "{body}");
+        assert_eq!(
+            status,
+            StatusCode::NOT_FOUND,
+            "the app must not answer for {path}, or a typo in a client reads as a page: {body}"
+        );
+        assert!(!body.contains("RoxyCloud"), "{path}: {body}");
+    }
 });
+
+database_test!(
+    the_entry_point_is_revalidated_but_the_bundle_is_not,
+    harness,
+    {
+        let root = web_root(&harness);
+        let cache_control = async |path: &str| {
+            build_router(harness.state.clone(), &[], Some(&root))
+                .oneshot(
+                    Request::builder()
+                        .uri(path)
+                        .body(Body::empty())
+                        .expect("a well formed request"),
+                )
+                .await
+                .expect("the router answers")
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .map(|value| value.to_str().expect("printable").to_owned())
+        };
+
+        assert_eq!(
+            cache_control("/").await.as_deref(),
+            Some("no-cache"),
+            "a cached entry point outlives an upgrade and asks for a bundle that is gone"
+        );
+        assert_eq!(
+            cache_control("/main.js").await,
+            None,
+            "the bundle is named after its contents, so it never goes stale"
+        );
+    }
+);
 
 database_test!(the_api_still_answers_with_the_app_alongside_it, harness, {
     let (status, body) = from_the_web_root(&harness, "/health").await;

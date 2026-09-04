@@ -123,12 +123,27 @@ cargo run -p roxycloud-api`,
         ['PORT', '3001', "Port d'écoute"],
         ['BLOB_ROOT', './data', 'Racine du stockage local'],
         [
+          'WEB_ROOT',
+          "défini dans l'image",
+          "Répertoire contenant l'application web compilée, servie à côté de l'API",
+        ],
+        [
           'CORS_ALLOWED_ORIGINS',
           'vide',
-          "Origines séparées par des virgules autorisées à appeler l'API depuis un navigateur",
+          "Origines séparées par des virgules autorisées à appeler l'API depuis un navigateur, inutile quand WEB_ROOT la sert",
         ],
         ['DEFAULT_QUOTA_BYTES', '10 Gio', 'Quota accordé à un compte à sa première écriture'],
         ['SESSION_TTL_SECONDS', '12 h', 'Durée de vie du jeton de session'],
+        [
+          'BLOB_SWEEP_INTERVAL_SECONDS',
+          '1 h',
+          'Fréquence de collecte des blobs que plus rien ne référence, 0 la désactive',
+        ],
+        [
+          'BLOB_GRACE_PERIOD_SECONDS',
+          '24 h',
+          "Durée de conservation d'un blob déréférencé avant sa collecte",
+        ],
         ['BOOTSTRAP_ADMIN_EMAIL', 'non défini', 'Crée le premier administrateur sur une base vide'],
         [
           'BOOTSTRAP_ADMIN_PASSWORD',
@@ -149,10 +164,10 @@ cargo run -p roxycloud-api`,
     },
     webApp: {
       heading: "L'application web",
-      body: "L'image ne transporte que l'API pour l'instant : l'interface navigateur est un build séparé. Servez web/dist depuis n'importe quel hébergement statique, en y compilant l'adresse de votre API et les sources de la version que vous faites réellement tourner.",
+      body: "L'image la transporte, et l'API la sert depuis la même origine : rien à déployer à côté, aucun CORS à configurer. L'héberger vous-même reste possible : compilez web/dist avec l'adresse de votre API, servez-la depuis n'importe quel hébergement statique, et déclarez son origine dans CORS_ALLOWED_ORIGINS. Profitez-en pour y compiler les sources de la version que vous faites réellement tourner.",
       blocks: [
         {
-          caption: "Construire l'interface navigateur",
+          caption: "Construire l'interface navigateur pour votre propre hébergement",
           code: `pnpm install
 pnpm --filter @roxycloud/web build \\
   --define ROXYCLOUD_API_URL="'https://fichiers.exemple.com'" \\

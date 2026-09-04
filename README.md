@@ -97,8 +97,8 @@ second deployment and no CORS to configure. Hosting the bundle elsewhere still w
 `CORS_ALLOWED_ORIGINS`.
 
 On Kubernetes, `deploy/helm/roxycloud` deploys the API against a database you already run, with a
-volume for the blobs and an optional ingress. It does not bundle Postgres and does not serve the web
-app. `deploy/helm/roxycloud/README.md` has the values and the reasoning.
+volume for the blobs and an optional ingress. It does not bundle Postgres. It serves the web app,
+since the image carries it. `deploy/helm/roxycloud/README.md` has the values and the reasoning.
 
 ```bash
 helm install roxycloud deploy/helm/roxycloud   --set database.url='postgres://roxycloud:password@postgres/roxycloud'   --set jwt.secret="$(openssl rand -hex 32)"
