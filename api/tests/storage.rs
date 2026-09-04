@@ -418,3 +418,100 @@ database_test!(a_move_onto_a_name_a_write_just_took_conflicts, harness, {
         "a move that loses the name it aimed for is a conflict: {moved:?}"
     );
 });
+
+database_test!(trashing_a_directory_takes_its_whole_subtree, harness, {
+    let owner = harness.account("cascade@example.com", Role::Member).await;
+    harness
+        .write(owner.id, "photos/summer/x.txt", b"deep")
+        .await;
+    harness.write(owner.id, "photos/y.txt", b"shallow").await;
+    let photos = harness.resolve(owner.id, "photos").await;
+
+    harness.trash(&photos).await;
+
+    let root = harness.root(owner.id).await;
+    assert!(harness.children(&root).await.is_empty());
+    assert_eq!(
+        harness.live_nodes(owner.id).await,
+        0,
+        "a child left unmarked is unreachable but still charged, which is the bug"
+    );
+});
+
+database_test!(
+    trashing_a_directory_gives_back_every_byte_it_held,
+    harness,
+    {
+        let owner = harness
+            .account("cascadequota@example.com", Role::Member)
+            .await;
+        harness
+            .write(owner.id, "photos/summer/x.txt", &[b'x'; 300])
+            .await;
+        harness.write(owner.id, "photos/y.txt", &[b'y'; 40]).await;
+        harness.write(owner.id, "kept.txt", &[b'k'; 7]).await;
+        assert_eq!(harness.used_bytes(owner.id).await, 347);
+        let photos = harness.resolve(owner.id, "photos").await;
+
+        harness.trash(&photos).await;
+
+        assert_eq!(
+            harness.used_bytes(owner.id).await,
+            7,
+            "the directory weighs nothing, so only a sum over the subtree gives the bytes back"
+        );
+    }
+);
+
+database_test!(
+    trashing_a_directory_releases_the_blobs_underneath_it,
+    harness,
+    {
+        let owner = harness
+            .account("cascadeblobs@example.com", Role::Member)
+            .await;
+        let buried = b"only referenced from inside the directory";
+        let shared = b"referenced from inside and outside";
+        harness.write(owner.id, "photos/x.txt", buried).await;
+        harness.write(owner.id, "photos/deep/y.txt", shared).await;
+        harness.write(owner.id, "outside.txt", shared).await;
+        let photos = harness.resolve(owner.id, "photos").await;
+
+        harness.trash(&photos).await;
+
+        assert_eq!(
+            harness.blob(hash_of(buried)).await,
+            Some((0, true)),
+            "nothing points at it any more, so the sweeper may collect it"
+        );
+        assert_eq!(
+            harness.blob(hash_of(shared)).await,
+            Some((1, false)),
+            "the file outside still holds these bytes"
+        );
+    }
+);
+
+database_test!(
+    trashing_a_directory_twice_leaves_the_quota_honest,
+    harness,
+    {
+        let owner = harness
+            .account("cascadetwice@example.com", Role::Member)
+            .await;
+        harness
+            .write(owner.id, "photos/x.txt", b"written once")
+            .await;
+        let photos = harness.resolve(owner.id, "photos").await;
+
+        harness.trash(&photos).await;
+        harness.trash(&photos).await;
+
+        assert_eq!(harness.used_bytes(owner.id).await, 0);
+        assert_eq!(
+            harness.blob(hash_of(b"written once")).await,
+            Some((0, true)),
+            "a second cascade is a no-op, not a second release"
+        );
+    }
+);
