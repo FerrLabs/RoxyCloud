@@ -1,3 +1,4 @@
+use sqlx::error::DatabaseError;
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
@@ -5,6 +6,18 @@ use crate::error::ApiError;
 use roxycloud_core::blob::BlobHash;
 use roxycloud_core::name::NodeName;
 use roxycloud_core::node::{Node, NodeKind, etag_for_directory, etag_for_file};
+
+const NAME_PER_PARENT: &str = "nodes_unique_name_per_parent";
+
+fn name_taken(error: sqlx::Error, name: &NodeName) -> ApiError {
+    match error
+        .as_database_error()
+        .and_then(DatabaseError::constraint)
+    {
+        Some(NAME_PER_PARENT) => ApiError::Conflict(name.to_string()),
+        _ => ApiError::Database(error),
+    }
+}
 
 const NODE_COLUMNS: &str = "id, owner_id, parent_id, name, kind, blob_hash, size, etag, \
                             created_at, updated_at, deleted_at";
@@ -84,23 +97,39 @@ pub async fn create_directories(
             Some(_) => {
                 return Err(ApiError::Conflict(segment.to_string()));
             }
-            None => {
-                sqlx::query_as::<_, Node>(&format!(
-                    "INSERT INTO nodes (id, owner_id, parent_id, name, kind, etag)
-                     VALUES ($1, $2, $3, $4, 'directory', $5)
-                     RETURNING {NODE_COLUMNS}"
-                ))
-                .bind(Uuid::now_v7())
-                .bind(owner_id)
-                .bind(current.id)
-                .bind(segment.as_str())
-                .bind(etag_for_directory())
-                .fetch_one(&mut **tx)
-                .await?
-            }
+            None => insert_directory(tx, owner_id, current.id, segment).await?,
         };
     }
     Ok(current)
+}
+
+async fn insert_directory(
+    tx: &mut Transaction<'_, Postgres>,
+    owner_id: Uuid,
+    parent_id: Uuid,
+    name: &NodeName,
+) -> Result<Node, ApiError> {
+    let inserted = sqlx::query_as::<_, Node>(&format!(
+        "INSERT INTO nodes (id, owner_id, parent_id, name, kind, etag)
+         VALUES ($1, $2, $3, $4, 'directory', $5)
+         ON CONFLICT (parent_id, name) WHERE deleted_at IS NULL DO NOTHING
+         RETURNING {NODE_COLUMNS}"
+    ))
+    .bind(Uuid::now_v7())
+    .bind(owner_id)
+    .bind(parent_id)
+    .bind(name.as_str())
+    .bind(etag_for_directory())
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    match inserted {
+        Some(node) => Ok(node),
+        None => match child(tx, parent_id, name).await? {
+            Some(existing) if existing.kind == NodeKind::Directory => Ok(existing),
+            _ => Err(ApiError::Conflict(name.to_string())),
+        },
+    }
 }
 
 pub async fn list_children(pool: &PgPool, parent_id: Uuid) -> Result<Vec<Node>, ApiError> {
@@ -221,7 +250,7 @@ pub async fn rename(
     .bind(etag)
     .fetch_one(&mut **tx)
     .await
-    .map_err(Into::into)
+    .map_err(|error| name_taken(error, name))
 }
 
 async fn would_nest_inside_itself(

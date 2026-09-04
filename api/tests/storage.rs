@@ -344,3 +344,77 @@ database_test!(a_second_move_waits_for_the_first_to_commit, harness, {
     );
     held.rollback().await.expect("rollback");
 });
+
+database_test!(two_writes_racing_for_an_empty_file_do_not_fail, harness, {
+    let owner = harness.account("racewrite@example.com", Role::Member).await;
+    let root = harness.root(owner.id).await;
+    let name = "empty.txt".parse::<NodeName>().expect("a valid name");
+    let (hash, size) = harness.stage(b"").await;
+
+    let mut winner = harness.state.db.begin().await.expect("begin");
+    let written = db::put_file(&mut winner, owner.id, &root, &name, hash, size)
+        .await
+        .expect("the first write");
+
+    let (loser, ()) = tokio::join!(harness.try_write(owner.id, "empty.txt", b""), async {
+        harness.wait_until_blocked_on("INSERT INTO blobs").await;
+        winner.commit().await.expect("commit");
+    });
+
+    let loser = loser.expect("the second write overwrites the first, it does not fail on it");
+    assert_eq!(
+        loser.id, written.id,
+        "the writers met on the blob before the name, so the second one overwrote the node"
+    );
+});
+
+database_test!(two_writes_creating_the_same_directory_both_land, harness, {
+    let owner = harness.account("racedir@example.com", Role::Member).await;
+    let root = harness.root(owner.id).await;
+    let name = "photos".parse::<NodeName>().expect("a valid name");
+
+    let mut winner = harness.state.db.begin().await.expect("begin");
+    let created = db::create_directories(&mut winner, owner.id, &root, &[name])
+        .await
+        .expect("the first directory");
+
+    let (loser, ()) = tokio::join!(
+        harness.try_write(owner.id, "photos/x.txt", b"the second file"),
+        async {
+            harness.wait_until_blocked_on("INSERT INTO nodes").await;
+            winner.commit().await.expect("commit");
+        }
+    );
+
+    let loser = loser.expect("a directory another writer created is one to use, not to fail on");
+    assert_eq!(
+        loser.parent_id,
+        Some(created.id),
+        "the second writer adopted the directory the first one created"
+    );
+});
+
+database_test!(a_move_onto_a_name_a_write_just_took_conflicts, harness, {
+    let owner = harness.account("racemove@example.com", Role::Member).await;
+    harness
+        .write(owner.id, "a.txt", b"the one that moves")
+        .await;
+    let root = harness.root(owner.id).await;
+    let name = "b.txt".parse::<NodeName>().expect("a valid name");
+    let (hash, size) = harness.stage(b"").await;
+
+    let mut winner = harness.state.db.begin().await.expect("begin");
+    db::put_file(&mut winner, owner.id, &root, &name, hash, size)
+        .await
+        .expect("the write");
+
+    let (moved, ()) = tokio::join!(harness.try_rename(owner.id, "a.txt", "b.txt"), async {
+        harness.wait_until_blocked_on("UPDATE nodes").await;
+        winner.commit().await.expect("commit");
+    });
+
+    assert!(
+        matches!(moved, Err(ApiError::Conflict(_))),
+        "a move that loses the name it aimed for is a conflict: {moved:?}"
+    );
+});
