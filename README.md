@@ -119,6 +119,9 @@ PUT    /v1/files/{*path}      upload, creating parent directories
 GET    /v1/files/{*path}      download
 DELETE /v1/files/{*path}      move to trash
 POST   /v1/move               rename a node, or move it under another directory
+GET    /v1/app-passwords      the credentials this account has minted
+POST   /v1/app-passwords      mint one, shown once
+DELETE /v1/app-passwords/{id} revoke one, taking effect immediately
 GET    /v1/trash              what the account has deleted
 POST   /v1/trash/{id}/restore bring it back, with the directories it needs
 DELETE /v1/trash/{id}         delete it for good, and release its bytes
@@ -139,6 +142,12 @@ Releasing a blob does not delete it. A background sweep collects blobs nothing p
 have been unreferenced for `BLOB_GRACE_PERIOD_SECONDS`, which is what keeps a delete followed by a
 re-upload of the same content from racing the collector: the re-upload finds the blob and adopts it.
 The bytes come back to the disk on that schedule, not on the purge.
+
+A WebDAV client stores its credential in plain text more often than not, so it never gets the
+account password. `POST /v1/app-passwords` mints a high-entropy secret, shows it once, and keeps only
+a fingerprint of it. The secret authenticates over Basic auth on the WebDAV surface and nowhere else:
+account management answers 401 to it, so a stolen credential cannot mint itself a successor. Revoking
+takes effect on the next request, and `last_used_at` says which credentials nothing is using.
 
 Each account carries a role: `admin`, `member` or `reader`. A reader may list and download; upload
 and delete answer 403. The check sits in the API rather than in the interface, so it holds for curl

@@ -1,3 +1,4 @@
+pub mod app_passwords;
 pub mod auth;
 pub mod files;
 pub mod trash;
@@ -14,6 +15,11 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/v1/auth/login", post(auth::login))
         .route("/v1/auth/me", get(auth::me))
+        .route(
+            "/v1/app-passwords",
+            get(app_passwords::list).post(app_passwords::mint),
+        )
+        .route("/v1/app-passwords/{id}", delete(app_passwords::revoke))
         .route("/v1/move", post(files::rename))
         .route("/v1/trash", get(trash::list))
         .route("/v1/trash/{id}", delete(trash::purge))

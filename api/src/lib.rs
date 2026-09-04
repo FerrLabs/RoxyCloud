@@ -1,3 +1,4 @@
+pub mod app_passwords;
 pub mod auth;
 pub mod config;
 pub mod db;
