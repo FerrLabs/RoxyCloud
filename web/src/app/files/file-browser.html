@@ -107,6 +107,29 @@
             @if (canWrite()) {
               <button
                 type="button"
+                class="icon"
+                [attr.aria-label]="'Rename ' + node.name"
+                [title]="'Rename ' + node.name"
+                (click)="renaming.set(node)"
+              >
+                <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
+                  <path
+                    d="M13.4 3.6a1.7 1.7 0 0 1 2.4 2.4L7.6 14.2l-3.1.9.9-3.1z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M12.1 4.9 15.1 7.9"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
                 class="icon danger"
                 [attr.aria-label]="'Delete ' + node.name"
                 [title]="'Delete ' + node.name"
@@ -149,11 +172,23 @@
     [heading]="'Delete ' + node.name + '?'"
     [body]="
       node.kind === 'directory'
-        ? 'The folder is moved to the trash. Restoring it is not possible yet.'
-        : 'The file is moved to the trash. Restoring it is not possible yet.'
+        ? 'The folder and everything in it move to the trash.'
+        : 'The file moves to the trash.'
     "
     action="Delete"
     (accepted)="remove(node)"
     (dismissed)="doomed.set(null)"
+  />
+}
+
+@if (renaming(); as node) {
+  <rx-prompt
+    [heading]="'Rename ' + node.name"
+    label="New name"
+    hint="Type a path with / to move it into a folder here."
+    [value]="node.name"
+    action="Rename"
+    (submitted)="rename(node, $event)"
+    (dismissed)="renaming.set(null)"
   />
 }

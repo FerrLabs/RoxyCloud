@@ -98,6 +98,16 @@ async fn download_file(
 }
 
 #[tauri::command]
+async fn move_node(desktop: State<'_, Desktop>, from: String, to: String) -> Result<Node, String> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    remote
+        .rename(&from, &to)
+        .await
+        .map_err(|error| format!("{from}: {error}"))
+}
+
+#[tauri::command]
 async fn delete_node(desktop: State<'_, Desktop>, path: String) -> Result<(), String> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
@@ -171,6 +181,7 @@ fn main() {
             account,
             read_file,
             download_file,
+            move_node,
             delete_node,
             start_sync,
             sync_control

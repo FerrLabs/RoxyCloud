@@ -13,6 +13,7 @@ export interface Platform {
   read(path: string): Promise<Blob>;
   download(path: string, name: string): Promise<string | null>;
   remove(path: string): Promise<void>;
+  rename(from: string, to: string): Promise<Node>;
   upload?(path: string, file: File): Promise<void>;
 }
 
@@ -33,11 +34,7 @@ function browserPlatform(baseUrl: string): Platform {
       },
     });
     if (!response.ok) {
-      throw new Error(
-        response.status === 403
-          ? 'this account may only read'
-          : `${response.status} ${response.statusText}`,
-      );
+      throw new Error(messageFor(response));
     }
     return response;
   };
@@ -75,7 +72,26 @@ function browserPlatform(baseUrl: string): Platform {
     remove: async (path) => {
       await call(`/v1/files${encodePath(path)}`, { method: 'DELETE' });
     },
+    rename: (from, to) =>
+      json<Node>('/v1/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to }),
+      }),
   };
+}
+
+function messageFor(response: Response): string {
+  switch (response.status) {
+    case 403:
+      return 'this account may only read';
+    case 409:
+      return 'that name is already taken';
+    case 507:
+      return 'there is no room left in this account';
+    default:
+      return `${response.status} ${response.statusText}`;
+  }
 }
 
 function desktopPlatform(serverUrl: string): Platform {
@@ -109,6 +125,10 @@ function desktopPlatform(serverUrl: string): Platform {
     remove: async (path) => {
       const { invoke } = await core();
       await invoke<void>('delete_node', { path });
+    },
+    rename: async (from, to) => {
+      const { invoke } = await core();
+      return invoke<Node>('move_node', { from, to });
     },
   };
 }
