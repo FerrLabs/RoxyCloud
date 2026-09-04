@@ -197,6 +197,9 @@ impl<T: Transport> Engine<T> {
                 self.state.forget(path);
                 report.directories_removed_remotely += 1;
             }
+            Action::Forget(path) => {
+                self.state.forget(path);
+            }
             Action::KeepBoth { path, local_copy } => {
                 let from = path.to_path(&self.root);
                 let to = local_copy.to_path(&self.root);
@@ -294,6 +297,7 @@ fn subject(action: &Action) -> &RelPath {
         Action::CreateLocalDirectory(path)
         | Action::RemoveLocalDirectory(path)
         | Action::RemoveRemoteDirectory(path)
+        | Action::Forget(path)
         | Action::Download(path)
         | Action::Upload(path)
         | Action::DeleteLocal(path)

@@ -103,6 +103,12 @@ impl fmt::Display for RelPath {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    fn path(input: &str) -> RelPath {
+        RelPath::parse(input).expect("valid path")
+    }
+
     #[test]
     fn a_path_is_inside_the_directory_above_it() {
         let directory = RelPath::parse("photos").expect("valid path");
@@ -135,12 +141,6 @@ mod tests {
             !directory.is_inside(&directory),
             "nor is the directory itself"
         );
-    }
-
-    use super::*;
-
-    fn path(input: &str) -> RelPath {
-        RelPath::parse(input).expect("valid path")
     }
 
     #[test]

@@ -13,6 +13,7 @@ pub enum Action {
     DeleteRemote(RelPath),
     RemoveLocalDirectory(RelPath),
     RemoveRemoteDirectory(RelPath),
+    Forget(RelPath),
     KeepBoth { path: RelPath, local_copy: RelPath },
 }
 
@@ -36,6 +37,7 @@ pub fn reconcile(local: &Snapshot, remote: &Snapshot, base: &Snapshot, now: Date
     let mut deletions = Vec::new();
     let mut removed = Vec::new();
     let mut removed_remotely = Vec::new();
+    let mut forgotten = Vec::new();
     let mut blocked = Vec::new();
 
     let paths = local
@@ -46,7 +48,12 @@ pub fn reconcile(local: &Snapshot, remote: &Snapshot, base: &Snapshot, now: Date
 
     for path in paths {
         match (local.get(path), remote.get(path)) {
-            (Some(Entry::Directory), Some(Entry::Directory)) | (None, None) => {}
+            (Some(Entry::Directory), Some(Entry::Directory)) => {}
+            (None, None) => {
+                if base.contains_key(path) {
+                    forgotten.push(Action::Forget(path.clone()));
+                }
+            }
             (None, Some(Entry::Directory)) => {
                 if !base.contains_key(path) {
                     created.push(Action::CreateLocalDirectory(path.clone()));
@@ -82,13 +89,16 @@ pub fn reconcile(local: &Snapshot, remote: &Snapshot, base: &Snapshot, now: Date
     actions.extend(deletions);
     actions.extend(removed_remotely);
     actions.extend(removed);
+    actions.extend(forgotten);
 
     Plan { actions, blocked }
 }
 
 fn holds_only_what_was_synced(remote: &Snapshot, base: &Snapshot, directory: &RelPath) -> bool {
     remote
-        .iter()
+        .range(directory.clone()..)
+        .skip_while(|(path, _)| *path == directory)
+        .take_while(|(path, _)| path.as_str().starts_with(directory.as_str()))
         .filter(|(path, _)| path.is_inside(directory))
         .all(|(path, entry)| base.get(path) == Some(entry))
 }
@@ -413,9 +423,23 @@ mod tests {
     }
 
     #[test]
-    fn a_directory_removed_on_both_sides_needs_no_work() {
+    fn a_directory_removed_on_both_sides_is_dropped_from_the_base() {
         let base = snapshot(&[("photos", Entry::Directory)]);
-        assert!(reconcile(&Snapshot::new(), &Snapshot::new(), &base, now()).is_empty());
+        assert_eq!(
+            plan(&Snapshot::new(), &Snapshot::new(), &base),
+            [Action::Forget(at("photos"))],
+            "a record that outlives both sides would read as a folder the user removed"
+        );
+    }
+
+    #[test]
+    fn a_directory_that_came_back_on_the_server_is_created_rather_than_removed() {
+        let remote = snapshot(&[("photos", Entry::Directory)]);
+        assert_eq!(
+            plan(&Snapshot::new(), &remote, &Snapshot::new()),
+            [Action::CreateLocalDirectory(at("photos"))],
+            "once the stale record is gone, a folder another machine made is new again"
+        );
     }
 
     #[test]
