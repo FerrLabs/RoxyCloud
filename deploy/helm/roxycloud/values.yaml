@@ -1,0 +1,63 @@
+image:
+  repository: ghcr.io/ferrlabs/roxycloud-api
+  # Defaults to the chart's appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# The chart does not run Postgres. Point it at one you already have, either
+# inline or through a secret you manage.
+database:
+  url: ""
+  existingSecret: ""
+  existingSecretKey: database-url
+
+# HS256 secret for session tokens. Rotating it signs every session out.
+jwt:
+  secret: ""
+  existingSecret: ""
+  existingSecretKey: jwt-secret
+
+# Creates the first administrator on an empty database, then does nothing.
+bootstrapAdmin:
+  email: ""
+  password: ""
+
+config:
+  corsAllowedOrigins: []
+  defaultQuotaBytes: ""
+  sessionTtlSeconds: ""
+  blobSweepIntervalSeconds: ""
+  blobGracePeriodSeconds: ""
+
+# The blob store is a directory on disk, so one replica owns it. Until the S3
+# backend lands there is no configuration here that makes a second one safe.
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 20Gi
+
+service:
+  type: ClusterIP
+  port: 3001
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: ""
+  tls:
+    enabled: false
+    secretName: ""
+
+resources: {}
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

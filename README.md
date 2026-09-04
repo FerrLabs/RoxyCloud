@@ -79,6 +79,23 @@ pnpm --filter @roxycloud/web build   --define ROXYCLOUD_API_URL="'https://api.ex
 If you deploy a modified RoxyCloud, point the source URL at your fork: the AGPL requires you to
 offer your users the source of the version they are actually using.
 
+## Self-hosting
+
+`deploy/docker-compose.yml` brings up the API and a Postgres for it:
+
+```bash
+POSTGRES_PASSWORD=... JWT_SECRET=... docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+On Kubernetes, `deploy/helm/roxycloud` deploys the API against a database you already run, with a
+volume for the blobs and an optional ingress. It does not bundle Postgres and does not serve the web
+app, and nothing publishes an image yet, so build one first. `deploy/helm/roxycloud/README.md` has
+the values and the reasoning.
+
+```bash
+helm install roxycloud deploy/helm/roxycloud   --set image.repository=your.registry/roxycloud-api   --set database.url='postgres://roxycloud:password@postgres/roxycloud'   --set jwt.secret="$(openssl rand -hex 32)"
+```
+
 ## Endpoints
 
 ```
