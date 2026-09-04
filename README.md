@@ -97,8 +97,11 @@ Every `/v1` route except login takes `Authorization: Bearer <session token>`.
 Deleting is reversible. `DELETE /v1/files/{*path}` marks the node and everything under it, credits
 the quota and leaves the bytes alone, so `GET /v1/trash` lists what was deleted and a restore puts it
 back where it was, recreating any directory above it that was deleted in the meantime. A name taken
-since the delete answers 409 rather than inventing a new one: move the occupant, then restore. Only
-a purge releases the blobs, which is what makes it the one irreversible call.
+since the delete answers 409 rather than inventing a new one: move the occupant, then restore. What
+was deleted separately stays separate, so restoring a file out of a folder someone deleted later
+leaves the rest of that folder in the trash, listed on its own. Only a purge releases the blobs,
+which is what makes it the one irreversible call, and purging a folder takes everything trashed
+under it, including what was deleted before it.
 
 Each account carries a role: `admin`, `member` or `reader`. A reader may list and download; upload
 and delete answer 403. The check sits in the API rather than in the interface, so it holds for curl

@@ -686,3 +686,59 @@ database_test!(one_account_cannot_reach_another_account_s_trash, harness, {
     assert!(matches!(restored, Err(ApiError::NotFound)), "{restored:?}");
     assert_eq!(harness.trashed(owner.id).await, ["private.txt"]);
 });
+
+database_test!(
+    restoring_from_inside_another_delete_leaves_the_rest_reachable,
+    harness,
+    {
+        let owner = harness.account("nested@example.com", Role::Member).await;
+        harness
+            .write(owner.id, "photos/a.txt", b"deleted first")
+            .await;
+        harness
+            .write(owner.id, "photos/b.txt", b"deleted with the folder")
+            .await;
+        let a = harness.resolve(owner.id, "photos/a.txt").await;
+        let photos = harness.resolve(owner.id, "photos").await;
+        harness.trash(&a).await;
+        harness.trash(&photos).await;
+
+        harness.restore(owner.id, a.id).await;
+
+        assert_eq!(
+            harness.trashed(owner.id).await,
+            ["b.txt"],
+            "what is left of the folder's delete has to stay reachable, or it can never be restored or purged"
+        );
+        harness
+            .restore(owner.id, harness.resolve_trashed(owner.id, "b.txt").await)
+            .await;
+        let restored = harness.resolve(owner.id, "photos").await;
+        assert_eq!(harness.children(&restored).await, ["a.txt", "b.txt"]);
+    }
+);
+
+database_test!(
+    purging_a_directory_releases_a_file_deleted_before_it,
+    harness,
+    {
+        let owner = harness
+            .account("nestedpurge@example.com", Role::Member)
+            .await;
+        let earlier = b"deleted on its own, then swallowed";
+        harness.write(owner.id, "photos/a.txt", earlier).await;
+        let a = harness.resolve(owner.id, "photos/a.txt").await;
+        let photos = harness.resolve(owner.id, "photos").await;
+        harness.trash(&a).await;
+        harness.trash(&photos).await;
+
+        harness.purge(owner.id, photos.id).await;
+
+        assert_eq!(
+            harness.blob(hash_of(earlier)).await,
+            Some((0, true)),
+            "the row went with the parent, so its reference has to go too"
+        );
+        assert!(harness.trashed(owner.id).await.is_empty());
+    }
+);

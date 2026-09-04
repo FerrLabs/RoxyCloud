@@ -254,6 +254,16 @@ impl Harness {
         tx.commit().await.expect("commit");
     }
 
+    pub async fn resolve_trashed(&self, owner: Uuid, name: &str) -> Uuid {
+        trash::list(&self.state.db, owner)
+            .await
+            .expect("listing the trash")
+            .into_iter()
+            .find(|node| node.name == name)
+            .expect("a trash entry with that name")
+            .id
+    }
+
     pub async fn trashed(&self, owner: Uuid) -> Vec<String> {
         trash::list(&self.state.db, owner)
             .await

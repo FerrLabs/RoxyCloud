@@ -54,7 +54,7 @@ pub async fn restore(
     lock_owner(tx, owner_id).await?;
     let root = root(tx, owner_id, id).await?;
 
-    let mut charged = restore_ancestors(tx, &root).await?;
+    let (mut charged, opened) = restore_ancestors(tx, &root).await?;
     charged += sqlx::query_scalar::<_, i64>(
         "WITH restored AS (
              UPDATE nodes SET deleted_at = NULL, trash_root_id = NULL
@@ -68,6 +68,9 @@ pub async fn restore(
     .await
     .map_err(|error| name_taken(error, &root.name))?;
 
+    for batch in opened {
+        reroot_survivors(tx, batch).await?;
+    }
     charge_quota(tx, owner_id, charged).await?;
 
     sqlx::query_as::<_, Node>(concat!(
@@ -90,13 +93,20 @@ pub async fn purge(
     let root = root(tx, owner_id, id).await?;
 
     let blobs = sqlx::query_scalar::<_, BlobHash>(
-        "SELECT blob_hash FROM nodes WHERE trash_root_id = $1 AND blob_hash IS NOT NULL",
+        "WITH RECURSIVE buried AS (
+             SELECT id, blob_hash FROM nodes WHERE id = $1
+             UNION ALL
+             SELECT descendant.id, descendant.blob_hash
+             FROM nodes descendant
+             JOIN buried ON descendant.parent_id = buried.id
+         ) CYCLE id SET looped USING trail
+         SELECT blob_hash FROM buried WHERE blob_hash IS NOT NULL",
     )
     .bind(root.id)
     .fetch_all(&mut **tx)
     .await?;
 
-    sqlx::query("DELETE FROM nodes WHERE trash_root_id = $1")
+    sqlx::query("DELETE FROM nodes WHERE id = $1")
         .bind(root.id)
         .execute(&mut **tx)
         .await?;
@@ -128,31 +138,60 @@ async fn root(
 async fn restore_ancestors(
     tx: &mut Transaction<'_, Postgres>,
     node: &Node,
-) -> Result<i64, ApiError> {
+) -> Result<(i64, Vec<Uuid>), ApiError> {
     let mut charged = 0;
+    let mut opened = Vec::new();
     let mut next = node.parent_id;
 
     while let Some(id) = next {
-        let trashed = sqlx::query_as::<_, Node>(concat!(
-            "SELECT ",
-            node_columns!(),
-            " FROM nodes WHERE id = $1 AND deleted_at IS NOT NULL"
-        ))
+        let trashed = sqlx::query_as::<_, (Uuid, Option<Uuid>, Uuid, String, i64)>(
+            "SELECT id, parent_id, trash_root_id, name, size
+             FROM nodes WHERE id = $1 AND deleted_at IS NOT NULL",
+        )
         .bind(id)
         .fetch_optional(&mut **tx)
         .await?;
 
-        let Some(ancestor) = trashed else { break };
+        let Some((ancestor, parent_id, batch, name, size)) = trashed else {
+            break;
+        };
 
         sqlx::query("UPDATE nodes SET deleted_at = NULL, trash_root_id = NULL WHERE id = $1")
-            .bind(ancestor.id)
+            .bind(ancestor)
             .execute(&mut **tx)
             .await
-            .map_err(|error| name_taken(error, &ancestor.name))?;
+            .map_err(|error| name_taken(error, &name))?;
 
-        charged += ancestor.size;
-        next = ancestor.parent_id;
+        if !opened.contains(&batch) {
+            opened.push(batch);
+        }
+        charged += size;
+        next = parent_id;
     }
 
-    Ok(charged)
+    Ok((charged, opened))
+}
+
+async fn reroot_survivors(tx: &mut Transaction<'_, Postgres>, batch: Uuid) -> Result<(), ApiError> {
+    sqlx::query(
+        "WITH RECURSIVE stranded AS (
+             SELECT survivor.id, survivor.id AS batch
+             FROM nodes survivor
+             JOIN nodes parent ON parent.id = survivor.parent_id
+             WHERE survivor.trash_root_id = $1
+               AND survivor.deleted_at IS NOT NULL
+               AND parent.deleted_at IS NULL
+             UNION ALL
+             SELECT descendant.id, stranded.batch
+             FROM nodes descendant
+             JOIN stranded ON descendant.parent_id = stranded.id
+             WHERE descendant.trash_root_id = $1 AND descendant.deleted_at IS NOT NULL
+         ) CYCLE id SET looped USING trail
+         UPDATE nodes SET trash_root_id = stranded.batch
+         FROM stranded WHERE nodes.id = stranded.id",
+    )
+    .bind(batch)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }
