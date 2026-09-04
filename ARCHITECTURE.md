@@ -167,9 +167,18 @@ prefix that the prerenderer walks on its own.
 
 ### deploy
 
-The self-host story is a product surface, not an afterthought. A single container image carrying the
-API and the built SPA, one compose file with Postgres, and a Helm chart for people already on
-Kubernetes. If a change makes `docker compose up` fail on a clean machine, it is a release blocker.
+The self-host story is a product surface, not an afterthought. One container image, one compose file
+with Postgres, and a Helm chart for people already on Kubernetes. If a change makes
+`docker compose up` fail on a clean machine, it is a release blocker.
+
+The image carries the API alone today. `web/` builds to static files with the API URL compiled in,
+so the two are deployed separately until something serves the bundle from the API process.
+
+The chart deploys the API against a database it does not manage. Bundling Postgres would mean owning
+a second database's upgrades and backups for people who already run an operator, and the ones who do
+not are better served by the compose file. It pins one replica: the blob store is a directory behind
+a `ReadWriteOnce` claim, and two pods writing that tree would corrupt refcounts Postgres believes.
+Both constraints are the local blob backend's, and both lift when S3 lands.
 
 ### What stays out
 

@@ -1,0 +1,22 @@
+{{ .Chart.Name }} {{ .Chart.AppVersion }} is installed as {{ include "roxycloud.fullname" . }}.
+
+The API answers on port {{ .Values.service.port }}.
+{{- if .Values.ingress.enabled }}
+It is reachable at http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}.
+{{- else }}
+
+Nothing exposes it yet. To look at it from your machine:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "roxycloud.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  curl http://localhost:{{ .Values.service.port }}/health
+{{- end }}
+{{- if not .Values.bootstrapAdmin.email }}
+
+No account exists yet. Set bootstrapAdmin.email and bootstrapAdmin.password and upgrade, or create
+one with SQL. The bootstrap only runs while the database has no accounts.
+{{- end }}
+{{- if not .Values.persistence.enabled }}
+
+Persistence is off, so the blobs live in an emptyDir and go when the pod does. Every node in the
+database will point at bytes that are no longer there.
+{{- end }}

@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "roxycloud.fullname" . }}
+  labels:
+    {{- include "roxycloud.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "roxycloud.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "roxycloud.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.service.port | quote }}
+            - name: BLOB_ROOT
+              value: /var/lib/roxycloud
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "roxycloud.databaseSecret" . }}
+                  key: {{ .Values.database.existingSecretKey }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "roxycloud.jwtSecret" . }}
+                  key: {{ .Values.jwt.existingSecretKey }}
+            {{- with .Values.config.corsAllowedOrigins }}
+            - name: CORS_ALLOWED_ORIGINS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- if ne (toString .Values.config.defaultQuotaBytes) "" }}
+            - name: DEFAULT_QUOTA_BYTES
+              value: {{ .Values.config.defaultQuotaBytes | quote }}
+            {{- end }}
+            {{- if ne (toString .Values.config.sessionTtlSeconds) "" }}
+            - name: SESSION_TTL_SECONDS
+              value: {{ .Values.config.sessionTtlSeconds | quote }}
+            {{- end }}
+            {{- if ne (toString .Values.config.blobSweepIntervalSeconds) "" }}
+            - name: BLOB_SWEEP_INTERVAL_SECONDS
+              value: {{ .Values.config.blobSweepIntervalSeconds | quote }}
+            {{- end }}
+            {{- if ne (toString .Values.config.blobGracePeriodSeconds) "" }}
+            - name: BLOB_GRACE_PERIOD_SECONDS
+              value: {{ .Values.config.blobGracePeriodSeconds | quote }}
+            {{- end }}
+            {{- if .Values.bootstrapAdmin.email }}
+            {{- if not .Values.bootstrapAdmin.password }}
+            {{- fail "set bootstrapAdmin.password when bootstrapAdmin.email is set" }}
+            {{- end }}
+            - name: BOOTSTRAP_ADMIN_EMAIL
+              value: {{ .Values.bootstrapAdmin.email | quote }}
+            - name: BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "roxycloud.fullname" . }}
+                  key: bootstrap-admin-password
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 3
+            failureThreshold: 40
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: blobs
+              mountPath: /var/lib/roxycloud
+      volumes:
+        - name: blobs
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "roxycloud.claimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
