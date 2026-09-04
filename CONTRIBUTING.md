@@ -57,6 +57,10 @@ RoxyCloud is AGPL-3.0-only. Contributions are accepted under the same licence, c
 [Developer Certificate of Origin](https://developercertificate.org): sign off every commit with
 `git commit -s`, which appends a `Signed-off-by` line.
 
+Renovate signs its own commits through `commitBody` in `renovate.json`, because the check is
+unconditional and a dependency bump is a commit like any other. If you run a bot against this
+repository, do the same rather than asking for an exemption.
+
 There is no copyright assignment and no contributor licence agreement. You keep the copyright on
 what you write. The practical consequence, stated plainly so nobody is surprised later: nobody,
 FerrLabs included, can relicense this project or sell proprietary exceptions to it without the

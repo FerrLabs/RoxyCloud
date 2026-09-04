@@ -1,6 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>FerrLabs/.github"],
+  "commitBody": "Signed-off-by: ferrlabs-renovate[bot] <282300760+ferrlabs-renovate[bot]@users.noreply.github.com>",
   "packageRules": [
     {
       "description": "TypeScript 7 is outside Angular's supported range: @angular/compiler-cli 22 declares `typescript: >=6.0 <6.1`, and the compiler errors out rather than warns on an unsupported version. Hold at 6.x until Angular ships support, then drop this rule. See FerrLabs/.github#313.",
