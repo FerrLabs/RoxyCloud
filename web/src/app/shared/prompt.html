@@ -8,12 +8,13 @@
         type="text"
         [value]="draft()"
         (input)="draft.set($any($event.target).value)"
+        [attr.aria-describedby]="hint() ? 'rx-prompt-hint' : null"
         autocomplete="off"
         spellcheck="false"
       />
     </label>
     @if (hint()) {
-      <p class="hint">{{ hint() }}</p>
+      <p class="hint" id="rx-prompt-hint">{{ hint() }}</p>
     }
     <div class="actions">
       <button type="button" class="ghost" (click)="dismiss()">Cancel</button>

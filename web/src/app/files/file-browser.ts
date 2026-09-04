@@ -184,7 +184,9 @@ export class FileBrowser {
         this.focus(last);
         break;
       case 'Delete':
-        this.doomed.set(node);
+        if (this.canWrite()) {
+          this.doomed.set(node);
+        }
         break;
       case 'F2':
         if (this.canWrite()) {

@@ -34,7 +34,7 @@ function browserPlatform(baseUrl: string): Platform {
       },
     });
     if (!response.ok) {
-      throw new Error(messageFor(response));
+      throw new Error(await messageFor(response));
     }
     return response;
   };
@@ -81,17 +81,22 @@ function browserPlatform(baseUrl: string): Platform {
   };
 }
 
-function messageFor(response: Response): string {
+async function messageFor(response: Response): Promise<string> {
   switch (response.status) {
     case 403:
       return 'this account may only read';
-    case 409:
-      return 'that name is already taken';
     case 507:
       return 'there is no room left in this account';
     default:
-      return `${response.status} ${response.statusText}`;
+      return (await explanationFrom(response)) ?? `${response.status} ${response.statusText}`;
   }
+}
+
+async function explanationFrom(response: Response): Promise<string | null> {
+  const body: unknown = await response.json().catch(() => null);
+  const explanation =
+    typeof body === 'object' && body !== null ? (body as { error?: unknown }).error : null;
+  return typeof explanation === 'string' && explanation.length > 0 ? explanation : null;
 }
 
 function desktopPlatform(serverUrl: string): Platform {
