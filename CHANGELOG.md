@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.13.2] - 2026-09-04
+
+### Bug Fixes
+
+- fix(ci): label the image with the commit it was built from (#71)
+
 ## [0.13.1] - 2026-09-04
 
 ### Bug Fixes
