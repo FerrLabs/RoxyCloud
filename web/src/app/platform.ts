@@ -13,6 +13,7 @@ export interface Platform {
   read(path: string): Promise<Blob>;
   download(path: string, name: string): Promise<string | null>;
   remove(path: string): Promise<void>;
+  rename(from: string, to: string): Promise<Node>;
   upload?(path: string, file: File): Promise<void>;
 }
 
@@ -33,11 +34,7 @@ function browserPlatform(baseUrl: string): Platform {
       },
     });
     if (!response.ok) {
-      throw new Error(
-        response.status === 403
-          ? 'this account may only read'
-          : `${response.status} ${response.statusText}`,
-      );
+      throw new Error(await messageFor(response));
     }
     return response;
   };
@@ -75,7 +72,31 @@ function browserPlatform(baseUrl: string): Platform {
     remove: async (path) => {
       await call(`/v1/files${encodePath(path)}`, { method: 'DELETE' });
     },
+    rename: (from, to) =>
+      json<Node>('/v1/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to }),
+      }),
   };
+}
+
+async function messageFor(response: Response): Promise<string> {
+  switch (response.status) {
+    case 403:
+      return 'this account may only read';
+    case 507:
+      return 'there is no room left in this account';
+    default:
+      return (await explanationFrom(response)) ?? `${response.status} ${response.statusText}`;
+  }
+}
+
+async function explanationFrom(response: Response): Promise<string | null> {
+  const body: unknown = await response.json().catch(() => null);
+  const explanation =
+    typeof body === 'object' && body !== null ? (body as { error?: unknown }).error : null;
+  return typeof explanation === 'string' && explanation.length > 0 ? explanation : null;
 }
 
 function desktopPlatform(serverUrl: string): Platform {
@@ -109,6 +130,10 @@ function desktopPlatform(serverUrl: string): Platform {
     remove: async (path) => {
       const { invoke } = await core();
       await invoke<void>('delete_node', { path });
+    },
+    rename: async (from, to) => {
+      const { invoke } = await core();
+      return invoke<Node>('move_node', { from, to });
     },
   };
 }

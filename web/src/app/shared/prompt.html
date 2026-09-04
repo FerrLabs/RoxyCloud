@@ -1,0 +1,24 @@
+<dialog #dialog (cancel)="dismiss()">
+  <form method="dialog" (submit)="$event.preventDefault(); submit()">
+    <h2>{{ heading() }}</h2>
+    <label>
+      {{ label() }}
+      <input
+        #field
+        type="text"
+        [value]="draft()"
+        (input)="draft.set($any($event.target).value)"
+        [attr.aria-describedby]="hint() ? 'rx-prompt-hint' : null"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </label>
+    @if (hint()) {
+      <p class="hint" id="rx-prompt-hint">{{ hint() }}</p>
+    }
+    <div class="actions">
+      <button type="button" class="ghost" (click)="dismiss()">Cancel</button>
+      <button type="submit" class="primary">{{ action() }}</button>
+    </div>
+  </form>
+</dialog>

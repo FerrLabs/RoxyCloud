@@ -16,13 +16,14 @@ import { childOf } from '../folder';
 import { byKindThenName, formatDate, formatSize, type Node } from '../node';
 import { PLATFORM } from '../platform';
 import { Confirm } from '../shared/confirm';
+import { Prompt } from '../shared/prompt';
 import { Breadcrumb } from './breadcrumb';
 import { Preview } from './preview';
 import { UploadTarget } from './upload-target';
 
 @Component({
   selector: 'rx-file-browser',
-  imports: [Breadcrumb, Confirm, Preview, UploadTarget],
+  imports: [Breadcrumb, Confirm, Preview, Prompt, UploadTarget],
   templateUrl: './file-browser.html',
   styleUrl: './file-browser.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -63,6 +64,7 @@ export class FileBrowser {
   protected readonly announcement = signal<string | null>(null);
   protected readonly failure = signal<string | null>(null);
   protected readonly doomed = signal<Node | null>(null);
+  protected readonly renaming = signal<Node | null>(null);
   protected readonly opened = signal<Node | null>(null);
 
   protected readonly size = formatSize;
@@ -74,6 +76,7 @@ export class FileBrowser {
       this.announcement.set(null);
       this.failure.set(null);
       this.opened.set(null);
+      this.renaming.set(null);
     });
   }
 
@@ -93,6 +96,18 @@ export class FileBrowser {
     await this.attempt(`downloading ${node.name}`, async () => {
       const saved = await this.platform.download(childOf(this.path(), node.name), node.name);
       this.announcement.set(saved ? `Saved ${node.name} to ${saved}` : `Downloaded ${node.name}`);
+    });
+  }
+
+  protected async rename(node: Node, destination: string): Promise<void> {
+    this.renaming.set(null);
+    const to = childOf(this.path(), destination);
+    await this.attempt(`renaming ${node.name}`, async () => {
+      await this.platform.rename(this.pathOf(node), to);
+      this.announcement.set(
+        destination.includes('/') ? `Moved ${node.name} to ${to}` : `Renamed ${node.name}`,
+      );
+      this.listing.reload();
     });
   }
 
@@ -169,7 +184,14 @@ export class FileBrowser {
         this.focus(last);
         break;
       case 'Delete':
-        this.doomed.set(node);
+        if (this.canWrite()) {
+          this.doomed.set(node);
+        }
+        break;
+      case 'F2':
+        if (this.canWrite()) {
+          this.renaming.set(node);
+        }
         break;
       default:
         return;
@@ -186,8 +208,13 @@ export class FileBrowser {
       await run();
       return true;
     } catch (cause: unknown) {
-      this.failure.set(`${what} failed: ${String(cause)}`);
+      this.announcement.set(null);
+      this.failure.set(`${what} failed: ${reasonFor(cause)}`);
       return false;
     }
   }
+}
+
+function reasonFor(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
 }

@@ -26,7 +26,9 @@ Done: content-addressed local blob store with dedup, the node tree with quotas a
 and upload, download, listing, trash and restore over REST.
 
 Done too: password accounts with Argon2id, session tokens, and login from the web app, the desktop
-shell and the CLI, plus the marketing and documentation site in English and French.
+shell and the CLI, plus the marketing and documentation site in English and French. The file browser
+uploads, previews, renames and deletes, and renaming doubles as moving: type a path instead of a name
+and the node lands there.
 
 And: folder sync, with a three-way reconciler that keeps both copies when a file changed on either
 side, either once or watching the folder as it changes.
