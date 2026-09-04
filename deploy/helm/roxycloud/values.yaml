@@ -41,6 +41,9 @@ persistence:
   storageClass: ""
   accessMode: ReadWriteOnce
   size: 20Gi
+  # Keeps the claim when the release is uninstalled, so the blobs outlive a
+  # mistake. Reinstalling then means pointing existingClaim at what was kept.
+  retain: true
 
 service:
   type: ClusterIP

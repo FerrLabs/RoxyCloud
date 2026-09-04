@@ -5,6 +5,10 @@ metadata:
   name: {{ include "roxycloud.fullname" . }}
   labels:
     {{- include "roxycloud.labels" . | nindent 4 }}
+  {{- if .Values.persistence.retain }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- end }}
 spec:
   accessModes:
     - {{ .Values.persistence.accessMode }}

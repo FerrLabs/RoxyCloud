@@ -54,6 +54,19 @@ writing the same tree would corrupt refcounts that Postgres believes are true. T
 the `Recreate` strategy for the same reason: a rolling update would try to attach the volume twice.
 That constraint lifts when the S3 backend lands.
 
+## Uninstalling
+
+`persistence.retain` is on, so `helm uninstall` leaves the claim and the blobs behind. Reinstalling
+over a kept claim means telling the chart to adopt it rather than create a second one:
+
+```yaml
+persistence:
+  existingClaim: roxycloud
+```
+
+Turn `persistence.retain` off if you would rather uninstall took the data with it. Nothing else in
+this chart is capable of deleting the blob store.
+
 ## Values
 
 | Value | Default | Purpose |
@@ -76,6 +89,8 @@ That constraint lifts when the S3 backend lands.
 | `persistence.enabled` | `true` | Off means an `emptyDir`, which loses every byte when the pod moves |
 | `persistence.existingClaim` | none | Claim to use instead of creating one |
 | `persistence.size` | `20Gi` | Size of the created claim |
+| `persistence.accessMode` | `ReadWriteOnce` | Access mode of the created claim |
+| `persistence.retain` | `true` | Keep the claim when the release is uninstalled |
 | `persistence.storageClass` | cluster default | Class of the created claim |
 | `service.type` | `ClusterIP` | Service type |
 | `service.port` | `3001` | Port for the service and the container |

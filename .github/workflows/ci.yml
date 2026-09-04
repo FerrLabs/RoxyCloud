@@ -71,6 +71,7 @@ jobs:
           helm lint deploy/helm/roxycloud --set database.url=x --set jwt.secret=y
           curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz             | tar -xz -C /usr/local/bin kubeconform
           helm template roxycloud deploy/helm/roxycloud             --set database.url=postgres://u:p@db/roxycloud             --set jwt.secret=secret             --set ingress.enabled=true             --set ingress.host=roxycloud.example             --set ingress.tls.enabled=true             --set ingress.tls.secretName=roxycloud-tls             | kubeconform -strict -summary
+          helm template roxycloud deploy/helm/roxycloud             --set database.existingSecret=roxycloud-database             --set jwt.existingSecret=roxycloud-jwt             --set persistence.enabled=false             --set config.blobSweepIntervalSeconds=0             | kubeconform -strict -summary
 
   compose:
     runs-on: ubuntu-latest
