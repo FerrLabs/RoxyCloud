@@ -142,6 +142,41 @@ impl Harness {
         Ok(node)
     }
 
+    pub async fn stage(&self, contents: &[u8]) -> (BlobHash, i64) {
+        let written = self
+            .state
+            .blobs
+            .write(futures::stream::iter([Ok::<_, std::io::Error>(
+                bytes::Bytes::copy_from_slice(contents),
+            )]))
+            .await
+            .expect("writing the blob");
+        (
+            written.hash,
+            i64::try_from(written.size).expect("small test payload"),
+        )
+    }
+
+    pub async fn wait_until_blocked_on(&self, statement: &str) {
+        for _ in 0..500 {
+            let waiting = sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM pg_stat_activity
+                 WHERE datname = current_database()
+                   AND wait_event_type = 'Lock'
+                   AND query ILIKE '%' || $1 || '%'",
+            )
+            .bind(statement)
+            .fetch_one(&self.state.db)
+            .await
+            .expect("reading pg_stat_activity");
+            if waiting > 0 {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("nothing ever blocked on {statement}, so the race under test never happened");
+    }
+
     pub async fn resolve(&self, owner: Uuid, path: &str) -> Node {
         let segments = roxycloud_core::name::parse_path(path).expect("valid path");
         let mut tx = self.state.db.begin().await.expect("begin");
