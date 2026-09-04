@@ -35,3 +35,35 @@ jobs:
         with:
           bot: true
           dry_run: ${{ inputs.dry_run || false }}
+
+  released:
+    needs: release
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: A tag on the release commit is what says a release happened
+        id: tag
+        run: |
+          version=$(git tag --points-at HEAD | sed -n 's/^v//p' | head -1)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -z "$version" ]; then
+            echo "Nothing was tagged in this run, so there is no image to build." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  image:
+    needs: released
+    if: needs.released.outputs.version != ''
+    uses: ./.github/workflows/image.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      version: ${{ needs.released.outputs.version }}
+      push: true
