@@ -154,3 +154,39 @@ database_test!(using_a_secret_records_when, harness, {
         "an unused credential should be visible as one, so it can be cleaned up"
     );
 });
+
+database_test!(a_name_is_required_and_bounded, harness, {
+    let owner = harness.account("named@example.com", Role::Member).await;
+    let mut tx = harness.state.db.begin().await.expect("begin");
+
+    assert!(mint(&mut tx, owner.id, "   ").await.is_err());
+    assert!(mint(&mut tx, owner.id, &"x".repeat(101)).await.is_err());
+    assert!(
+        mint(&mut tx, owner.id, &"x".repeat(100)).await.is_ok(),
+        "the bound is on junk, not on anything a person would type"
+    );
+});
+
+database_test!(using_a_secret_twice_writes_the_row_once, harness, {
+    let owner = harness.account("burst@example.com", Role::Member).await;
+    let (id, secret) = minted(&harness, owner.id, "a directory walk").await;
+    let stamp = async || {
+        sqlx::query_scalar::<_, Option<chrono::DateTime<chrono::Utc>>>(
+            "SELECT last_used_at FROM app_passwords WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_one(&harness.state.db)
+        .await
+        .expect("reading the row")
+    };
+
+    authenticate(&harness.state.db, &email("burst@example.com"), &secret).await;
+    let first = stamp().await;
+    authenticate(&harness.state.db, &email("burst@example.com"), &secret).await;
+
+    assert_eq!(
+        stamp().await,
+        first,
+        "a client walking a tree sends a burst, and each one must not cost a row version"
+    );
+});

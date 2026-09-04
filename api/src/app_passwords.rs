@@ -7,6 +7,7 @@ use crate::error::ApiError;
 use roxycloud_core::user::{Email, User};
 
 const SECRET_BYTES: usize = 32;
+const MAX_NAME_LEN: usize = 100;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct AppPassword {
@@ -30,9 +31,9 @@ pub async fn mint(
     name: &str,
 ) -> Result<Minted, ApiError> {
     let name = name.trim();
-    if name.is_empty() {
+    if name.is_empty() || name.chars().count() > MAX_NAME_LEN {
         return Err(ApiError::WrongKind {
-            expected: "a name for the app password",
+            expected: "name for the app password, up to 100 characters",
         });
     }
 
@@ -102,10 +103,13 @@ pub async fn authenticate(pool: &PgPool, email: &Email, presented: &str) -> Opti
     .ok()
     .flatten()?;
 
-    let _ = sqlx::query("UPDATE app_passwords SET last_used_at = now() WHERE id = $1")
-        .bind(id)
-        .execute(pool)
-        .await;
+    let _ = sqlx::query(
+        "UPDATE app_passwords SET last_used_at = now()
+         WHERE id = $1 AND (last_used_at IS NULL OR last_used_at < now() - INTERVAL '5 minutes')",
+    )
+    .bind(id)
+    .execute(pool)
+    .await;
 
     Some(user)
 }

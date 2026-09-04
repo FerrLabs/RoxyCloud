@@ -620,3 +620,35 @@ database_test!(
         );
     }
 );
+
+database_test!(
+    a_session_that_outlived_its_account_mints_nothing,
+    harness,
+    {
+        let member = harness.account("stale@example.com", Role::Member).await;
+        let token = harness.state.sessions.issue(member.id).expect("a token");
+        sqlx::query("UPDATE users SET disabled_at = now() WHERE id = $1")
+            .bind(member.id)
+            .execute(&harness.state.db)
+            .await
+            .expect("disabling the account");
+
+        let (status, _) = call(
+            &harness,
+            Request::builder()
+                .method("POST")
+                .uri("/v1/app-passwords")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"name":"after the fact"}"#))
+                .expect("a well formed request"),
+        )
+        .await;
+
+        assert_eq!(
+            status,
+            StatusCode::UNAUTHORIZED,
+            "the credential would outlive the session, so the session has to be checked here"
+        );
+    }
+);

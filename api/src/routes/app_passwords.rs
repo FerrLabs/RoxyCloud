@@ -8,6 +8,7 @@ use crate::app_passwords::{self, AppPassword, Minted};
 use crate::auth::Caller;
 use crate::error::ApiError;
 use crate::state::AppState;
+use crate::users;
 
 #[derive(Deserialize)]
 pub struct Name {
@@ -19,6 +20,15 @@ pub async fn mint(
     caller: Caller,
     Json(request): Json<Name>,
 ) -> Result<(StatusCode, Json<Minted>), ApiError> {
+    // A credential outlives the session that minted it, so this is the one route where a token
+    // that survived its account being disabled would hand out something durable.
+    let account = users::by_id(&state.db, caller.user_id)
+        .await?
+        .ok_or(ApiError::Unauthenticated)?;
+    if !account.is_active() {
+        return Err(ApiError::Unauthenticated);
+    }
+
     let mut tx = state.db.begin().await?;
     let minted = app_passwords::mint(&mut tx, caller.user_id, &request.name).await?;
     tx.commit().await?;
