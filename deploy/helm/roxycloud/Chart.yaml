@@ -2,8 +2,8 @@ apiVersion: v2
 name: roxycloud
 description: RoxyCloud API, the server behind the web app, the desktop shell and folder sync
 type: application
-version: 0.13.2
-appVersion: "0.13.2"
+version: 0.14.0
+appVersion: "0.14.0"
 home: https://github.com/FerrLabs/RoxyCloud
 sources:
   - https://github.com/FerrLabs/RoxyCloud
