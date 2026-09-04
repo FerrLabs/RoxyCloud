@@ -171,8 +171,14 @@ The self-host story is a product surface, not an afterthought. One container ima
 with Postgres, and a Helm chart for people already on Kubernetes. If a change makes
 `docker compose up` fail on a clean machine, it is a release blocker.
 
-The image carries the API alone today. `web/` builds to static files with the API URL compiled in,
-so the two are deployed separately until something serves the bundle from the API process.
+The image carries both. `web/` builds to static files with the API URL compiled in, and the image
+builds it with that URL empty, which resolves to the origin serving the page. The API is that origin,
+so the bundled deployment needs no URL and no CORS. Hosting the bundle elsewhere is still supported
+and is what the compiled value is for.
+
+Unknown paths under `/v1` answer 404 rather than falling through to the app, or a client's typo would
+read as a page. The router uses hash locations, so no client-side path ever reaches the server and
+there is no rewriting to get wrong.
 
 The chart deploys the API against a database it does not manage. Bundling Postgres would mean owning
 a second database's upgrades and backups for people who already run an operator, and the ones who do

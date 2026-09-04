@@ -123,12 +123,27 @@ cargo run -p roxycloud-api`,
         ['PORT', '3001', 'Listen port'],
         ['BLOB_ROOT', './data', 'Root of the local blob store'],
         [
+          'WEB_ROOT',
+          'set in the image',
+          'Directory holding the built web app, served alongside the API',
+        ],
+        [
           'CORS_ALLOWED_ORIGINS',
           'empty',
-          'Comma-separated origins allowed to call the API from a browser',
+          'Comma-separated origins allowed to call the API from a browser, unnecessary when WEB_ROOT serves it',
         ],
         ['DEFAULT_QUOTA_BYTES', '10 GiB', 'Quota granted to an account on its first write'],
         ['SESSION_TTL_SECONDS', '12 h', 'Session token lifetime'],
+        [
+          'BLOB_SWEEP_INTERVAL_SECONDS',
+          '1 h',
+          'How often blobs nothing points at are collected, 0 disables it',
+        ],
+        [
+          'BLOB_GRACE_PERIOD_SECONDS',
+          '24 h',
+          'How long an unreferenced blob is kept before collection',
+        ],
         ['BOOTSTRAP_ADMIN_EMAIL', 'unset', 'Creates the first administrator on an empty database'],
         [
           'BOOTSTRAP_ADMIN_PASSWORD',
@@ -149,10 +164,10 @@ cargo run -p roxycloud-api`,
     },
     webApp: {
       heading: 'The web app',
-      body: 'The container image carries the API alone for now, so the browser interface is a separate build. Serve web/dist from any static host, and compile in the address of your API along with the source of the version you are actually running.',
+      body: 'The image carries it, and the API serves it from the same origin, so there is nothing to deploy separately and no CORS to configure. Hosting it yourself is still supported: build web/dist with the address of your API compiled in, serve it from any static host, and name its origin in CORS_ALLOWED_ORIGINS. Compile in the source of the version you are actually running while you are there.',
       blocks: [
         {
-          caption: 'Build the browser interface',
+          caption: 'Build the browser interface for a host of your own',
           code: `pnpm install
 pnpm --filter @roxycloud/web build \\
   --define ROXYCLOUD_API_URL="'https://files.example.com'" \\

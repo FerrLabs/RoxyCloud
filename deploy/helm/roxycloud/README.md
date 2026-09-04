@@ -10,8 +10,9 @@ like CloudNativePG, a managed instance, or a Postgres you installed yourself. A 
 would be a second database to upgrade and back up, and everyone running Kubernetes seriously has an
 opinion about that already.
 
-**It does not serve the web app.** The image carries the API. `web/` builds to static files that any
-web server or object store can host, with the API URL compiled in.
+It serves the web app, because the image carries it. That is one deployment rather than two, and it
+is why the chart has no second service, no second ingress and nothing in `config.corsAllowedOrigins`
+by default. Point `ingress.host` at it and the app and the API are both there.
 
 ## The image
 

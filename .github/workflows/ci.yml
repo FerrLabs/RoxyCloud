@@ -82,4 +82,6 @@ jobs:
           export POSTGRES_PASSWORD=ci JWT_SECRET=ci-secret
           docker compose -f deploy/docker-compose.yml up -d --build --wait
           curl --fail --retry 10 --retry-delay 3 --retry-connrefused http://localhost:3001/health
+          curl --fail --silent http://localhost:3001/ | grep -q '<rx-root>'
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:3001/v1/nonsense)" = 404
           docker compose -f deploy/docker-compose.yml down -v

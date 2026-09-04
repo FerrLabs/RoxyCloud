@@ -61,7 +61,8 @@ Migrations run on boot. Configuration is environment only:
 | `JWT_SECRET` | required | HS256 secret used to sign session tokens |
 | `PORT` | `3001` | Listen port |
 | `BLOB_ROOT` | `./data` | Local blob store root |
-| `CORS_ALLOWED_ORIGINS` | empty | Comma-separated origins for the SPA |
+| `WEB_ROOT` | unset | Directory holding the built web app, served alongside the API |
+| `CORS_ALLOWED_ORIGINS` | empty | Comma-separated origins for the SPA, not needed when `WEB_ROOT` serves it |
 | `DEFAULT_QUOTA_BYTES` | 10 GiB | Quota granted on first write |
 | `SESSION_TTL_SECONDS` | 12 h | Session token lifetime |
 | `BLOB_SWEEP_INTERVAL_SECONDS` | 1 h | How often orphaned blobs are collected, `0` disables it |
@@ -70,7 +71,9 @@ Migrations run on boot. Configuration is environment only:
 | `BOOTSTRAP_ADMIN_PASSWORD` | unset | Required alongside the email, minimum 12 characters |
 
 The web app compiles two values in, `ROXYCLOUD_API_URL` and `ROXYCLOUD_SOURCE_URL`. They default to
-a local API and to this repository, and both are overridden at build time:
+a local API and to this repository, and both are overridden at build time. An empty API URL means
+the same origin as the page, which is what the image builds with, since the API serving the app is
+also the API it talks to:
 
 ```bash
 pnpm --filter @roxycloud/web build   --define ROXYCLOUD_API_URL="'https://api.example.com'"   --define ROXYCLOUD_SOURCE_URL="'https://git.example.com/roxycloud'"
@@ -81,15 +84,21 @@ offer your users the source of the version they are actually using.
 
 ## Self-hosting
 
-`deploy/docker-compose.yml` brings up the API and a Postgres for it:
+`deploy/docker-compose.yml` brings up the API, the web app and a Postgres for them, on
+`http://localhost:3001`:
 
 ```bash
 POSTGRES_PASSWORD=... JWT_SECRET=... docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
+The image carries the built web app and serves it from the same origin as the API, so there is no
+second deployment and no CORS to configure. Hosting the bundle elsewhere still works: build it with
+`ROXYCLOUD_API_URL` pointing at the API, serve it however you like, and name its origin in
+`CORS_ALLOWED_ORIGINS`.
+
 On Kubernetes, `deploy/helm/roxycloud` deploys the API against a database you already run, with a
-volume for the blobs and an optional ingress. It does not bundle Postgres and does not serve the web
-app. `deploy/helm/roxycloud/README.md` has the values and the reasoning.
+volume for the blobs and an optional ingress. It does not bundle Postgres. It serves the web app,
+since the image carries it. `deploy/helm/roxycloud/README.md` has the values and the reasoning.
 
 ```bash
 helm install roxycloud deploy/helm/roxycloud   --set database.url='postgres://roxycloud:password@postgres/roxycloud'   --set jwt.secret="$(openssl rand -hex 32)"
