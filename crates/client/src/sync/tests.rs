@@ -18,6 +18,10 @@ struct FakeServer {
     root: PathBuf,
 }
 
+#[expect(
+    clippy::unused_async_trait_impl,
+    reason = "a fake that stands in for the network is clearer sharing the trait's own shape"
+)]
 impl Transport for FakeServer {
     type Error = io::Error;
 

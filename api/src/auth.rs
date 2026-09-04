@@ -97,6 +97,10 @@ impl FromRequestParts<AppState> for Writer {
     }
 }
 
+#[expect(
+    clippy::unused_async_trait_impl,
+    reason = "axum declares the method async, and returning std::future::ready around an               immediately-ready value reads worse than the extractor it replaces"
+)]
 impl FromRequestParts<AppState> for Caller {
     type Rejection = ApiError;
 
