@@ -541,3 +541,114 @@ database_test!(an_uploaded_page_never_comes_back_as_one, harness, {
         "and must not talk itself into rendering it either"
     );
 });
+
+database_test!(an_app_password_is_minted_listed_and_revoked, harness, {
+    let member = harness.account("creds@example.com", Role::Member).await;
+    let token = harness.state.sessions.issue(member.id).expect("a token");
+
+    let (status, body) = call(
+        &harness,
+        Request::builder()
+            .method("POST")
+            .uri("/v1/app-passwords")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(r#"{"name":"rclone"}"#))
+            .expect("a well formed request"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let minted = String::from_utf8_lossy(&body);
+    assert!(minted.contains("\"secret\""), "{minted}");
+
+    let id = minted
+        .split("\"id\":\"")
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("an id in the response")
+        .to_owned();
+
+    let (status, listed) = call(
+        &harness,
+        authorised("GET", "/v1/app-passwords", &token, Body::empty()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let listed = String::from_utf8_lossy(&listed);
+    assert!(listed.contains("rclone"), "{listed}");
+    assert!(
+        !listed.contains("\"secret\""),
+        "the secret is shown once, at the moment it is minted: {listed}"
+    );
+
+    let (status, _) = call(
+        &harness,
+        authorised(
+            "DELETE",
+            &format!("/v1/app-passwords/{id}"),
+            &token,
+            Body::empty(),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+});
+
+database_test!(
+    minting_a_credential_needs_a_session_not_a_credential,
+    harness,
+    {
+        let (status, _) = call(
+            &harness,
+            Request::builder()
+                .method("POST")
+                .uri("/v1/app-passwords")
+                .header(
+                    header::AUTHORIZATION,
+                    "Basic ZGF2QGV4YW1wbGUuY29tOnNlY3JldA==",
+                )
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"name":"nice try"}"#))
+                .expect("a well formed request"),
+        )
+        .await;
+
+        assert_eq!(
+            status,
+            StatusCode::UNAUTHORIZED,
+            "account management is the one place a WebDAV credential must not reach"
+        );
+    }
+);
+
+database_test!(
+    a_session_that_outlived_its_account_mints_nothing,
+    harness,
+    {
+        let member = harness.account("stale@example.com", Role::Member).await;
+        let token = harness.state.sessions.issue(member.id).expect("a token");
+        sqlx::query("UPDATE users SET disabled_at = now() WHERE id = $1")
+            .bind(member.id)
+            .execute(&harness.state.db)
+            .await
+            .expect("disabling the account");
+
+        let (status, _) = call(
+            &harness,
+            Request::builder()
+                .method("POST")
+                .uri("/v1/app-passwords")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"name":"after the fact"}"#))
+                .expect("a well formed request"),
+        )
+        .await;
+
+        assert_eq!(
+            status,
+            StatusCode::UNAUTHORIZED,
+            "the credential would outlive the session, so the session has to be checked here"
+        );
+    }
+);
