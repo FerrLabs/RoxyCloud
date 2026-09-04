@@ -22,6 +22,8 @@ pub enum ApiError {
     Forbidden,
     #[error("{0} already exists")]
     Conflict(String),
+    #[error("a directory cannot be moved inside itself")]
+    MoveIntoSelf,
     #[error("invalid path: {0}")]
     InvalidPath(#[from] InvalidNodeName),
     #[error("quota exceeded")]
@@ -53,7 +55,7 @@ impl ApiError {
             Self::WeakPassword(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::NotFound | Self::Storage(StorageError::NotFound(_)) => StatusCode::NOT_FOUND,
             Self::Forbidden => StatusCode::FORBIDDEN,
-            Self::Conflict(_) => StatusCode::CONFLICT,
+            Self::Conflict(_) | Self::MoveIntoSelf => StatusCode::CONFLICT,
             Self::InvalidPath(_) | Self::WrongKind { .. } => StatusCode::BAD_REQUEST,
             Self::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
             Self::Credential | Self::Storage(_) | Self::Database(_) => {

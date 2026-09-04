@@ -3,6 +3,7 @@ use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 
 use crate::auth::{Caller, Writer};
@@ -32,9 +33,7 @@ pub async fn put(
     let node = db::put_file(&mut tx, caller.user_id, &parent, &name, written.hash, size).await?;
     tx.commit().await?;
 
-    let etag = HeaderValue::from_str(&node.etag).map_err(|_| ApiError::WrongKind {
-        expected: "printable etag",
-    })?;
+    let etag = etag_header(&node)?;
     Ok((StatusCode::CREATED, [(header::ETAG, etag)], Json(node)).into_response())
 }
 
@@ -49,9 +48,7 @@ pub async fn get(
     };
 
     let file = state.blobs.read(hash).await?;
-    let etag = HeaderValue::from_str(&node.etag).map_err(|_| ApiError::WrongKind {
-        expected: "printable etag",
-    })?;
+    let etag = etag_header(&node)?;
 
     Ok((
         [
@@ -64,6 +61,45 @@ pub async fn get(
         Body::from_stream(ReaderStream::new(file)),
     )
         .into_response())
+}
+
+fn etag_header(node: &Node) -> Result<HeaderValue, ApiError> {
+    HeaderValue::from_str(&node.etag).map_err(|_| ApiError::WrongKind {
+        expected: "printable etag",
+    })
+}
+
+#[derive(Deserialize)]
+pub struct Move {
+    from: String,
+    to: String,
+}
+
+pub async fn rename(
+    State(state): State<AppState>,
+    caller: Writer,
+    Json(request): Json<Move>,
+) -> Result<Response, ApiError> {
+    let source = parse_path(&request.from)?;
+    let mut destination = parse_path(&request.to)?;
+    let name = destination.pop().ok_or(ApiError::WrongKind {
+        expected: "path below the root",
+    })?;
+    if source.is_empty() {
+        return Err(ApiError::WrongKind {
+            expected: "path below the root",
+        });
+    }
+
+    let mut tx = state.db.begin().await?;
+    let root = db::ensure_root(&mut tx, caller.user_id, state.default_quota_bytes).await?;
+    let node = db::resolve(&mut tx, &root, &source).await?;
+    let parent = db::resolve(&mut tx, &root, &destination).await?;
+    let moved = db::rename(&mut tx, &node, &parent, &name).await?;
+    tx.commit().await?;
+
+    let etag = etag_header(&moved)?;
+    Ok(([(header::ETAG, etag)], Json(moved)).into_response())
 }
 
 pub async fn delete(

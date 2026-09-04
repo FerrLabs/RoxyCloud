@@ -86,6 +86,7 @@ GET    /v1/folders/{*path}    list a directory
 PUT    /v1/files/{*path}      upload, creating parent directories
 GET    /v1/files/{*path}      download
 DELETE /v1/files/{*path}      move to trash
+POST   /v1/move               rename a node, or move it under another directory
 ```
 
 Every `/v1` route except login takes `Authorization: Bearer <session token>`.
