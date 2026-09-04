@@ -10,6 +10,8 @@ pub struct Config {
     pub cors_allowed_origins: Vec<String>,
     pub default_quota_bytes: i64,
     pub session_ttl_seconds: i64,
+    pub blob_sweep_interval_seconds: u64,
+    pub blob_grace_period_seconds: u64,
     pub bootstrap_admin: Option<BootstrapAdmin>,
 }
 
@@ -32,6 +34,8 @@ pub enum ConfigError {
 
 const DEFAULT_QUOTA_BYTES: i64 = 10 * 1024 * 1024 * 1024;
 const DEFAULT_SESSION_TTL_SECONDS: i64 = 12 * 60 * 60;
+const DEFAULT_BLOB_SWEEP_INTERVAL_SECONDS: u64 = 60 * 60;
+const DEFAULT_BLOB_GRACE_PERIOD_SECONDS: u64 = 24 * 60 * 60;
 
 impl Config {
     pub fn from_env() -> Result<Self, ConfigError> {
@@ -49,6 +53,14 @@ impl Config {
                 .collect(),
             default_quota_bytes: parse_or("DEFAULT_QUOTA_BYTES", DEFAULT_QUOTA_BYTES)?,
             session_ttl_seconds: parse_or("SESSION_TTL_SECONDS", DEFAULT_SESSION_TTL_SECONDS)?,
+            blob_sweep_interval_seconds: parse_or(
+                "BLOB_SWEEP_INTERVAL_SECONDS",
+                DEFAULT_BLOB_SWEEP_INTERVAL_SECONDS,
+            )?,
+            blob_grace_period_seconds: parse_or(
+                "BLOB_GRACE_PERIOD_SECONDS",
+                DEFAULT_BLOB_GRACE_PERIOD_SECONDS,
+            )?,
             bootstrap_admin: bootstrap_admin(),
         })
     }

@@ -208,9 +208,16 @@ erDiagram
     }
 ```
 
-Deleting a node decrements `blob.ref_count`. A blob reaching zero is not deleted inline: a sweeper
-collects it after a grace period, so a delete followed by a re-upload of the same content does not
-race the collector.
+Trashing a node does not touch `blob.ref_count`, or the bytes would be collectable while the node is
+still restorable. Purging it does, and a blob reaching zero is not deleted inline: a sweeper collects
+it after a grace period, so a delete followed by a re-upload of the same content does not race the
+collector. The sweep reads the collectable rows, then deletes each one under a second check in the
+same statement, so a reference taken between the read and the delete keeps the blob.
+
+The bytes go after the row, inside the same transaction, and only when the file on disk is itself
+older than the grace period. A crash between the two leaves a row with no file, which the next sweep
+finishes. A file younger than the grace was written by something, most likely an upload that raced
+the sweep and is about to insert its own row, so the stale row goes and the bytes stay.
 
 `etag` changes on every content or metadata write. WebDAV clients depend on it for conditional
 requests, and the SPA uses it for optimistic concurrency.

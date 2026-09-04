@@ -301,6 +301,25 @@ impl Harness {
             .expect("setting the quota");
     }
 
+    pub async fn blob_file_exists(&self, hash: BlobHash) -> bool {
+        tokio::fs::try_exists(self.state.blobs.path_for(hash))
+            .await
+            .unwrap_or(false)
+    }
+
+    pub async fn age_blob(&self, hash: BlobHash, by: std::time::Duration) {
+        sqlx::query("UPDATE blobs SET unreferenced_since = now() - $2::INTERVAL WHERE hash = $1")
+            .bind(hash)
+            .bind(sqlx::postgres::types::PgInterval {
+                months: 0,
+                days: 0,
+                microseconds: i64::try_from(by.as_micros()).expect("a small test interval"),
+            })
+            .execute(&self.state.db)
+            .await
+            .expect("ageing the blob");
+    }
+
     pub async fn blob(&self, hash: BlobHash) -> Option<(i64, bool)> {
         sqlx::query_as::<_, (i64, Option<chrono::DateTime<chrono::Utc>>)>(
             "SELECT ref_count, unreferenced_since FROM blobs WHERE hash = $1",

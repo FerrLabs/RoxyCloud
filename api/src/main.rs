@@ -1,5 +1,7 @@
 use anyhow::{Context, Result};
-use roxycloud_api::{build_router, config::Config, state::AppState, users};
+use std::time::Duration;
+
+use roxycloud_api::{build_router, config::Config, state::AppState, sweeper, users};
 use roxycloud_core::role::Role;
 use roxycloud_core::user::Email;
 use tracing::{info, warn};
@@ -16,6 +18,19 @@ async fn main() -> Result<()> {
         .context("running database migrations")?;
 
     bootstrap_admin(&state, &cfg).await?;
+
+    if cfg.blob_sweep_interval_seconds > 0 {
+        sweeper::spawn(
+            state.clone(),
+            Duration::from_secs(cfg.blob_sweep_interval_seconds),
+            Duration::from_secs(cfg.blob_grace_period_seconds),
+        );
+        info!(
+            every = cfg.blob_sweep_interval_seconds,
+            grace = cfg.blob_grace_period_seconds,
+            "collecting orphaned blobs in the background"
+        );
+    }
 
     let app = build_router(state, &cfg.cors_allowed_origins);
     let bind = format!("0.0.0.0:{}", cfg.port);

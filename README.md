@@ -31,8 +31,8 @@ shell and the CLI, plus the marketing and documentation site in English and Fren
 And: folder sync, with a three-way reconciler that keeps both copies when a file changed on either
 side, either once or watching the folder as it changes.
 
-Not written: app passwords, WebDAV, sharing, search, OIDC, the S3 backend, the orphan blob sweeper,
-and any interface for the sync beyond the command line.
+Not written: app passwords, WebDAV, sharing, search, OIDC, the S3 backend, and any interface for
+the sync beyond the command line.
 
 ## Layout
 
@@ -62,6 +62,8 @@ Migrations run on boot. Configuration is environment only:
 | `CORS_ALLOWED_ORIGINS` | empty | Comma-separated origins for the SPA |
 | `DEFAULT_QUOTA_BYTES` | 10 GiB | Quota granted on first write |
 | `SESSION_TTL_SECONDS` | 12 h | Session token lifetime |
+| `BLOB_SWEEP_INTERVAL_SECONDS` | 1 h | How often orphaned blobs are collected, `0` disables it |
+| `BLOB_GRACE_PERIOD_SECONDS` | 24 h | How long an unreferenced blob is kept before collection |
 | `BOOTSTRAP_ADMIN_EMAIL` | unset | Creates the first administrator on an empty database |
 | `BOOTSTRAP_ADMIN_PASSWORD` | unset | Required alongside the email, minimum 12 characters |
 
@@ -102,6 +104,11 @@ was deleted separately stays separate, so restoring a file out of a folder someo
 leaves the rest of that folder in the trash, listed on its own. Only a purge releases the blobs,
 which is what makes it the one irreversible call, and purging a folder takes everything trashed
 under it, including what was deleted before it.
+
+Releasing a blob does not delete it. A background sweep collects blobs nothing points at once they
+have been unreferenced for `BLOB_GRACE_PERIOD_SECONDS`, which is what keeps a delete followed by a
+re-upload of the same content from racing the collector: the re-upload finds the blob and adopts it.
+The bytes come back to the disk on that schedule, not on the purge.
 
 Each account carries a role: `admin`, `member` or `reader`. A reader may list and download; upload
 and delete answer 403. The check sits in the API rather than in the interface, so it holds for curl
