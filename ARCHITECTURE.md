@@ -317,7 +317,9 @@ share an origin. A stored `.html` that a browser renders there would run as the 
 `localStorage` in reach.
 
 `GET /v1/files/{*path}` answers `application/octet-stream` with `Content-Disposition: attachment`
-and `X-Content-Type-Options: nosniff`, whatever the file is called. The web app is unaffected because
+and `X-Content-Type-Options: nosniff`, whatever the file is called. The three live together in
+`routes::files::never_rendered`, so a route that serves uploaded bytes adds them by name rather than
+by remembering what they were. The web app is unaffected because
 it never reads the type off the response: it fetches the bytes and builds a blob typed from the name,
 and it renders images through `<img>`, where an SVG cannot execute.
 
