@@ -27,12 +27,16 @@ mobile sync clients, federated sharing.
 
 ## Surfaces
 
+The name is shared with an unrelated IT consultancy that holds `roxycloud.com`, so the project lives
+on `roxycloud.io`. They sell services rather than software, which is why the name stays; the day this
+becomes a paid hosted product, that reasoning is worth revisiting.
+
 | Surface | Host | Stack |
 |---|---|---|
-| Marketing site | `roxycloud.com` | Angular 22, prerendered, EN + FR |
-| Web app | `app.roxycloud.com` | Angular SPA, components local to this repo |
-| API | `api.roxycloud.com` | Rust, axum 0.8, sqlx, Postgres |
-| WebDAV | `api.roxycloud.com/dav` | Same binary, separate router |
+| Marketing site | `roxycloud.io` | Angular 22, prerendered, EN + FR |
+| Web app | `app.roxycloud.io` | Angular SPA, components local to this repo |
+| API | `api.roxycloud.io` | Rust, axum 0.8, sqlx, Postgres |
+| WebDAV | `api.roxycloud.io/dav` | Same binary, separate router |
 | CLI | `roxy` | Rust, ships with the server image |
 | Desktop | `app/` | Tauri 2 shell around the same Angular build |
 
@@ -228,7 +232,7 @@ concurrent write of identical content collapses onto the same path instead of ra
 sequenceDiagram
     participant C as Client
     participant T as Traefik
-    participant A as api.roxycloud.com
+    participant A as api.roxycloud.io
     participant P as Postgres
     participant B as Blob store
 
@@ -250,7 +254,7 @@ a resumable session so a dropped connection resumes instead of restarting.
 ```mermaid
 flowchart LR
     subgraph Public
-        SPA[app.roxycloud.com]
+        SPA[app.roxycloud.io]
         DAV[WebDAV clients]
         LINK[Anonymous share links]
     end
