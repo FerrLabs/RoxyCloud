@@ -152,10 +152,14 @@ folder that never goes quiet still syncs at a ceiling rather than waiting foreve
 write a temp file, rename it, and touch the directory therefore produce one sync, not four. Ctrl+C
 stops it.
 
-Two things it deliberately does not do. An empty local directory is not created on the server, since
-there is no endpoint for that yet, and a directory removed locally is not removed on the server. The
-API cascades that delete over the whole subtree now, so what is left is teaching the reconciler to
-plan one.
+One thing it deliberately does not do: an empty local directory is not created on the server, since
+there is no endpoint for that yet.
+
+Removing a folder locally removes it on the server, contents first and the folder itself last. It
+holds back when the server's copy has gained anything the last sync did not see, a file added from
+another machine or an edit to one that is already there, because the delete would take that with it.
+The folder stays, the new work comes down, and the next removal is the user's to make with both
+sides in front of them.
 
 ## Development
 

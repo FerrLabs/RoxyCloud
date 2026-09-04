@@ -44,7 +44,11 @@ impl Transport for FakeServer {
     }
 
     async fn remove(&self, path: &RelPath) -> Result<(), Self::Error> {
-        fs::remove_file(path.to_path(&self.root))
+        let target = path.to_path(&self.root);
+        if target.is_dir() {
+            return fs::remove_dir_all(target);
+        }
+        fs::remove_file(target)
     }
 }
 
@@ -317,4 +321,67 @@ async fn a_paused_session_holds_the_change_until_it_resumes() {
     );
 
     session.stop().await;
+}
+
+#[tokio::test]
+async fn a_folder_removed_locally_is_removed_on_the_server() {
+    let pair = Pair::new("remove-remote-directory");
+    pair.write_local("photos/summer/x.jpg", b"agreed");
+    pair.engine().sync_once().await.expect("first sync");
+
+    fs::remove_dir_all(pair.local.join("photos")).expect("removes the local folder");
+    let report = pair.engine().sync_once().await.expect("second sync");
+
+    assert_eq!(report.directories_removed_remotely, 2);
+    assert_eq!(report.deleted_remotely, 1);
+    assert!(!pair.server.join("photos").exists());
+
+    let settled = pair.engine().sync_once().await.expect("third sync");
+    assert!(
+        settled.is_quiet(),
+        "the removal is recorded, so the next sync has nothing to redo: {settled:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_folder_holding_something_new_on_the_server_survives_a_local_removal() {
+    let pair = Pair::new("keep-remote-directory");
+    pair.write_local("photos/x.jpg", b"agreed");
+    pair.engine().sync_once().await.expect("first sync");
+
+    pair.write_server("photos/added.jpg", b"from another machine");
+    fs::remove_dir_all(pair.local.join("photos")).expect("removes the local folder");
+    let report = pair.engine().sync_once().await.expect("second sync");
+
+    assert_eq!(report.directories_removed_remotely, 0);
+    assert_eq!(
+        pair.read_server("photos/added.jpg").as_deref(),
+        Some(&b"from another machine"[..]),
+        "a file this side never saw is not something a local delete may take"
+    );
+    assert_eq!(report.downloaded, 1);
+}
+
+#[tokio::test]
+async fn a_folder_that_came_back_on_the_server_is_not_removed_again() {
+    let pair = Pair::new("stale-directory-record");
+    pair.write_local("photos/x.jpg", b"agreed");
+    pair.engine().sync_once().await.expect("first sync");
+
+    fs::remove_dir_all(pair.local.join("photos")).expect("removes the local folder");
+    fs::remove_dir_all(pair.server.join("photos")).expect("removes the server folder");
+    pair.engine().sync_once().await.expect("second sync");
+
+    fs::create_dir_all(pair.server.join("photos")).expect("another machine makes it again");
+    let report = pair.engine().sync_once().await.expect("third sync");
+
+    assert_eq!(
+        report.directories_removed_remotely, 0,
+        "the record from the old folder is not permission to delete a new one"
+    );
+    assert!(pair.server.join("photos").is_dir());
+    assert!(
+        pair.local.join("photos").is_dir(),
+        "it arrives here instead, like any other folder made elsewhere"
+    );
 }

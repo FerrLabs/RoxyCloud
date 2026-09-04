@@ -46,7 +46,8 @@ pub struct Report {
     pub deleted_locally: usize,
     pub deleted_remotely: usize,
     pub directories_created: usize,
-    pub directories_removed: usize,
+    pub directories_removed_locally: usize,
+    pub directories_removed_remotely: usize,
     pub conflicts: Vec<RelPath>,
     pub blocked: Vec<RelPath>,
     pub skipped: Vec<String>,
@@ -65,7 +66,8 @@ impl Report {
             && self.deleted_locally == 0
             && self.deleted_remotely == 0
             && self.directories_created == 0
-            && self.directories_removed == 0
+            && self.directories_removed_locally == 0
+            && self.directories_removed_remotely == 0
             && self.conflicts.is_empty()
             && self.failures.is_empty()
     }
@@ -122,8 +124,24 @@ impl<T: Transport> Engine<T> {
             }
         }
 
+        self.record_agreed_directories(&scan, &remote);
         self.state.save(&state_path(&self.root))?;
         Ok(report)
+    }
+
+    fn record_agreed_directories(&mut self, scan: &LocalScan, remote: &super::snapshot::Snapshot) {
+        let agreed: Vec<RelPath> = scan
+            .entries
+            .iter()
+            .filter(|(path, scanned)| {
+                scanned.entry.is_directory() && remote.get(*path) == Some(&Entry::Directory)
+            })
+            .map(|(path, _)| path.clone())
+            .collect();
+
+        for path in agreed {
+            self.state.record(path, Entry::Directory, None);
+        }
     }
 
     async fn scan(&self) -> Result<LocalScan, SyncError> {
@@ -148,7 +166,7 @@ impl<T: Transport> Engine<T> {
             Action::RemoveLocalDirectory(path) => {
                 remove_directory(&path.to_path(&self.root))?;
                 self.state.forget(path);
-                report.directories_removed += 1;
+                report.directories_removed_locally += 1;
             }
             Action::Download(path) => {
                 self.download(path, remote).await?;
@@ -170,6 +188,17 @@ impl<T: Transport> Engine<T> {
                     .map_err(|source| source.to_string())?;
                 self.state.forget(path);
                 report.deleted_remotely += 1;
+            }
+            Action::RemoveRemoteDirectory(path) => {
+                self.transport
+                    .remove(path)
+                    .await
+                    .map_err(|source| source.to_string())?;
+                self.state.forget(path);
+                report.directories_removed_remotely += 1;
+            }
+            Action::Forget(path) => {
+                self.state.forget(path);
             }
             Action::KeepBoth { path, local_copy } => {
                 let from = path.to_path(&self.root);
@@ -240,7 +269,16 @@ impl<T: Transport> Engine<T> {
 
         self.state
             .record(path.clone(), scanned.entry.clone(), scanned.mtime_ms);
+        self.record_directories_above(path);
         Ok(())
+    }
+
+    fn record_directories_above(&mut self, path: &RelPath) {
+        let mut parent = path.parent();
+        while let Some(directory) = parent {
+            parent = directory.parent();
+            self.state.record(directory, Entry::Directory, None);
+        }
     }
 }
 
@@ -258,6 +296,8 @@ fn subject(action: &Action) -> &RelPath {
     match action {
         Action::CreateLocalDirectory(path)
         | Action::RemoveLocalDirectory(path)
+        | Action::RemoveRemoteDirectory(path)
+        | Action::Forget(path)
         | Action::Download(path)
         | Action::Upload(path)
         | Action::DeleteLocal(path)

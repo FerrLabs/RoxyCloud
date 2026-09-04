@@ -12,6 +12,8 @@ pub enum Action {
     DeleteLocal(RelPath),
     DeleteRemote(RelPath),
     RemoveLocalDirectory(RelPath),
+    RemoveRemoteDirectory(RelPath),
+    Forget(RelPath),
     KeepBoth { path: RelPath, local_copy: RelPath },
 }
 
@@ -34,6 +36,8 @@ pub fn reconcile(local: &Snapshot, remote: &Snapshot, base: &Snapshot, now: Date
     let mut transfers = Vec::new();
     let mut deletions = Vec::new();
     let mut removed = Vec::new();
+    let mut removed_remotely = Vec::new();
+    let mut forgotten = Vec::new();
     let mut blocked = Vec::new();
 
     let paths = local
@@ -44,10 +48,17 @@ pub fn reconcile(local: &Snapshot, remote: &Snapshot, base: &Snapshot, now: Date
 
     for path in paths {
         match (local.get(path), remote.get(path)) {
-            (Some(Entry::Directory), Some(Entry::Directory)) | (None, None) => {}
+            (Some(Entry::Directory), Some(Entry::Directory)) => {}
+            (None, None) => {
+                if base.contains_key(path) {
+                    forgotten.push(Action::Forget(path.clone()));
+                }
+            }
             (None, Some(Entry::Directory)) => {
                 if !base.contains_key(path) {
                     created.push(Action::CreateLocalDirectory(path.clone()));
+                } else if holds_only_what_was_synced(remote, base, path) {
+                    removed_remotely.push(Action::RemoveRemoteDirectory(path.clone()));
                 }
             }
             (Some(Entry::Directory), None) => {
@@ -71,13 +82,25 @@ pub fn reconcile(local: &Snapshot, remote: &Snapshot, base: &Snapshot, now: Date
     }
 
     removed.reverse();
+    removed_remotely.reverse();
 
     let mut actions = created;
     actions.extend(transfers);
     actions.extend(deletions);
+    actions.extend(removed_remotely);
     actions.extend(removed);
+    actions.extend(forgotten);
 
     Plan { actions, blocked }
+}
+
+fn holds_only_what_was_synced(remote: &Snapshot, base: &Snapshot, directory: &RelPath) -> bool {
+    remote
+        .range(directory.clone()..)
+        .skip_while(|(path, _)| *path == directory)
+        .take_while(|(path, _)| path.as_str().starts_with(directory.as_str()))
+        .filter(|(path, _)| path.is_inside(directory))
+        .all(|(path, entry)| base.get(path) == Some(entry))
 }
 
 fn for_file(
@@ -328,10 +351,115 @@ mod tests {
     }
 
     #[test]
-    fn a_directory_the_user_removed_locally_is_not_recreated() {
+    fn a_directory_the_user_removed_locally_is_removed_on_the_server() {
         let base = snapshot(&[("photos", Entry::Directory)]);
         let remote = base.clone();
-        assert!(reconcile(&Snapshot::new(), &remote, &base, now()).is_empty());
+        assert_eq!(
+            plan(&Snapshot::new(), &remote, &base),
+            [Action::RemoveRemoteDirectory(at("photos"))],
+            "and it is not recreated locally either"
+        );
+    }
+
+    #[test]
+    fn a_directory_is_removed_on_the_server_after_its_contents() {
+        let base = snapshot(&[
+            ("photos", Entry::Directory),
+            ("photos/summer", Entry::Directory),
+            ("photos/summer/x.jpg", file(b"deep")),
+            ("photos/y.jpg", file(b"shallow")),
+        ]);
+        let remote = base.clone();
+
+        assert_eq!(
+            plan(&Snapshot::new(), &remote, &base),
+            [
+                Action::DeleteRemote(at("photos/summer/x.jpg")),
+                Action::DeleteRemote(at("photos/y.jpg")),
+                Action::RemoveRemoteDirectory(at("photos/summer")),
+                Action::RemoveRemoteDirectory(at("photos")),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_remote_file_the_local_side_never_saw_keeps_its_directory() {
+        let base = snapshot(&[
+            ("photos", Entry::Directory),
+            ("photos/x.jpg", file(b"synced")),
+        ]);
+        let remote = snapshot(&[
+            ("photos", Entry::Directory),
+            ("photos/x.jpg", file(b"synced")),
+            ("photos/added.jpg", file(b"from another machine")),
+        ]);
+
+        assert_eq!(
+            plan(&Snapshot::new(), &remote, &base),
+            [
+                Action::Download(at("photos/added.jpg")),
+                Action::DeleteRemote(at("photos/x.jpg")),
+            ],
+            "deleting the folder would take a file this side has never seen with it"
+        );
+    }
+
+    #[test]
+    fn a_remote_edit_under_a_removed_directory_keeps_its_directory() {
+        let base = snapshot(&[
+            ("photos", Entry::Directory),
+            ("photos/x.jpg", file(b"before")),
+        ]);
+        let remote = snapshot(&[
+            ("photos", Entry::Directory),
+            ("photos/x.jpg", file(b"after")),
+        ]);
+
+        assert_eq!(
+            plan(&Snapshot::new(), &remote, &base),
+            [Action::Download(at("photos/x.jpg"))],
+            "the same rule a single file gets: an edit outlives a delete"
+        );
+    }
+
+    #[test]
+    fn a_directory_removed_on_both_sides_is_dropped_from_the_base() {
+        let base = snapshot(&[("photos", Entry::Directory)]);
+        assert_eq!(
+            plan(&Snapshot::new(), &Snapshot::new(), &base),
+            [Action::Forget(at("photos"))],
+            "a record that outlives both sides would read as a folder the user removed"
+        );
+    }
+
+    #[test]
+    fn a_directory_that_came_back_on_the_server_is_created_rather_than_removed() {
+        let remote = snapshot(&[("photos", Entry::Directory)]);
+        assert_eq!(
+            plan(&Snapshot::new(), &remote, &Snapshot::new()),
+            [Action::CreateLocalDirectory(at("photos"))],
+            "once the stale record is gone, a folder another machine made is new again"
+        );
+    }
+
+    #[test]
+    fn a_sibling_that_merely_shares_a_prefix_does_not_hold_a_directory_back() {
+        let base = snapshot(&[
+            ("photos", Entry::Directory),
+            ("photos!notes", file(b"sibling")),
+        ]);
+        let remote = snapshot(&[
+            ("photos", Entry::Directory),
+            ("photos!notes", file(b"edited elsewhere")),
+        ]);
+
+        assert_eq!(
+            plan(&Snapshot::new(), &remote, &base),
+            [
+                Action::Download(at("photos!notes")),
+                Action::RemoveRemoteDirectory(at("photos")),
+            ]
+        );
     }
 
     #[test]

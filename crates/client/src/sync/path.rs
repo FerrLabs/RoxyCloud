@@ -49,6 +49,13 @@ impl RelPath {
     }
 
     #[must_use]
+    pub fn is_inside(&self, directory: &Self) -> bool {
+        self.0
+            .strip_prefix(&directory.0)
+            .is_some_and(|rest| rest.starts_with('/'))
+    }
+
+    #[must_use]
     pub fn parent(&self) -> Option<Self> {
         self.0
             .rsplit_once('/')
@@ -100,6 +107,40 @@ mod tests {
 
     fn path(input: &str) -> RelPath {
         RelPath::parse(input).expect("valid path")
+    }
+
+    #[test]
+    fn a_path_is_inside_the_directory_above_it() {
+        let directory = RelPath::parse("photos").expect("valid path");
+        assert!(
+            RelPath::parse("photos/x.jpg")
+                .expect("valid path")
+                .is_inside(&directory)
+        );
+        assert!(
+            RelPath::parse("photos/summer/x.jpg")
+                .expect("valid path")
+                .is_inside(&directory)
+        );
+    }
+
+    #[test]
+    fn a_name_that_merely_starts_the_same_is_not_inside() {
+        let directory = RelPath::parse("photos").expect("valid path");
+        assert!(
+            !RelPath::parse("photos!notes")
+                .expect("valid path")
+                .is_inside(&directory)
+        );
+        assert!(
+            !RelPath::parse("photoshoot/x.jpg")
+                .expect("valid path")
+                .is_inside(&directory)
+        );
+        assert!(
+            !directory.is_inside(&directory),
+            "nor is the directory itself"
+        );
     }
 
     #[test]
