@@ -182,10 +182,15 @@ pub async fn put_file(
 }
 
 pub async fn trash(tx: &mut Transaction<'_, Postgres>, node: &Node) -> Result<(), ApiError> {
-    sqlx::query("UPDATE nodes SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL")
-        .bind(node.id)
-        .execute(&mut **tx)
-        .await?;
+    let trashed =
+        sqlx::query("UPDATE nodes SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL")
+            .bind(node.id)
+            .execute(&mut **tx)
+            .await?;
+
+    if trashed.rows_affected() == 0 {
+        return Ok(());
+    }
 
     if let Some(hash) = node.blob_hash {
         release_blob(tx, hash).await?;

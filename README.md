@@ -141,6 +141,13 @@ pnpm install && pnpm run build
 cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
 ```
 
+The tests that need Postgres skip themselves when `DATABASE_URL` is unset, so the line above runs
+anywhere. Point it at a database and they run:
+
+```bash
+DATABASE_URL=postgres://roxy:roxy@localhost:5432/roxycloud cargo test --workspace
+```
+
 `pnpm run build` builds both browser surfaces. `web/dist` is embedded in the desktop build, so
 build the web app before touching `app/`. On Linux the Tauri crate needs `libwebkit2gtk-4.1-dev`,
 `libappindicator3-dev`, `librsvg2-dev` and `patchelf`.
