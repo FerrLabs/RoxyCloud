@@ -48,7 +48,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "str
 percent-encoding = "2"
 notify = "8"
 clap = { version = "4", features = ["derive", "env"] }
-argon2 = "0.5"
+argon2 = "0.6"
 
 [profile.release]
 strip = "symbols"

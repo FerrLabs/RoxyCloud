@@ -1,9 +1,8 @@
 use std::sync::OnceLock;
 
 use argon2::Argon2;
-use argon2::password_hash::{
-    PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core,
-};
+use argon2::password_hash::phc::PasswordHash;
+use argon2::password_hash::{PasswordHasher, PasswordVerifier};
 
 pub const MIN_PASSWORD_LEN: usize = 12;
 
@@ -18,9 +17,8 @@ pub enum WeakPassword {
 pub struct HashFailed;
 
 pub fn hash(password: &str) -> Result<String, HashFailed> {
-    let salt = SaltString::generate(&mut rand_core::OsRng);
     Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .map(|hash| hash.to_string())
         .map_err(|_| HashFailed)
 }
@@ -72,6 +70,17 @@ mod tests {
         assert_ne!(first, second, "salt must be random");
         assert!(verify("correct horse battery", &first));
         assert!(verify("correct horse battery", &second));
+    }
+
+    #[test]
+    fn a_hash_written_by_an_older_release_still_opens() {
+        let stored = "$argon2id$v=19$m=19456,t=2,p=1$jMhjZA9TLAhcU4sfdZqudg$9uKjqCNoY3uJR7pGsFcaPK6wiKD8Bpcw64EE+awLHdE";
+
+        assert!(
+            verify("correct horse battery", stored),
+            "every account predates the current hasher, so its rows must keep verifying"
+        );
+        assert!(!verify("correct horse batterz", stored));
     }
 
     #[test]
