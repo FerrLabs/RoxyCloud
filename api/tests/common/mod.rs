@@ -13,7 +13,7 @@ use roxycloud_core::blob::BlobHash;
 use roxycloud_core::node::Node;
 use roxycloud_core::role::Role;
 use roxycloud_core::user::{Email, User};
-use sqlx::{Executor, PgPool, postgres::PgPoolOptions};
+use sqlx::{AssertSqlSafe, Executor, PgPool, postgres::PgPoolOptions};
 use uuid::Uuid;
 
 pub const PASSWORD: &str = "twelve-characters-at-least";
@@ -37,7 +37,7 @@ impl Harness {
 
         let database = format!("roxy_test_{}", Uuid::now_v7().simple());
         maintenance
-            .execute(format!("CREATE DATABASE \"{database}\"").as_str())
+            .execute(AssertSqlSafe(format!("CREATE DATABASE \"{database}\"")))
             .await
             .expect("creating the test database");
 
@@ -75,7 +75,10 @@ impl Harness {
         let _ = tokio::fs::remove_dir_all(&self.blob_root).await;
         let _ = self
             .maintenance
-            .execute(format!("DROP DATABASE IF EXISTS \"{}\" WITH (FORCE)", self.database).as_str())
+            .execute(AssertSqlSafe(format!(
+                "DROP DATABASE IF EXISTS \"{}\" WITH (FORCE)",
+                self.database
+            )))
             .await;
     }
 

@@ -19,8 +19,11 @@ fn name_taken(error: sqlx::Error, name: &NodeName) -> ApiError {
     }
 }
 
-const NODE_COLUMNS: &str = "id, owner_id, parent_id, name, kind, blob_hash, size, etag, \
-                            created_at, updated_at, deleted_at";
+macro_rules! node_columns {
+    () => {
+        "id, owner_id, parent_id, name, kind, blob_hash, size, etag, created_at, updated_at, deleted_at"
+    };
+}
 
 pub async fn ensure_root(
     tx: &mut Transaction<'_, Postgres>,
@@ -44,8 +47,10 @@ pub async fn ensure_root(
     .execute(&mut **tx)
     .await?;
 
-    sqlx::query_as::<_, Node>(&format!(
-        "SELECT {NODE_COLUMNS} FROM nodes
+    sqlx::query_as::<_, Node>(concat!(
+        "SELECT ",
+        node_columns!(),
+        " FROM nodes
          WHERE owner_id = $1 AND parent_id IS NULL AND deleted_at IS NULL"
     ))
     .bind(owner_id)
@@ -59,8 +64,10 @@ pub async fn child(
     parent_id: Uuid,
     name: &NodeName,
 ) -> Result<Option<Node>, ApiError> {
-    sqlx::query_as::<_, Node>(&format!(
-        "SELECT {NODE_COLUMNS} FROM nodes
+    sqlx::query_as::<_, Node>(concat!(
+        "SELECT ",
+        node_columns!(),
+        " FROM nodes
          WHERE parent_id = $1 AND name = $2 AND deleted_at IS NULL"
     ))
     .bind(parent_id)
@@ -109,11 +116,12 @@ async fn insert_directory(
     parent_id: Uuid,
     name: &NodeName,
 ) -> Result<Node, ApiError> {
-    let inserted = sqlx::query_as::<_, Node>(&format!(
+    let inserted = sqlx::query_as::<_, Node>(concat!(
         "INSERT INTO nodes (id, owner_id, parent_id, name, kind, etag)
          VALUES ($1, $2, $3, $4, 'directory', $5)
          ON CONFLICT (parent_id, name) WHERE deleted_at IS NULL DO NOTHING
-         RETURNING {NODE_COLUMNS}"
+         RETURNING ",
+        node_columns!()
     ))
     .bind(Uuid::now_v7())
     .bind(owner_id)
@@ -133,8 +141,10 @@ async fn insert_directory(
 }
 
 pub async fn list_children(pool: &PgPool, parent_id: Uuid) -> Result<Vec<Node>, ApiError> {
-    sqlx::query_as::<_, Node>(&format!(
-        "SELECT {NODE_COLUMNS} FROM nodes
+    sqlx::query_as::<_, Node>(concat!(
+        "SELECT ",
+        node_columns!(),
+        " FROM nodes
          WHERE parent_id = $1 AND deleted_at IS NULL
          ORDER BY kind DESC, name"
     ))
@@ -176,11 +186,12 @@ pub async fn put_file(
     let etag = etag_for_file(hash);
     let node = match existing {
         Some(node) => {
-            sqlx::query_as::<_, Node>(&format!(
+            sqlx::query_as::<_, Node>(concat!(
                 "UPDATE nodes
                  SET blob_hash = $2, size = $3, etag = $4, updated_at = now()
                  WHERE id = $1
-                 RETURNING {NODE_COLUMNS}"
+                 RETURNING ",
+                node_columns!()
             ))
             .bind(node.id)
             .bind(hash)
@@ -190,10 +201,11 @@ pub async fn put_file(
             .await?
         }
         None => {
-            sqlx::query_as::<_, Node>(&format!(
+            sqlx::query_as::<_, Node>(concat!(
                 "INSERT INTO nodes (id, owner_id, parent_id, name, kind, blob_hash, size, etag)
                  VALUES ($1, $2, $3, $4, 'file', $5, $6, $7)
-                 RETURNING {NODE_COLUMNS}"
+                 RETURNING ",
+                node_columns!()
             ))
             .bind(Uuid::now_v7())
             .bind(owner_id)
@@ -238,11 +250,12 @@ pub async fn rename(
         NodeKind::File => node.etag.clone(),
     };
 
-    sqlx::query_as::<_, Node>(&format!(
+    sqlx::query_as::<_, Node>(concat!(
         "UPDATE nodes
          SET parent_id = $2, name = $3, etag = $4, updated_at = now()
          WHERE id = $1
-         RETURNING {NODE_COLUMNS}"
+         RETURNING ",
+        node_columns!()
     ))
     .bind(node.id)
     .bind(parent.id)

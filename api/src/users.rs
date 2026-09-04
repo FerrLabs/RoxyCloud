@@ -6,12 +6,17 @@ use uuid::Uuid;
 use crate::error::ApiError;
 use crate::password;
 
-const USER_COLUMNS: &str = "id, email, display_name, password_hash, role,
-     (role = 'admin') AS is_admin, created_at, disabled_at";
+macro_rules! user_columns {
+    () => {
+        "id, email, display_name, password_hash, role, (role = 'admin') AS is_admin, created_at, disabled_at"
+    };
+}
 
 pub async fn by_email(pool: &PgPool, email: &Email) -> Result<Option<User>, ApiError> {
-    sqlx::query_as::<_, User>(&format!(
-        "SELECT {USER_COLUMNS} FROM users WHERE email = $1"
+    sqlx::query_as::<_, User>(concat!(
+        "SELECT ",
+        user_columns!(),
+        " FROM users WHERE email = $1"
     ))
     .bind(email.as_str())
     .fetch_optional(pool)
@@ -20,11 +25,15 @@ pub async fn by_email(pool: &PgPool, email: &Email) -> Result<Option<User>, ApiE
 }
 
 pub async fn by_id(pool: &PgPool, id: Uuid) -> Result<Option<User>, ApiError> {
-    sqlx::query_as::<_, User>(&format!("SELECT {USER_COLUMNS} FROM users WHERE id = $1"))
-        .bind(id)
-        .fetch_optional(pool)
-        .await
-        .map_err(Into::into)
+    sqlx::query_as::<_, User>(concat!(
+        "SELECT ",
+        user_columns!(),
+        " FROM users WHERE id = $1"
+    ))
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+    .map_err(Into::into)
 }
 
 pub async fn create(
@@ -37,10 +46,11 @@ pub async fn create(
     password::check_strength(plaintext)?;
     let hash = password::hash(plaintext)?;
 
-    sqlx::query_as::<_, User>(&format!(
+    sqlx::query_as::<_, User>(concat!(
         "INSERT INTO users (id, email, display_name, password_hash, role)
          VALUES ($1, $2, $3, $4, $5)
-         RETURNING {USER_COLUMNS}"
+         RETURNING ",
+        user_columns!()
     ))
     .bind(Uuid::now_v7())
     .bind(email.as_str())

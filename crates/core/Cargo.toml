@@ -21,7 +21,7 @@ thiserror = { workspace = true }
 blake3 = { workspace = true }
 hex = { workspace = true }
 sqlx = { version = "0.9", features = [
-    "runtime-tokio-rustls",
+    "runtime-tokio", "tls-rustls",
     "postgres",
     "chrono",
     "uuid",
