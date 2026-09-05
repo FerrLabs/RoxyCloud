@@ -133,6 +133,8 @@ PUT       /dav/{*path}  upload, without inventing the collections above it
 DELETE    /dav/{*path}  move to trash
 COPY      /dav/{*path}  copy, sharing the bytes rather than writing them again
 MOVE      /dav/{*path}  move, in one transaction
+LOCK      /dav/{*path}  take or refresh an exclusive write lock
+UNLOCK    /dav/{*path}  release one
 GET    /v1/trash              what the account has deleted
 POST   /v1/trash/{id}/restore bring it back, with the directories it needs
 DELETE /v1/trash/{id}         delete it for good, and release its bytes
@@ -161,8 +163,13 @@ account management answers 401 to it, so a stolen credential cannot mint itself 
 takes effect on the next request, and `last_used_at` says which credentials nothing is using.
 
 `/dav` speaks WebDAV against the same tree, authenticated by Basic auth with an app password and
-nothing else: a session token is answered 401 there. It advertises class 1, so clients that require
-class 2 for writes will not write until locking lands. A `COPY` shares the blob rather than storing
+nothing else: a session token is answered 401 there. It advertises class 2, which is what macOS
+Finder and Windows Explorer require before they will write to a mounted drive.
+
+Locks are exclusive write locks, taken on a file or on a collection with `Depth: infinity`. A write
+without the token answers 423, whoever is asking, and that includes deleting a folder around a file
+someone else holds. A lock lasts ten minutes by default and an hour at most, so a client that
+disappears stops holding a file when its lock lapses rather than when someone notices. A `COPY` shares the blob rather than storing
 the bytes twice, and quota is charged for the copy because the tree grew.
 
 Each account carries a role: `admin`, `member` or `reader`. A reader may list and download; upload

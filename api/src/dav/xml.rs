@@ -11,6 +11,13 @@ pub const MULTISTATUS_OPEN: &str = concat!(
 );
 pub const MULTISTATUS_CLOSE: &str = "</D:multistatus>";
 
+/// Exclusive write locks are the only kind taken here, so this never varies.
+const SUPPORTED_LOCK: &str = concat!(
+    "<D:supportedlock><D:lockentry>",
+    "<D:lockscope><D:exclusive/></D:lockscope><D:locktype><D:write/></D:locktype>",
+    "</D:lockentry></D:supportedlock>"
+);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Property {
     ContentLength,
@@ -21,6 +28,8 @@ pub enum Property {
     ContentType,
     QuotaAvailable,
     QuotaUsed,
+    LockDiscovery,
+    SupportedLock,
 }
 
 impl Property {
@@ -34,6 +43,8 @@ impl Property {
             "getcontenttype" => Some(Self::ContentType),
             "quota-available-bytes" => Some(Self::QuotaAvailable),
             "quota-used-bytes" => Some(Self::QuotaUsed),
+            "lockdiscovery" => Some(Self::LockDiscovery),
+            "supportedlock" => Some(Self::SupportedLock),
             _ => None,
         }
     }
@@ -48,10 +59,12 @@ impl Property {
             Self::ContentType => "getcontenttype",
             Self::QuotaAvailable => "quota-available-bytes",
             Self::QuotaUsed => "quota-used-bytes",
+            Self::LockDiscovery => "lockdiscovery",
+            Self::SupportedLock => "supportedlock",
         }
     }
 
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 10] = [
         Self::ResourceType,
         Self::DisplayName,
         Self::ContentLength,
@@ -60,6 +73,8 @@ impl Property {
         Self::Etag,
         Self::QuotaAvailable,
         Self::QuotaUsed,
+        Self::LockDiscovery,
+        Self::SupportedLock,
     ];
 }
 
@@ -68,7 +83,13 @@ pub struct Quota {
     pub available: i64,
 }
 
-pub fn response(href: &str, node: &Node, quota: &Quota, requested: &Requested) -> String {
+pub fn response(
+    href: &str,
+    node: &Node,
+    quota: &Quota,
+    requested: &Requested,
+    lock: Option<&str>,
+) -> String {
     let mut found = String::new();
     let mut missing = String::new();
 
@@ -77,7 +98,7 @@ pub fn response(href: &str, node: &Node, quota: &Quota, requested: &Requested) -
             let _ = write!(found, "<D:{}/>", property.name());
             continue;
         }
-        match value(*property, node, quota) {
+        match value(*property, node, quota, lock) {
             Some(rendered) => found.push_str(&rendered),
             None => {
                 let _ = write!(missing, "<D:{}/>", property.name());
@@ -103,7 +124,7 @@ pub fn response(href: &str, node: &Node, quota: &Quota, requested: &Requested) -
     out
 }
 
-fn value(property: Property, node: &Node, quota: &Quota) -> Option<String> {
+fn value(property: Property, node: &Node, quota: &Quota, lock: Option<&str>) -> Option<String> {
     let rendered = match property {
         Property::ResourceType => match node.kind {
             NodeKind::Directory => "<D:resourcetype><D:collection/></D:resourcetype>".to_owned(),
@@ -128,6 +149,11 @@ fn value(property: Property, node: &Node, quota: &Quota) -> Option<String> {
             }
         },
         Property::QuotaUsed => format!("<D:quota-used-bytes>{}</D:quota-used-bytes>", quota.used),
+        Property::LockDiscovery => format!(
+            "<D:lockdiscovery>{}</D:lockdiscovery>",
+            lock.unwrap_or_default()
+        ),
+        Property::SupportedLock => SUPPORTED_LOCK.to_owned(),
         Property::QuotaAvailable => format!(
             "<D:quota-available-bytes>{}</D:quota-available-bytes>",
             quota.available

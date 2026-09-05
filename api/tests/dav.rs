@@ -128,15 +128,17 @@ database_test!(options_advertises_what_the_surface_supports, harness, {
     assert_eq!(answer.status, StatusCode::NO_CONTENT);
     assert_eq!(
         answer.headers.get("dav").and_then(|v| v.to_str().ok()),
-        Some("1"),
-        "class 1 until locking lands, and clients read this before they trust anything else"
+        Some("1, 2"),
+        "Finder and Explorer mount read-only without class 2, and clients read this before they trust anything else"
     );
     let allow = answer
         .headers
         .get(header::ALLOW)
         .and_then(|v| v.to_str().ok())
         .expect("an Allow header");
-    for method in ["PROPFIND", "MKCOL", "COPY", "MOVE", "PUT", "DELETE"] {
+    for method in [
+        "PROPFIND", "MKCOL", "COPY", "MOVE", "PUT", "DELETE", "LOCK", "UNLOCK",
+    ] {
         assert!(allow.contains(method), "{method} missing from {allow}");
     }
 });
@@ -615,3 +617,344 @@ database_test!(
         );
     }
 );
+
+const LOCKINFO: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<D:lockinfo xmlns:D="DAV:"><D:lockscope><D:exclusive/></D:lockscope>
+<D:locktype><D:write/></D:locktype><D:owner>bryan on the laptop</D:owner></D:lockinfo>"#;
+
+fn token_of(answer: &Answer) -> String {
+    answer
+        .headers
+        .get("lock-token")
+        .and_then(|value| value.to_str().ok())
+        .map(|raw| raw.trim_start_matches('<').trim_end_matches('>').to_owned())
+        .expect("a Lock-Token header")
+}
+
+database_test!(a_lock_holds_a_file_against_everyone_else, harness, {
+    let (owner, mine) = credential(&harness, "holder@example.com", Role::Member).await;
+    harness.write(owner, "report.txt", b"the original").await;
+
+    let granted = dav(&harness, "LOCK", "/dav/report.txt", &mine, &[], LOCKINFO).await;
+    assert_eq!(granted.status, StatusCode::OK);
+    let token = token_of(&granted);
+    assert!(granted.body.contains("<D:exclusive/>"), "{}", granted.body);
+    assert!(
+        granted.body.contains("bryan on the laptop"),
+        "{}",
+        granted.body
+    );
+
+    let refused = dav(
+        &harness,
+        "PUT",
+        "/dav/report.txt",
+        &mine,
+        &[],
+        "from another client",
+    )
+    .await;
+    assert_eq!(
+        refused.status,
+        StatusCode::LOCKED,
+        "a lock nothing enforces is worse than no lock: clients believe they hold the file"
+    );
+
+    let allowed = dav(
+        &harness,
+        "PUT",
+        "/dav/report.txt",
+        &mine,
+        &[("if", &format!("(<{token}>)"))],
+        "from the client that holds it",
+    )
+    .await;
+    assert_eq!(allowed.status, StatusCode::NO_CONTENT);
+
+    let read = dav(&harness, "GET", "/dav/report.txt", &mine, &[], "").await;
+    assert_eq!(read.body, "from the client that holds it");
+});
+
+database_test!(a_second_client_cannot_take_a_lock_that_is_held, harness, {
+    let (owner, mine) = credential(&harness, "first@example.com", Role::Member).await;
+    harness.write(owner, "shared.txt", b"contested").await;
+    let granted = dav(&harness, "LOCK", "/dav/shared.txt", &mine, &[], LOCKINFO).await;
+    assert_eq!(granted.status, StatusCode::OK);
+
+    let again = dav(&harness, "LOCK", "/dav/shared.txt", &mine, &[], LOCKINFO).await;
+
+    assert_eq!(
+        again.status,
+        StatusCode::LOCKED,
+        "the same account from a second client is still a second client"
+    );
+});
+
+database_test!(
+    a_lock_is_released_and_the_file_is_writable_again,
+    harness,
+    {
+        let (owner, auth) = credential(&harness, "release@example.com", Role::Member).await;
+        harness.write(owner, "a.txt", b"before").await;
+        let granted = dav(&harness, "LOCK", "/dav/a.txt", &auth, &[], LOCKINFO).await;
+        let token = token_of(&granted);
+
+        let released = dav(
+            &harness,
+            "UNLOCK",
+            "/dav/a.txt",
+            &auth,
+            &[("lock-token", &format!("<{token}>"))],
+            "",
+        )
+        .await;
+
+        assert_eq!(released.status, StatusCode::NO_CONTENT);
+        let written = dav(&harness, "PUT", "/dav/a.txt", &auth, &[], "after").await;
+        assert_eq!(written.status, StatusCode::NO_CONTENT);
+    }
+);
+
+database_test!(unlocking_with_the_wrong_token_changes_nothing, harness, {
+    let (owner, auth) = credential(&harness, "wrongtoken@example.com", Role::Member).await;
+    harness.write(owner, "a.txt", b"held").await;
+    dav(&harness, "LOCK", "/dav/a.txt", &auth, &[], LOCKINFO).await;
+
+    let answer = dav(
+        &harness,
+        "UNLOCK",
+        "/dav/a.txt",
+        &auth,
+        &[("lock-token", "<opaquelocktoken:not-the-one>")],
+        "",
+    )
+    .await;
+
+    assert_eq!(answer.status, StatusCode::CONFLICT);
+    let still = dav(&harness, "PUT", "/dav/a.txt", &auth, &[], "sneaking in").await;
+    assert_eq!(still.status, StatusCode::LOCKED);
+});
+
+database_test!(a_lock_is_refreshed_rather_than_taken_twice, harness, {
+    let (owner, auth) = credential(&harness, "refresh@example.com", Role::Member).await;
+    harness.write(owner, "a.txt", b"held a while").await;
+    let granted = dav(
+        &harness,
+        "LOCK",
+        "/dav/a.txt",
+        &auth,
+        &[("timeout", "Second-30")],
+        LOCKINFO,
+    )
+    .await;
+    let token = token_of(&granted);
+
+    let refreshed = dav(
+        &harness,
+        "LOCK",
+        "/dav/a.txt",
+        &auth,
+        &[("if", &format!("(<{token}>)")), ("timeout", "Second-600")],
+        "",
+    )
+    .await;
+
+    assert_eq!(refreshed.status, StatusCode::OK);
+    assert_eq!(
+        token_of(&refreshed),
+        token,
+        "a refresh keeps the same token"
+    );
+    assert!(
+        refreshed.body.contains("Second-59") || refreshed.body.contains("Second-60"),
+        "the timeout is extended rather than left where it was: {}",
+        refreshed.body
+    );
+});
+
+database_test!(a_lock_on_a_folder_reaches_what_is_inside_it, harness, {
+    let (owner, auth) = credential(&harness, "deep@example.com", Role::Member).await;
+    harness.write(owner, "photos/x.jpg", b"inside").await;
+
+    let granted = dav(
+        &harness,
+        "LOCK",
+        "/dav/photos",
+        &auth,
+        &[("depth", "infinity")],
+        LOCKINFO,
+    )
+    .await;
+    assert_eq!(granted.status, StatusCode::OK);
+    let token = token_of(&granted);
+
+    let refused = dav(&harness, "PUT", "/dav/photos/x.jpg", &auth, &[], "changed").await;
+    assert_eq!(
+        refused.status,
+        StatusCode::LOCKED,
+        "a depth infinity lock is what stops another client writing into the folder"
+    );
+
+    let allowed = dav(
+        &harness,
+        "PUT",
+        "/dav/photos/x.jpg",
+        &auth,
+        &[("if", &format!("(<{token}>)"))],
+        "changed",
+    )
+    .await;
+    assert_eq!(allowed.status, StatusCode::NO_CONTENT);
+});
+
+database_test!(a_folder_cannot_be_deleted_around_a_locked_file, harness, {
+    let (owner, auth) = credential(&harness, "around@example.com", Role::Member).await;
+    harness.write(owner, "photos/x.jpg", b"held").await;
+    dav(
+        &harness,
+        "LOCK",
+        "/dav/photos/x.jpg",
+        &auth,
+        &[("depth", "0")],
+        LOCKINFO,
+    )
+    .await;
+
+    let answer = dav(&harness, "DELETE", "/dav/photos", &auth, &[], "").await;
+
+    assert_eq!(
+        answer.status,
+        StatusCode::LOCKED,
+        "dropping the folder would take the locked file with it"
+    );
+    let read = dav(&harness, "GET", "/dav/photos/x.jpg", &auth, &[], "").await;
+    assert_eq!(read.body, "held");
+});
+
+database_test!(a_locked_file_is_not_overwritten_by_a_move, harness, {
+    let (owner, auth) = credential(&harness, "moving@example.com", Role::Member).await;
+    harness.write(owner, "a.txt", b"the source").await;
+    harness.write(owner, "b.txt", b"the occupant").await;
+    dav(
+        &harness,
+        "LOCK",
+        "/dav/b.txt",
+        &auth,
+        &[("depth", "0")],
+        LOCKINFO,
+    )
+    .await;
+
+    let onto = dav(
+        &harness,
+        "MOVE",
+        "/dav/a.txt",
+        &auth,
+        &[("destination", "/dav/b.txt")],
+        "",
+    )
+    .await;
+
+    assert_eq!(onto.status, StatusCode::LOCKED);
+    let read = dav(&harness, "GET", "/dav/b.txt", &auth, &[], "").await;
+    assert_eq!(read.body, "the occupant");
+});
+
+database_test!(
+    locking_a_file_that_is_not_there_creates_it_empty,
+    harness,
+    {
+        let (owner, auth) = credential(&harness, "creating@example.com", Role::Member).await;
+
+        let granted = dav(&harness, "LOCK", "/dav/new.docx", &auth, &[], LOCKINFO).await;
+
+        assert_eq!(
+            granted.status,
+            StatusCode::CREATED,
+            "an editor locks the file it is about to save, before it exists"
+        );
+        let root = harness.root(owner).await;
+        assert_eq!(harness.children(&root).await, ["new.docx"]);
+        let read = dav(&harness, "GET", "/dav/new.docx", &auth, &[], "").await;
+        assert_eq!(read.body, "");
+    }
+);
+
+database_test!(an_expired_lock_stops_holding_the_file, harness, {
+    let (owner, auth) = credential(&harness, "expired@example.com", Role::Member).await;
+    harness.write(owner, "a.txt", b"held briefly").await;
+    dav(
+        &harness,
+        "LOCK",
+        "/dav/a.txt",
+        &auth,
+        &[("timeout", "Second-1")],
+        LOCKINFO,
+    )
+    .await;
+
+    sqlx::query("UPDATE locks SET expires_at = now() - INTERVAL '1 minute'")
+        .execute(&harness.state.db)
+        .await
+        .expect("ageing the lock");
+
+    let written = dav(&harness, "PUT", "/dav/a.txt", &auth, &[], "after it lapsed").await;
+
+    assert_eq!(
+        written.status,
+        StatusCode::NO_CONTENT,
+        "a client that disappears must not hold a file until someone runs a sweep"
+    );
+});
+
+database_test!(the_sweep_removes_what_has_lapsed, harness, {
+    let (owner, auth) = credential(&harness, "sweep@example.com", Role::Member).await;
+    harness.write(owner, "a.txt", b"held").await;
+    harness.write(owner, "b.txt", b"also held").await;
+    dav(&harness, "LOCK", "/dav/a.txt", &auth, &[], LOCKINFO).await;
+    dav(&harness, "LOCK", "/dav/b.txt", &auth, &[], LOCKINFO).await;
+    sqlx::query(
+        "UPDATE locks SET expires_at = now() - INTERVAL '1 minute'
+         WHERE node_id = (SELECT id FROM nodes WHERE name = 'a.txt' AND owner_id = $1)",
+    )
+    .bind(owner)
+    .execute(&harness.state.db)
+    .await
+    .expect("ageing one lock");
+
+    let removed = roxycloud_api::dav::locks::purge_expired(&harness.state.db)
+        .await
+        .expect("purging");
+
+    assert_eq!(removed, 1, "the live lock is not swept with the lapsed one");
+});
+
+database_test!(a_listing_says_which_file_is_held, harness, {
+    let (owner, auth) = credential(&harness, "discovery@example.com", Role::Member).await;
+    harness.write(owner, "held.txt", b"locked").await;
+    harness.write(owner, "zfree.txt", b"not locked").await;
+    let granted = dav(&harness, "LOCK", "/dav/held.txt", &auth, &[], LOCKINFO).await;
+    let token = token_of(&granted);
+
+    let listed = dav(&harness, "PROPFIND", "/dav", &auth, &[("depth", "1")], "").await;
+
+    assert!(listed.body.contains(&token), "{}", listed.body);
+    assert!(listed.body.contains("<D:supportedlock>"), "{}", listed.body);
+    let held_at = listed.body.find("held.txt").expect("the held file");
+    let free_at = listed.body.find("zfree.txt").expect("the free file");
+    let token_at = listed.body.find(&token).expect("the token");
+    assert!(
+        token_at > held_at && token_at < free_at,
+        "the lock belongs to the file that holds it, not to the listing: {}",
+        listed.body
+    );
+});
+
+database_test!(a_reader_cannot_take_a_lock, harness, {
+    let (owner, reader) = credential(&harness, "lockreader@example.com", Role::Reader).await;
+    harness.write(owner, "a.txt", b"read only").await;
+
+    let answer = dav(&harness, "LOCK", "/dav/a.txt", &reader, &[], LOCKINFO).await;
+
+    assert_eq!(answer.status, StatusCode::FORBIDDEN);
+});

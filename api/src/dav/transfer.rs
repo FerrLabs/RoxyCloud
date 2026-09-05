@@ -5,6 +5,8 @@ use percent_encoding::percent_decode_str;
 
 use super::PREFIX;
 use super::auth::DavCaller;
+use super::locks;
+use super::methods::header_text;
 use super::path_of;
 use super::root_of;
 use crate::db;
@@ -33,6 +35,7 @@ pub(super) async fn run(
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
     let overwrite = overwrite(request.headers());
+    let submitted = locks::submitted_tokens(header_text(request.headers(), "if"));
 
     let owner = caller.0.id;
     let root = root_of(&state, owner).await?;
@@ -45,6 +48,14 @@ pub(super) async fn run(
         Err(other) => return Err(other),
     };
 
+    // A MOVE takes the source away, so its lock and any beneath it stand in the way. A COPY only
+    // reads it, and the destination is what has to be free.
+    if moving {
+        locks::allows(&mut tx, &source, &submitted).await?;
+        locks::none_below(&mut tx, &source, &submitted).await?;
+    }
+    locks::allows(&mut tx, &parent, &submitted).await?;
+
     let occupant = db::child(&mut tx, parent.id, name).await?;
     if occupant.is_some() && !overwrite {
         return Ok(StatusCode::PRECONDITION_FAILED.into_response());
@@ -56,6 +67,8 @@ pub(super) async fn run(
         if db::contains(&mut tx, &occupant, &source).await? {
             return Ok(StatusCode::FORBIDDEN.into_response());
         }
+        locks::allows(&mut tx, &occupant, &submitted).await?;
+        locks::none_below(&mut tx, &occupant, &submitted).await?;
         trash::send(&mut tx, &occupant).await?;
     }
 
