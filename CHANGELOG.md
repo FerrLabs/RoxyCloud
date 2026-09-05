@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.17.0] - 2026-09-05
+
+### Features
+
+- feat(dav): real LOCK and UNLOCK, not a stub that always grants (#80)
+
 ## [0.16.0] - 2026-09-05
 
 ### Features
