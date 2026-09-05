@@ -3755,6 +3755,8 @@ dependencies = [
  "getrandom 0.4.3",
  "http-body-util",
  "jsonwebtoken",
+ "percent-encoding",
+ "quick-xml",
  "roxycloud-core",
  "serde",
  "serde_json",

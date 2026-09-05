@@ -33,8 +33,9 @@ and the node lands there.
 And: folder sync, with a three-way reconciler that keeps both copies when a file changed on either
 side, either once or watching the folder as it changes.
 
-Not written: app passwords, WebDAV, sharing, search, OIDC, the S3 backend, and any interface for
-the sync beyond the command line.
+Not written: sharing, search, OIDC, the S3 backend, WebDAV locking, and any interface for the sync
+beyond the command line. Without locking the surface advertises class 1, which macOS Finder and
+Windows Explorer read as read-only.
 
 ## Layout
 
@@ -122,6 +123,16 @@ POST   /v1/move               rename a node, or move it under another directory
 GET    /v1/app-passwords      the credentials this account has minted
 POST   /v1/app-passwords      mint one, shown once
 DELETE /v1/app-passwords/{id} revoke one, taking effect immediately
+
+OPTIONS   /dav          what the WebDAV surface supports
+PROPFIND  /dav/{*path}  list a collection, Depth 0 or 1
+PROPPATCH /dav/{*path}  answered, and refused: no dead properties are stored
+MKCOL     /dav/{*path}  create a collection
+GET       /dav/{*path}  download
+PUT       /dav/{*path}  upload, without inventing the collections above it
+DELETE    /dav/{*path}  move to trash
+COPY      /dav/{*path}  copy, sharing the bytes rather than writing them again
+MOVE      /dav/{*path}  move, in one transaction
 GET    /v1/trash              what the account has deleted
 POST   /v1/trash/{id}/restore bring it back, with the directories it needs
 DELETE /v1/trash/{id}         delete it for good, and release its bytes
@@ -148,6 +159,11 @@ account password. `POST /v1/app-passwords` mints a high-entropy secret, shows it
 a fingerprint of it. The secret authenticates over Basic auth on the WebDAV surface and nowhere else:
 account management answers 401 to it, so a stolen credential cannot mint itself a successor. Revoking
 takes effect on the next request, and `last_used_at` says which credentials nothing is using.
+
+`/dav` speaks WebDAV against the same tree, authenticated by Basic auth with an app password and
+nothing else: a session token is answered 401 there. It advertises class 1, so clients that require
+class 2 for writes will not write until locking lands. A `COPY` shares the blob rather than storing
+the bytes twice, and quota is charged for the copy because the tree grew.
 
 Each account carries a role: `admin`, `member` or `reader`. A reader may list and download; upload
 and delete answer 403. The check sits in the API rather than in the interface, so it holds for curl

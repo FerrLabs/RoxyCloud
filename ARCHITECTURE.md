@@ -330,13 +330,27 @@ a minimum and by a separate hostname if inline rendering of shared files is ever
 
 ## WebDAV
 
-One router mounted at `/dav`, sharing the domain layer with the REST API. The methods that matter
-for client compatibility are PROPFIND with `Depth: 0` and `1`, PROPPATCH, MKCOL, COPY, MOVE, and
-LOCK/UNLOCK.
+One router mounted at `/dav`, sharing the domain layer with the REST API rather than reimplementing
+it: a PUT there is the same `put_file` the REST upload calls, and a MOVE is the same `rename`.
+Everything the tree enforces, the WebDAV surface inherits, including roles and quotas.
+
+It authenticates with Basic auth against an app password and refuses session tokens, because a client
+that keeps a credential on disk should not be keeping the one that opens the web app.
+
+`Depth: infinity` on PROPFIND is refused with `propfind-finite-depth`. Walking a whole tree in one
+response is what turns a large account into a request that never finishes, and every client copes
+with being told to walk it a level at a time.
+
+PROPPATCH answers 403 for every property. Nothing stores dead properties, and a 200 would have a
+client believe the timestamp it set survived a round trip.
+
+COPY shares the blob rather than storing the bytes twice, so copying a folder is a tree of new nodes
+against the same content, charged to the quota because the tree grew.
 
 Locking is the part clients are pickiest about. macOS Finder and Windows Explorer both refuse to
-write to a collection that does not advertise class 2 in the `DAV` header, so locks are real rows
-with timeouts, not a stub that always grants.
+write to a collection that does not advertise class 2 in the `DAV` header, so locks will be real rows
+with timeouts, not a stub that always grants. Until then the surface says class 1 and those two
+clients mount it read-only.
 
 ## Why not fork OxiCloud
 

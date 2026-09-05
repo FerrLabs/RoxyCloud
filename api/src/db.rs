@@ -167,6 +167,22 @@ pub async fn list_children(pool: &PgPool, parent_id: Uuid) -> Result<Vec<Node>, 
     .map_err(Into::into)
 }
 
+/// Bytes reach the store before anything decides whether a node may hold them, so the row goes in
+/// as soon as they land, unreferenced. A write that then fails leaves something the sweeper collects
+/// after the grace period instead of a file on disk that nothing knows about.
+pub async fn register_blob(pool: &PgPool, hash: BlobHash, size: i64) -> Result<(), ApiError> {
+    sqlx::query(
+        "INSERT INTO blobs (hash, size, ref_count, unreferenced_since)
+         VALUES ($1, $2, 0, now())
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(hash)
+    .bind(size)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn put_file(
     tx: &mut Transaction<'_, Postgres>,
     owner_id: Uuid,
@@ -235,6 +251,96 @@ pub async fn put_file(
     Ok(node)
 }
 
+pub async fn copy_tree(
+    tx: &mut Transaction<'_, Postgres>,
+    owner_id: Uuid,
+    source: &Node,
+    parent: &Node,
+    name: &NodeName,
+) -> Result<Node, ApiError> {
+    lock_owner(tx, owner_id).await?;
+
+    if parent.kind != NodeKind::Directory {
+        return Err(ApiError::WrongKind {
+            expected: "directory",
+        });
+    }
+    if source.kind == NodeKind::Directory && contains(tx, source, parent).await? {
+        return Err(ApiError::MoveIntoSelf);
+    }
+    if child(tx, parent.id, name).await?.is_some() {
+        return Err(ApiError::Conflict(name.to_string()));
+    }
+
+    let root = copy_one(tx, owner_id, parent.id, name.as_str(), source).await?;
+    let mut charged = source.size;
+    let mut pending = vec![(source.id, root.id)];
+
+    while let Some((from, into)) = pending.pop() {
+        for original in children_in(tx, from).await? {
+            let copy = copy_one(tx, owner_id, into, &original.name, &original).await?;
+            charged += original.size;
+            if original.kind == NodeKind::Directory {
+                pending.push((original.id, copy.id));
+            }
+        }
+    }
+
+    charge_quota(tx, owner_id, charged).await?;
+    Ok(root)
+}
+
+async fn copy_one(
+    tx: &mut Transaction<'_, Postgres>,
+    owner_id: Uuid,
+    parent_id: Uuid,
+    name: &str,
+    original: &Node,
+) -> Result<Node, ApiError> {
+    let etag = match original.kind {
+        NodeKind::Directory => etag_for_directory(),
+        NodeKind::File => original.etag.clone(),
+    };
+
+    let copy = sqlx::query_as::<_, Node>(concat!(
+        "INSERT INTO nodes (id, owner_id, parent_id, name, kind, blob_hash, size, etag)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING ",
+        node_columns!()
+    ))
+    .bind(Uuid::now_v7())
+    .bind(owner_id)
+    .bind(parent_id)
+    .bind(name)
+    .bind(original.kind)
+    .bind(original.blob_hash)
+    .bind(original.size)
+    .bind(etag)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(|error| name_taken(error, name))?;
+
+    if let Some(hash) = original.blob_hash {
+        acquire_blob(tx, hash).await?;
+    }
+    Ok(copy)
+}
+
+async fn children_in(
+    tx: &mut Transaction<'_, Postgres>,
+    parent_id: Uuid,
+) -> Result<Vec<Node>, ApiError> {
+    sqlx::query_as::<_, Node>(concat!(
+        "SELECT ",
+        node_columns!(),
+        " FROM nodes WHERE parent_id = $1 AND deleted_at IS NULL"
+    ))
+    .bind(parent_id)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(Into::into)
+}
+
 pub async fn rename(
     tx: &mut Transaction<'_, Postgres>,
     node: &Node,
@@ -248,7 +354,7 @@ pub async fn rename(
             expected: "directory",
         });
     }
-    if node.kind == NodeKind::Directory && would_nest_inside_itself(tx, node, parent).await? {
+    if node.kind == NodeKind::Directory && contains(tx, node, parent).await? {
         return Err(ApiError::MoveIntoSelf);
     }
     if child(tx, parent.id, name).await?.is_some() {
@@ -276,10 +382,13 @@ pub async fn rename(
     .map_err(|error| name_taken(error, name.as_str()))
 }
 
-async fn would_nest_inside_itself(
+/// Whether `ancestor` is `node` itself or sits above it. Moving a node under something it already
+/// contains would orphan the whole subtree, and replacing a node with something inside it would
+/// take the replacement along with it.
+pub(crate) async fn contains(
     tx: &mut Transaction<'_, Postgres>,
+    ancestor: &Node,
     node: &Node,
-    parent: &Node,
 ) -> Result<bool, ApiError> {
     sqlx::query_scalar::<_, bool>(
         "WITH RECURSIVE ancestry AS (
@@ -291,8 +400,8 @@ async fn would_nest_inside_itself(
          ) CYCLE id SET looped USING trail
          SELECT EXISTS (SELECT 1 FROM ancestry WHERE id = $2)",
     )
-    .bind(parent.id)
     .bind(node.id)
+    .bind(ancestor.id)
     .fetch_one(&mut **tx)
     .await
     .map_err(Into::into)

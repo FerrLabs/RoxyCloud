@@ -27,6 +27,7 @@ pub async fn put(
 
     let written = state.blobs.write(body.into_data_stream()).await?;
     let size = i64::try_from(written.size).map_err(|_| ApiError::QuotaExceeded)?;
+    db::register_blob(&state.db, written.hash, size).await?;
 
     let mut tx = state.db.begin().await?;
     let root = db::ensure_root(&mut tx, caller.user_id, state.default_quota_bytes).await?;
