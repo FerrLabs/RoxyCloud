@@ -53,6 +53,11 @@ pub(super) async fn run(
     if moving {
         locks::allows(&mut tx, &source, &submitted).await?;
         locks::none_below(&mut tx, &source, &submitted).await?;
+        if let Some((_, above)) = from.split_last() {
+            // Moving away takes a member out of the collection it was in.
+            let leaving = db::resolve(&mut tx, &root, above).await?;
+            locks::allows(&mut tx, &leaving, &submitted).await?;
+        }
     }
     locks::allows(&mut tx, &parent, &submitted).await?;
 

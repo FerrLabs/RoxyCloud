@@ -356,6 +356,12 @@ async fn delete(
     let node = db::resolve(&mut tx, &root, &path).await?;
     locks::allows(&mut tx, &node, &submitted).await?;
     locks::none_below(&mut tx, &node, &submitted).await?;
+    if let Some((_, parents)) = path.split_last() {
+        // Taking a member out of a collection is a change to the collection, which its own lock
+        // governs even when that lock was taken with Depth 0.
+        let parent = db::resolve(&mut tx, &root, parents).await?;
+        locks::allows(&mut tx, &parent, &submitted).await?;
+    }
     trash::send(&mut tx, &node).await?;
     tx.commit().await?;
 

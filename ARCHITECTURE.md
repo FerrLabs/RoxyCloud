@@ -358,8 +358,10 @@ a `Depth: infinity` lock on a collection holds everything below it, and deleting
 collection is refused while anything inside it is held.
 
 Expiry is a filter, not a job. Every query reads `expires_at > now()`, so a lapsed lock stops holding
-its file immediately; the sweep that deletes the rows shares the tick with the blob collector and
-only keeps the table small. Nothing depends on it running.
+its file immediately, and taking a new one clears the row it finds in the way rather than waiting for
+the sweep. The sweep shares the tick with the blob collector and only keeps the table small, which is
+what lets `BLOB_SWEEP_INTERVAL_SECONDS=0` turn it off without a node whose lock once expired becoming
+unlockable.
 
 Not implemented: shared locks, and the `If` header's `ETag` conditions and `Not`. A request carrying
 one of those is answered as though it carried no token, which refuses a write rather than allowing

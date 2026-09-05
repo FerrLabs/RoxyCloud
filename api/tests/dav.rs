@@ -958,3 +958,98 @@ database_test!(a_reader_cannot_take_a_lock, harness, {
 
     assert_eq!(answer.status, StatusCode::FORBIDDEN);
 });
+
+database_test!(
+    a_lapsed_lock_can_be_taken_again_without_waiting_for_a_sweep,
+    harness,
+    {
+        let (owner, auth) = credential(&harness, "retake@example.com", Role::Member).await;
+        harness.write(owner, "a.txt", b"held once").await;
+        dav(&harness, "LOCK", "/dav/a.txt", &auth, &[], LOCKINFO).await;
+        sqlx::query("UPDATE locks SET expires_at = now() - INTERVAL '1 minute'")
+            .execute(&harness.state.db)
+            .await
+            .expect("ageing the lock");
+
+        let again = dav(&harness, "LOCK", "/dav/a.txt", &auth, &[], LOCKINFO).await;
+
+        assert_eq!(
+            again.status,
+            StatusCode::OK,
+            "nothing is holding the file, and taking it must not wait for a sweep that may be off"
+        );
+        let held = dav(
+            &harness,
+            "PUT",
+            "/dav/a.txt",
+            &auth,
+            &[],
+            "from someone else",
+        )
+        .await;
+        assert_eq!(
+            held.status,
+            StatusCode::LOCKED,
+            "the new lock is a real one"
+        );
+    }
+);
+
+database_test!(
+    a_shallow_folder_lock_governs_membership_both_ways,
+    harness,
+    {
+        let (owner, auth) = credential(&harness, "membership@example.com", Role::Member).await;
+        harness.write(owner, "photos/x.jpg", b"a member").await;
+        harness.write(owner, "elsewhere.txt", b"unrelated").await;
+        let granted = dav(
+            &harness,
+            "LOCK",
+            "/dav/photos",
+            &auth,
+            &[("depth", "0")],
+            LOCKINFO,
+        )
+        .await;
+        let token = token_of(&granted);
+
+        let added = dav(
+            &harness,
+            "PUT",
+            "/dav/photos/y.jpg",
+            &auth,
+            &[],
+            "new member",
+        )
+        .await;
+        let removed = dav(&harness, "DELETE", "/dav/photos/x.jpg", &auth, &[], "").await;
+        let moved_out = dav(
+            &harness,
+            "MOVE",
+            "/dav/photos/x.jpg",
+            &auth,
+            &[("destination", "/dav/x.jpg")],
+            "",
+        )
+        .await;
+
+        assert_eq!(added.status, StatusCode::LOCKED);
+        assert_eq!(
+            removed.status,
+            StatusCode::LOCKED,
+            "a member leaving is a change to the collection, same as one arriving"
+        );
+        assert_eq!(moved_out.status, StatusCode::LOCKED);
+
+        let allowed = dav(
+            &harness,
+            "DELETE",
+            "/dav/photos/x.jpg",
+            &auth,
+            &[("if", &format!("(<{token}>)"))],
+            "",
+        )
+        .await;
+        assert_eq!(allowed.status, StatusCode::NO_CONTENT);
+    }
+);

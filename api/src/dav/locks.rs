@@ -28,21 +28,33 @@ impl Lock {
     }
 }
 
-/// `Timeout: Second-600`, or `Infinite`, which is answered with the ceiling rather than refused:
-/// a client that asked for forever copes with being given an hour, where a 400 stops it dead.
+/// `Timeout: Second-600`, or `Infinite`, which is answered with the ceiling rather than refused: a
+/// client that asked for forever copes with being given an hour, where a 400 stops it dead. A client
+/// that offers a fallback alongside it is taken at the fallback.
 #[must_use]
 pub fn requested_seconds(header: Option<&str>) -> i64 {
-    header
-        .and_then(|raw| {
-            raw.split(',').find_map(|entry| {
-                let entry = entry.trim();
-                entry
-                    .strip_prefix("Second-")
-                    .or_else(|| entry.strip_prefix("second-"))
-                    .and_then(|seconds| seconds.parse::<i64>().ok())
-            })
+    let Some(raw) = header.map(str::trim).filter(|raw| !raw.is_empty()) else {
+        return DEFAULT_SECONDS;
+    };
+
+    raw.split(',')
+        .find_map(|entry| {
+            let entry = entry.trim();
+            entry
+                .strip_prefix("Second-")
+                .or_else(|| entry.strip_prefix("second-"))
+                .and_then(|seconds| seconds.parse::<i64>().ok())
         })
-        .unwrap_or(DEFAULT_SECONDS)
+        .unwrap_or_else(|| {
+            if raw
+                .split(',')
+                .any(|entry| entry.trim().eq_ignore_ascii_case("Infinite"))
+            {
+                MAX_SECONDS
+            } else {
+                DEFAULT_SECONDS
+            }
+        })
         .clamp(1, MAX_SECONDS)
 }
 
@@ -56,6 +68,13 @@ pub async fn take(
 ) -> Result<Lock, ApiError> {
     let seconds = f64::from(i32::try_from(seconds).unwrap_or(i32::MAX));
     let token = format!("opaquelocktoken:{}", Uuid::now_v7());
+
+    // An expired row still occupies the unique index, so a node nothing holds is not free until it
+    // goes. The sweep keeps the table small; taking a lock cannot wait for it.
+    sqlx::query("DELETE FROM locks WHERE node_id = $1 AND expires_at <= now()")
+        .bind(node.id)
+        .execute(&mut **tx)
+        .await?;
 
     sqlx::query_as::<_, Lock>(
         "INSERT INTO locks (token, node_id, owner_id, holder, deep, expires_at)
@@ -279,7 +298,7 @@ mod tests {
 
     #[test]
     fn forever_is_answered_with_the_ceiling_rather_than_refused() {
-        assert_eq!(requested_seconds(Some("Infinite")), DEFAULT_SECONDS);
+        assert_eq!(requested_seconds(Some("Infinite")), MAX_SECONDS);
         assert_eq!(requested_seconds(Some("Second-99999")), MAX_SECONDS);
         assert_eq!(
             requested_seconds(Some("Infinite, Second-120")),
