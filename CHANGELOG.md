@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.15.1] - 2026-09-05
+
+### Bug Fixes
+
+- fix(deps): update rust crate getrandom to 0.4 (#79)
+
 ## [0.15.0] - 2026-09-04
 
 ### Features
