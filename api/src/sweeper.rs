@@ -21,6 +21,11 @@ pub fn spawn(state: AppState, every: Duration, grace: Duration) {
 
         loop {
             ticks.tick().await;
+            match crate::dav::locks::purge_expired(&state.db).await {
+                Ok(expired) if expired > 0 => info!(locks = expired, "removed expired locks"),
+                Ok(_) => {}
+                Err(error) => error!(%error, "purging expired locks failed"),
+            }
             match sweep(&state, grace).await {
                 Ok(collected) if collected.blobs > 0 => {
                     info!(

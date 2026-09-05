@@ -348,9 +348,24 @@ COPY shares the blob rather than storing the bytes twice, so copying a folder is
 against the same content, charged to the quota because the tree grew.
 
 Locking is the part clients are pickiest about. macOS Finder and Windows Explorer both refuse to
-write to a collection that does not advertise class 2 in the `DAV` header, so locks will be real rows
-with timeouts, not a stub that always grants. Until then the surface says class 1 and those two
-clients mount it read-only.
+write to a collection that does not advertise class 2 in the `DAV` header, so locks are real rows
+with timeouts rather than a stub that always grants: a client that believes it holds a file
+exclusively and finds someone else overwrote it is worse off than one told locking is unavailable.
+
+Only exclusive write locks exist, which the unique index on `node_id` enforces rather than the
+handler. A write is refused unless the request carries the token, and that covers the ways around it:
+a `Depth: infinity` lock on a collection holds everything below it, and deleting or moving a
+collection is refused while anything inside it is held.
+
+Expiry is a filter, not a job. Every query reads `expires_at > now()`, so a lapsed lock stops holding
+its file immediately, and taking a new one clears the row it finds in the way rather than waiting for
+the sweep. The sweep shares the tick with the blob collector and only keeps the table small, which is
+what lets `BLOB_SWEEP_INTERVAL_SECONDS=0` turn it off without a node whose lock once expired becoming
+unlockable.
+
+Not implemented: shared locks, and the `If` header's `ETag` conditions and `Not`. A request carrying
+one of those is answered as though it carried no token, which refuses a write rather than allowing
+one nobody asked for.
 
 ## Why not fork OxiCloud
 

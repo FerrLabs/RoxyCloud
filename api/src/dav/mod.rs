@@ -1,4 +1,6 @@
 pub mod auth;
+mod locking;
+pub mod locks;
 mod methods;
 mod propfind;
 mod transfer;
