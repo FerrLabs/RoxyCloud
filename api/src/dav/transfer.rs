@@ -51,7 +51,9 @@ pub(super) async fn run(
     }
     let replaced = occupant.is_some();
     if let Some(occupant) = occupant {
-        if occupant.id == source.id {
+        // Replacing something that holds the source would trash the source on the way, and the
+        // move that followed would leave it deleted somewhere nothing can reach.
+        if db::contains(&mut tx, &occupant, &source).await? {
             return Ok(StatusCode::FORBIDDEN.into_response());
         }
         trash::send(&mut tx, &occupant).await?;

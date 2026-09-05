@@ -490,3 +490,128 @@ database_test!(a_path_that_climbs_out_of_the_tree_is_refused, harness, {
 
     assert_ne!(answer.status, StatusCode::MULTI_STATUS);
 });
+
+database_test!(a_move_onto_the_folder_holding_it_is_refused, harness, {
+    let (owner, auth) = credential(&harness, "ancestor@example.com", Role::Member).await;
+    harness
+        .write(owner, "a/b.txt", b"the file that must survive")
+        .await;
+
+    let answer = dav(
+        &harness,
+        "MOVE",
+        "/dav/a/b.txt",
+        &auth,
+        &[("destination", "/dav/a")],
+        "",
+    )
+    .await;
+
+    assert_eq!(
+        answer.status,
+        StatusCode::FORBIDDEN,
+        "replacing the folder would trash the file inside it on the way there"
+    );
+    let read = dav(&harness, "GET", "/dav/a/b.txt", &auth, &[], "").await;
+    assert_eq!(read.body, "the file that must survive");
+});
+
+database_test!(a_copy_onto_the_folder_holding_it_is_refused, harness, {
+    let (owner, auth) = credential(&harness, "ancestorcopy@example.com", Role::Member).await;
+    harness
+        .write(owner, "a/b.txt", b"still here afterwards")
+        .await;
+
+    let answer = dav(
+        &harness,
+        "COPY",
+        "/dav/a/b.txt",
+        &auth,
+        &[("destination", "/dav/a")],
+        "",
+    )
+    .await;
+
+    assert_eq!(answer.status, StatusCode::FORBIDDEN);
+    let read = dav(&harness, "GET", "/dav/a/b.txt", &auth, &[], "").await;
+    assert_eq!(read.body, "still here afterwards");
+});
+
+database_test!(bytes_from_a_refused_upload_are_collectable, harness, {
+    let (_, auth) = credential(&harness, "orphan@example.com", Role::Member).await;
+    let contents = b"uploaded into a folder that is not there";
+
+    let answer = dav(
+        &harness,
+        "PUT",
+        "/dav/absent/x.txt",
+        &auth,
+        &[],
+        "uploaded into a folder that is not there",
+    )
+    .await;
+
+    assert_eq!(answer.status, StatusCode::CONFLICT);
+    assert_eq!(
+        harness.blob(blake3::hash(contents).into()).await,
+        Some((0, true)),
+        "the bytes reached the disk before the refusal, so something has to know they are there"
+    );
+    assert!(
+        harness
+            .blob_file_exists(blake3::hash(contents).into())
+            .await
+    );
+});
+
+database_test!(
+    a_property_from_another_namespace_is_answered_under_it,
+    harness,
+    {
+        let (owner, auth) = credential(&harness, "namespaced@example.com", Role::Member).await;
+        harness.write(owner, "a.txt", b"bytes").await;
+
+        let answer = dav(
+        &harness,
+        "PROPFIND",
+        "/dav/a.txt",
+        &auth,
+        &[("depth", "0")],
+        r#"<D:propfind xmlns:D="DAV:" xmlns:Z="urn:schemas-microsoft-com:"><D:prop><Z:Win32LastModifiedTime/></D:prop></D:propfind>"#,
+    )
+    .await;
+
+        assert!(
+            answer
+                .body
+                .contains(r#"xmlns:ns="urn:schemas-microsoft-com:""#),
+            "a client matching on namespace has to recognise its own question: {}",
+            answer.body
+        );
+        assert!(
+            answer.body.contains("Win32LastModifiedTime"),
+            "{}",
+            answer.body
+        );
+    }
+);
+
+database_test!(
+    a_reader_cannot_set_properties_and_a_ghost_has_none,
+    harness,
+    {
+        let (owner, reader) = credential(&harness, "propreader@example.com", Role::Reader).await;
+        harness.write(owner, "a.txt", b"bytes").await;
+        let (_, member) = credential(&harness, "propmember@example.com", Role::Member).await;
+
+        let refused = dav(&harness, "PROPPATCH", "/dav/a.txt", &reader, &[], "").await;
+        let absent = dav(&harness, "PROPPATCH", "/dav/nowhere.txt", &member, &[], "").await;
+
+        assert_eq!(refused.status, StatusCode::FORBIDDEN);
+        assert_eq!(
+            absent.status,
+            StatusCode::NOT_FOUND,
+            "properties on nothing is not a 207"
+        );
+    }
+);

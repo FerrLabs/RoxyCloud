@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use chrono::{DateTime, Utc};
 
-use super::propfind::Requested;
+use super::propfind::{Requested, Unknown};
 use roxycloud_core::node::{Node, NodeKind};
 
 pub const MULTISTATUS_OPEN: &str = concat!(
@@ -84,8 +84,8 @@ pub fn response(href: &str, node: &Node, quota: &Quota, requested: &Requested) -
             }
         }
     }
-    for name in &requested.unknown {
-        let _ = write!(missing, "<D:{}/>", escape(name));
+    for property in &requested.unknown {
+        missing.push_str(&foreign(property));
     }
 
     let mut out = format!("<D:response><D:href>{}</D:href>", escape(href));
@@ -139,6 +139,19 @@ fn value(property: Property, node: &Node, quota: &Quota) -> Option<String> {
 /// RFC 1123, which is what `getlastmodified` is defined as and what clients parse.
 fn http_date(at: DateTime<Utc>) -> String {
     at.format("%a, %d %b %Y %H:%M:%S GMT").to_string()
+}
+
+/// A property under someone else's namespace is answered under that namespace, or a client that
+/// matches on both will not recognise the answer as being about what it asked.
+pub fn foreign(property: &Unknown) -> String {
+    if property.namespace.is_empty() {
+        return format!("<{}/>", property.name);
+    }
+    format!(
+        r#"<ns:{} xmlns:ns="{}"/>"#,
+        property.name,
+        escape(&property.namespace)
+    )
 }
 
 pub fn escape(raw: &str) -> String {

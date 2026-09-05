@@ -31,7 +31,7 @@ pub async fn dispatch(
     match method.as_str() {
         "OPTIONS" => Ok(options()),
         "PROPFIND" => propfind(state, caller, request).await,
-        "PROPPATCH" => proppatch(request).await,
+        "PROPPATCH" => proppatch(state, caller, request).await,
         "MKCOL" => mkcol(state, caller, request).await,
         "GET" | "HEAD" => read(state, caller, request, method == Method::HEAD).await,
         "PUT" => put(state, caller, request).await,
@@ -133,19 +133,30 @@ async fn propfind(
 
 /// Nothing here stores dead properties. Answering 403 for each one is what the specification asks
 /// for, and it beats a 200 that has a client believe the timestamp it set survived.
-async fn proppatch(request: Request) -> Result<Response, ApiError> {
+async fn proppatch(
+    state: AppState,
+    caller: DavCaller,
+    request: Request,
+) -> Result<Response, ApiError> {
+    if !caller.0.may_write() {
+        return Err(ApiError::Forbidden);
+    }
+
     let path = path_of(request.uri())?;
     let body = body_of(request).await?;
-    let requested = propfind::parse(&body);
 
+    let root = root_of(&state, caller.0.id).await?;
+    let mut tx = state.db.begin().await?;
+    let node = db::resolve(&mut tx, &root, &path).await?;
+    tx.commit().await?;
+
+    let requested = propfind::parse(&body);
     let mut refused = String::new();
-    for name in requested
-        .properties
-        .iter()
-        .map(|property| (*property).name().to_owned())
-        .chain(requested.unknown.clone())
-    {
-        let _ = write!(refused, "<D:{}/>", xml::escape(&name));
+    for property in &requested.properties {
+        let _ = write!(refused, "<D:{}/>", property.name());
+    }
+    for property in &requested.unknown {
+        refused.push_str(&xml::foreign(property));
     }
 
     let mut document = String::from(MULTISTATUS_OPEN);
@@ -153,7 +164,7 @@ async fn proppatch(request: Request) -> Result<Response, ApiError> {
         document,
         "<D:response><D:href>{}</D:href><D:propstat><D:prop>{refused}</D:prop>\
          <D:status>HTTP/1.1 403 Forbidden</D:status></D:propstat></D:response>",
-        xml::escape(&href(&path, false))
+        xml::escape(&href(&path, node.kind == NodeKind::Directory))
     );
     document.push_str(MULTISTATUS_CLOSE);
 
@@ -251,6 +262,7 @@ async fn put(state: AppState, caller: DavCaller, request: Request) -> Result<Res
         .write(request.into_body().into_data_stream())
         .await?;
     let size = i64::try_from(written.size).map_err(|_| ApiError::QuotaExceeded)?;
+    db::register_blob(&state.db, written.hash, size).await?;
 
     let mut tx = state.db.begin().await?;
     // Unlike the REST upload, WebDAV does not invent the directories above a file.

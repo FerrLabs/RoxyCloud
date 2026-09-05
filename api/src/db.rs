@@ -167,6 +167,22 @@ pub async fn list_children(pool: &PgPool, parent_id: Uuid) -> Result<Vec<Node>, 
     .map_err(Into::into)
 }
 
+/// Bytes reach the store before anything decides whether a node may hold them, so the row goes in
+/// as soon as they land, unreferenced. A write that then fails leaves something the sweeper collects
+/// after the grace period instead of a file on disk that nothing knows about.
+pub async fn register_blob(pool: &PgPool, hash: BlobHash, size: i64) -> Result<(), ApiError> {
+    sqlx::query(
+        "INSERT INTO blobs (hash, size, ref_count, unreferenced_since)
+         VALUES ($1, $2, 0, now())
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(hash)
+    .bind(size)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn put_file(
     tx: &mut Transaction<'_, Postgres>,
     owner_id: Uuid,
@@ -249,7 +265,7 @@ pub async fn copy_tree(
             expected: "directory",
         });
     }
-    if source.kind == NodeKind::Directory && would_nest_inside_itself(tx, source, parent).await? {
+    if source.kind == NodeKind::Directory && contains(tx, source, parent).await? {
         return Err(ApiError::MoveIntoSelf);
     }
     if child(tx, parent.id, name).await?.is_some() {
@@ -338,7 +354,7 @@ pub async fn rename(
             expected: "directory",
         });
     }
-    if node.kind == NodeKind::Directory && would_nest_inside_itself(tx, node, parent).await? {
+    if node.kind == NodeKind::Directory && contains(tx, node, parent).await? {
         return Err(ApiError::MoveIntoSelf);
     }
     if child(tx, parent.id, name).await?.is_some() {
@@ -366,10 +382,13 @@ pub async fn rename(
     .map_err(|error| name_taken(error, name.as_str()))
 }
 
-async fn would_nest_inside_itself(
+/// Whether `ancestor` is `node` itself or sits above it. Moving a node under something it already
+/// contains would orphan the whole subtree, and replacing a node with something inside it would
+/// take the replacement along with it.
+pub(crate) async fn contains(
     tx: &mut Transaction<'_, Postgres>,
+    ancestor: &Node,
     node: &Node,
-    parent: &Node,
 ) -> Result<bool, ApiError> {
     sqlx::query_scalar::<_, bool>(
         "WITH RECURSIVE ancestry AS (
@@ -381,8 +400,8 @@ async fn would_nest_inside_itself(
          ) CYCLE id SET looped USING trail
          SELECT EXISTS (SELECT 1 FROM ancestry WHERE id = $2)",
     )
-    .bind(parent.id)
     .bind(node.id)
+    .bind(ancestor.id)
     .fetch_one(&mut **tx)
     .await
     .map_err(Into::into)
