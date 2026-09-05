@@ -28,6 +28,8 @@ pub enum ApiError {
     Locked(String),
     #[error("invalid path: {0}")]
     InvalidPath(#[from] InvalidNodeName),
+    #[error(transparent)]
+    InvalidEmail(#[from] roxycloud_core::user::InvalidEmail),
     #[error("quota exceeded")]
     QuotaExceeded,
     #[error("expected a {expected}")]
@@ -59,7 +61,9 @@ impl ApiError {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::Conflict(_) | Self::MoveIntoSelf => StatusCode::CONFLICT,
             Self::Locked(_) => StatusCode::LOCKED,
-            Self::InvalidPath(_) | Self::WrongKind { .. } => StatusCode::BAD_REQUEST,
+            Self::InvalidPath(_) | Self::InvalidEmail(_) | Self::WrongKind { .. } => {
+                StatusCode::BAD_REQUEST
+            }
             Self::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
             Self::Credential | Self::Storage(_) | Self::Database(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
