@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.16.0] - 2026-09-05
+
+### Features
+
+- feat(dav): the WebDAV methods clients need to mount a drive (#78)
+
 ## [0.15.1] - 2026-09-05
 
 ### Bug Fixes
