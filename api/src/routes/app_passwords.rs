@@ -22,7 +22,7 @@ pub async fn mint(
 ) -> Result<(StatusCode, Json<Minted>), ApiError> {
     // A credential outlives the session that minted it, so this is the one route where a token
     // that survived its account being disabled would hand out something durable.
-    let account = users::by_id(&state.db, caller.user_id)
+    let account = users::by_id(&state.db, caller.user_id())
         .await?
         .ok_or(ApiError::Unauthenticated)?;
     if !account.is_active() {
@@ -30,7 +30,7 @@ pub async fn mint(
     }
 
     let mut tx = state.db.begin().await?;
-    let minted = app_passwords::mint(&mut tx, caller.user_id, &request.name).await?;
+    let minted = app_passwords::mint(&mut tx, caller.user_id(), &request.name).await?;
     tx.commit().await?;
 
     Ok((StatusCode::CREATED, Json(minted)))
@@ -40,7 +40,9 @@ pub async fn list(
     State(state): State<AppState>,
     caller: Caller,
 ) -> Result<Json<Vec<AppPassword>>, ApiError> {
-    Ok(Json(app_passwords::list(&state.db, caller.user_id).await?))
+    Ok(Json(
+        app_passwords::list(&state.db, caller.user_id()).await?,
+    ))
 }
 
 pub async fn revoke(
@@ -48,6 +50,6 @@ pub async fn revoke(
     caller: Caller,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    app_passwords::revoke(&state.db, caller.user_id, id).await?;
+    app_passwords::revoke(&state.db, caller.user_id(), id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
