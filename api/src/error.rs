@@ -18,6 +18,8 @@ pub enum ApiError {
     Credential,
     #[error("not found")]
     NotFound,
+    #[error("this link needs its password")]
+    SharePassword,
     #[error("this account may not write")]
     Forbidden,
     #[error("{0} already exists")]
@@ -55,7 +57,9 @@ impl From<crate::auth::SignFailed> for ApiError {
 impl ApiError {
     fn status(&self) -> StatusCode {
         match self {
-            Self::Unauthenticated | Self::InvalidCredentials => StatusCode::UNAUTHORIZED,
+            Self::Unauthenticated | Self::InvalidCredentials | Self::SharePassword => {
+                StatusCode::UNAUTHORIZED
+            }
             Self::WeakPassword(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::NotFound | Self::Storage(StorageError::NotFound(_)) => StatusCode::NOT_FOUND,
             Self::Forbidden => StatusCode::FORBIDDEN,

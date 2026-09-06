@@ -6,6 +6,7 @@ pub mod db;
 pub mod error;
 pub mod password;
 pub mod routes;
+pub mod shares;
 pub mod state;
 pub mod storage;
 pub mod sweeper;
@@ -15,7 +16,7 @@ pub mod users;
 use std::path::Path;
 
 use axum::Router;
-use axum::http::{HeaderValue, Method, header};
+use axum::http::{HeaderName, HeaderValue, Method, header};
 use axum::middleware::map_response;
 use axum::response::Response;
 use axum::routing::any;
@@ -39,7 +40,11 @@ pub fn build_router(
     let cors = CorsLayer::new()
         .allow_origin(origins)
         .allow_credentials(true)
-        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+        .allow_headers([
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            HeaderName::from_static(routes::shares::PASSWORD_HEADER),
+        ])
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE]);
 
     // CORS wraps the REST surface alone: the layer answers every OPTIONS itself, which would take

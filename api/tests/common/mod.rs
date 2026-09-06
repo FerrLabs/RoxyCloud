@@ -362,6 +362,20 @@ impl Harness {
             .expect("ageing the blob");
     }
 
+    pub async fn expire_shares(&self) {
+        sqlx::query("UPDATE shares SET expires_at = now() - INTERVAL '1 second'")
+            .execute(&self.state.db)
+            .await
+            .expect("expiring the shares");
+    }
+
+    pub async fn share_rows(&self) -> i64 {
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM shares")
+            .fetch_one(&self.state.db)
+            .await
+            .expect("counting the shares")
+    }
+
     pub async fn blob(&self, hash: BlobHash) -> Option<(i64, bool)> {
         sqlx::query_as::<_, (i64, Option<chrono::DateTime<chrono::Utc>>)>(
             "SELECT ref_count, unreferenced_since FROM blobs WHERE hash = $1",

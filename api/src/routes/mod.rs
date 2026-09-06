@@ -1,6 +1,7 @@
 pub mod app_passwords;
 pub mod auth;
 pub mod files;
+pub mod shares;
 pub mod trash;
 pub mod users;
 
@@ -28,6 +29,15 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/users/{id}/role", put(users::set_role))
         .route("/v1/users/{id}/quota", put(users::set_quota))
         .route("/v1/users/{id}/password", put(users::reset_password))
+        .route("/v1/shares", get(shares::list).post(shares::create))
+        .route("/v1/shares/{id}", delete(shares::revoke))
+        .route("/v1/public/{token}", get(shares::open))
+        .route("/v1/public/{token}/content", get(shares::download))
+        .route("/v1/public/{token}/entries/{*path}", get(shares::open_at))
+        .route(
+            "/v1/public/{token}/content/{*path}",
+            get(shares::download_at),
+        )
         .route("/v1/move", post(files::rename))
         .route("/v1/trash", get(trash::list))
         .route("/v1/trash/{id}", delete(trash::purge))

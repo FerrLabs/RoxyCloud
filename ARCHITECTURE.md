@@ -58,9 +58,9 @@ Two authentication paths, because DAV clients cannot do anything modern:
 
 Every account carries a role, `admin`, `member` or `reader`, and the write routes take a `Writer`
 extractor rather than a `Caller`, so refusing a reader is visible in the handler signature and costs
-a lookup only on the routes that change something. What a reader can usefully *see* is a separate
-question, since a node has one owner and listings walk down from that owner's root: that is the
-sharing design in #16, not this.
+a lookup only on the routes that change something. A node has one owner and listings walk down from
+that owner's root, so an account only ever sees its own tree; a share link is what crosses that line,
+and it crosses it for somebody who has no account at all.
 
 App passwords are separate credentials with their own revocation, never the account password. A DAV
 client stores its credential in plain text on disk more often than not, so it must not hold anything
@@ -311,7 +311,9 @@ means "in up to twelve hours".
 
 Every path enters through the same authorization layer in the API. There is no code path that
 reaches the blob store without first resolving a node the caller is allowed to read, share links
-included: a share token resolves to a node id and a permission set, never to a backend key.
+included: a share token resolves to a node id, never to a backend key. `routes::files::bytes_of` is
+the single place that turns a node into bytes, so the authenticated download and the anonymous one
+cannot drift apart in what they attach or what they check.
 
 Backend keys are never exposed to clients. Downloads stream through the API or through a
 short-lived signed URL the API mints, so revoking access takes effect immediately.
@@ -333,6 +335,46 @@ The requirement outlives the current shape. A share link exists to serve a file 
 no credentials, which is the one case where stored bytes would otherwise be rendered by a navigation
 rather than fetched by the app. Whatever serves them keeps them off this origin, by these headers at
 a minimum and by a separate hostname if inline rendering of shared files is ever wanted.
+
+## Share links
+
+A link is a row in `shares` carrying a fingerprint of a 256-bit token, the node it was minted for,
+who minted it, and optionally an expiry and an argon2 hash of a password. The token itself is never
+stored, so a database someone walks off with is a list of links, not a set of working ones. It is
+fingerprinted rather than password-hashed because it is server-generated and high entropy, the same
+reasoning as an app password; the optional password is chosen by a person and gets the full hash.
+
+The token names exactly one node, and that node is the root of what the link exposes. Paths under
+`/v1/public/{token}` are resolved by walking children downward from it, so containment is a property
+of how the path is followed rather than a check that could be forgotten: there is no path a visitor
+can write that names a node outside the subtree, because a name that is not a child resolves to
+nothing. `..` never reaches the resolver, since `NodeName` refuses it.
+
+Four conditions take a link down, all of them on the read path and all of them immediate: revoking
+it, its expiry passing, its node going to the trash, and the account that published it being
+disabled. That last one matters because a link outlives the session that created it by design, so
+disabling somebody has to reach further than their tokens. Every one of them answers 404, and so does
+a token nobody minted, because a link that answers "wrong password" confirms to whoever guessed a
+token that they guessed it.
+
+What an anonymous visitor is told is a deliberately smaller shape than `Node`: a name, a kind, a
+size and a modification time. No node ids, no owner id. Handing an unauthenticated caller the
+identifiers the rest of the API is addressed by costs nothing to avoid and gives nothing away.
+
+Publishing takes a `Writer`. A reader may download every file in the account, and still cannot mint
+a link, because handing bytes to anyone holding a URL is not reading them. Revoking takes only a
+`Caller`, since it withdraws access rather than granting it, and a member demoted to reader who could
+no longer take down what they had already published would be locked out of the kill switch.
+
+Every public response carries `Cache-Control: no-store`. These URLs are stable and carry no
+credential, so a shared cache left to its own heuristics would keep serving a link after it was
+revoked, and would hand a body fetched with the right password to the next visitor who gives none.
+The authenticated routes are spared this by the `Authorization` header they carry; these have
+nothing to be spared by.
+
+Not implemented: upload into a shared folder, and any limit on how fast a password may be guessed.
+Argon2 makes each attempt expensive rather than impossible, which is the argument for the
+twelve-character floor on a share password until there is a limiter (#88).
 
 ## WebDAV
 

@@ -131,6 +131,14 @@ POST   /v1/users/{id}/enable  let it back in                           (admin)
 PUT    /v1/users/{id}/role    admin, member or reader                  (admin)
 PUT    /v1/users/{id}/quota   how many bytes it may hold               (admin)
 PUT    /v1/users/{id}/password reset it without knowing the old one    (admin)
+GET    /v1/shares             the links this account has published
+POST   /v1/shares             publish one, its token shown once
+DELETE /v1/shares/{id}        revoke one, taking effect immediately
+
+GET /v1/public/{token}                  what is behind a link, and its listing
+GET /v1/public/{token}/entries/{*path}  the same, for something under it
+GET /v1/public/{token}/content          download what the link names
+GET /v1/public/{token}/content/{*path}  download something under it
 
 OPTIONS   /dav          what the WebDAV surface supports
 PROPFIND  /dav/{*path}  list a collection, Depth 0 or 1
@@ -148,7 +156,7 @@ POST   /v1/trash/{id}/restore bring it back, with the directories it needs
 DELETE /v1/trash/{id}         delete it for good, and release its bytes
 ```
 
-Every `/v1` route except login takes `Authorization: Bearer <session token>`.
+Every `/v1` route except login and `/v1/public/*` takes `Authorization: Bearer <session token>`.
 
 Deleting is reversible. `DELETE /v1/files/{*path}` marks the node and everything under it, credits
 the quota and leaves the bytes alone, so `GET /v1/trash` lists what was deleted and a restore puts it
@@ -183,6 +191,27 @@ the bytes twice, and quota is charged for the copy because the tree grew.
 Each account carries a role: `admin`, `member` or `reader`. A reader may list and download; upload
 and delete answer 403. The check sits in the API rather than in the interface, so it holds for curl
 and for `roxy sync` as much as for the web app.
+
+A share link hands a file or a folder to somebody who has no account. `POST /v1/shares` takes a
+path, mints a 256-bit token, shows it once and stores only a fingerprint of it, so a stolen database
+row is not a working link. The token is the whole credential, and it names one node: paths under
+`/v1/public/{token}` are walked downward from that node by following children, so no path a visitor
+can write reaches anything the link does not cover.
+
+A link can carry an expiry and a password. The password is chosen by a person rather than generated,
+so it goes through the same argon2 hash and the same twelve-character floor as an account password,
+and it travels in an `X-Share-Password` header rather than in the URL that already carries the token.
+Revoking is immediate, and so is everything else that should take a link down: the file going to the
+trash, the account that published it being disabled, the expiry passing. All of them answer 404,
+including a wrong password on a link that does not exist, because a link that says "wrong password"
+tells whoever guessed a token that they guessed it.
+
+Publishing is a write. A reader may download every file in the account and still gets 403 from
+`POST /v1/shares`, because handing bytes to anyone holding a URL is not reading them. Revoking is
+not, so a member demoted to reader keeps the ability to take down what they published. An anonymous
+listing carries names, sizes and modification times and no identifiers: not the node ids, not the
+account behind the link, and every public response says `Cache-Control: no-store` so that a proxy
+cannot go on serving a link somebody revoked.
 
 An administrator creates the rest of the accounts, sets their roles and quotas, and can reset a
 password without knowing it. Disabling one takes effect on the account's next request rather than
