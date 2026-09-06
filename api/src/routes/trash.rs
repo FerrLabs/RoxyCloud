@@ -13,7 +13,7 @@ pub async fn list(
     State(state): State<AppState>,
     caller: Caller,
 ) -> Result<Json<Vec<Node>>, ApiError> {
-    Ok(Json(trash::list(&state.db, caller.user_id).await?))
+    Ok(Json(trash::list(&state.db, caller.user_id()).await?))
 }
 
 pub async fn restore(
@@ -22,7 +22,7 @@ pub async fn restore(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Node>, ApiError> {
     let mut tx = state.db.begin().await?;
-    let restored = trash::restore(&mut tx, caller.user_id, id).await?;
+    let restored = trash::restore(&mut tx, caller.user_id(), id).await?;
     tx.commit().await?;
 
     Ok(Json(restored))
@@ -34,7 +34,7 @@ pub async fn purge(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     let mut tx = state.db.begin().await?;
-    trash::purge(&mut tx, caller.user_id, id).await?;
+    trash::purge(&mut tx, caller.user_id(), id).await?;
     tx.commit().await?;
 
     Ok(StatusCode::NO_CONTENT)

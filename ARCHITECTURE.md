@@ -303,6 +303,12 @@ flowchart LR
     API --> BS
 ```
 
+A session token names an account; it does not stand in for one. Every authenticated request loads
+the account behind the token and refuses a disabled one, which is what makes disabling somebody take
+effect on their next request instead of when their token expires. The cost is one indexed lookup on
+requests that already run several queries, and the alternative was a rule that says "revoked" and
+means "in up to twelve hours".
+
 Every path enters through the same authorization layer in the API. There is no code path that
 reaches the blob store without first resolving a node the caller is allowed to read, share links
 included: a share token resolves to a node id and a permission set, never to a backend key.

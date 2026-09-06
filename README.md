@@ -123,6 +123,14 @@ POST   /v1/move               rename a node, or move it under another directory
 GET    /v1/app-passwords      the credentials this account has minted
 POST   /v1/app-passwords      mint one, shown once
 DELETE /v1/app-passwords/{id} revoke one, taking effect immediately
+PUT    /v1/auth/password      change your own, giving the current one
+GET    /v1/users              every account, with what each is using   (admin)
+POST   /v1/users              create one                               (admin)
+POST   /v1/users/{id}/disable end its sessions and refuse it at login  (admin)
+POST   /v1/users/{id}/enable  let it back in                           (admin)
+PUT    /v1/users/{id}/role    admin, member or reader                  (admin)
+PUT    /v1/users/{id}/quota   how many bytes it may hold               (admin)
+PUT    /v1/users/{id}/password reset it without knowing the old one    (admin)
 
 OPTIONS   /dav          what the WebDAV surface supports
 PROPFIND  /dav/{*path}  list a collection, Depth 0 or 1
@@ -174,8 +182,13 @@ the bytes twice, and quota is charged for the copy because the tree grew.
 
 Each account carries a role: `admin`, `member` or `reader`. A reader may list and download; upload
 and delete answer 403. The check sits in the API rather than in the interface, so it holds for curl
-and for `roxy sync` as much as for the web app. There is no route that creates an account or changes
-a role yet, so the only way to make one today is the bootstrap administrator or SQL.
+and for `roxy sync` as much as for the web app.
+
+An administrator creates the rest of the accounts, sets their roles and quotas, and can reset a
+password without knowing it. Disabling one takes effect on the account's next request rather than
+when its token expires, because every request loads the account behind the session rather than taking
+the token's word for it. An administrator cannot disable or demote themselves, since an installation
+nobody can administer is not a state worth being able to reach through the API.
 
 On an empty database, set `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` for the first boot
 to create the administrator, then log in:

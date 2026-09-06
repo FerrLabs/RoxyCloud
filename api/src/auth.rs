@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::state::AppState;
+use roxycloud_core::user::User;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
@@ -63,14 +64,30 @@ impl Sessions {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+/// The account behind a session token, loaded rather than taken on the token's word: a session
+/// outliving the account it names is how a disabled person keeps reading until their token expires.
+#[derive(Debug, Clone)]
 pub struct Caller {
-    pub user_id: Uuid,
+    pub user: User,
 }
 
-#[derive(Debug, Clone, Copy)]
+impl Caller {
+    #[must_use]
+    pub fn user_id(&self) -> Uuid {
+        self.user.id
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Writer {
-    pub user_id: Uuid,
+    pub user: User,
+}
+
+impl Writer {
+    #[must_use]
+    pub fn user_id(&self) -> Uuid {
+        self.user.id
+    }
 }
 
 impl FromRequestParts<AppState> for Writer {
@@ -81,26 +98,34 @@ impl FromRequestParts<AppState> for Writer {
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
         let caller = Caller::from_request_parts(parts, state).await?;
-        let user = crate::users::by_id(&state.db, caller.user_id)
-            .await?
-            .ok_or(ApiError::Unauthenticated)?;
-
-        if !user.is_active() {
-            return Err(ApiError::Unauthenticated);
-        }
-        if !user.may_write() {
+        if !caller.user.may_write() {
             return Err(ApiError::Forbidden);
         }
-        Ok(Self {
-            user_id: caller.user_id,
-        })
+        Ok(Self { user: caller.user })
     }
 }
 
-#[expect(
-    clippy::unused_async_trait_impl,
-    reason = "axum declares the method async, and returning std::future::ready around an               immediately-ready value reads worse than the extractor it replaces"
-)]
+/// An administrator, for the routes that change other people's accounts.
+#[derive(Debug, Clone)]
+pub struct Admin {
+    pub user: User,
+}
+
+impl FromRequestParts<AppState> for Admin {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let caller = Caller::from_request_parts(parts, state).await?;
+        if !caller.user.may_administer() {
+            return Err(ApiError::Forbidden);
+        }
+        Ok(Self { user: caller.user })
+    }
+}
+
 impl FromRequestParts<AppState> for Caller {
     type Rejection = ApiError;
 
@@ -115,11 +140,19 @@ impl FromRequestParts<AppState> for Caller {
             .and_then(|value| value.strip_prefix("Bearer "))
             .ok_or(ApiError::Unauthenticated)?;
 
-        state
+        let user_id = state
             .sessions
             .verify(token.trim())
-            .map(|user_id| Self { user_id })
-            .ok_or(ApiError::Unauthenticated)
+            .ok_or(ApiError::Unauthenticated)?;
+
+        let user = crate::users::by_id(&state.db, user_id)
+            .await?
+            .ok_or(ApiError::Unauthenticated)?;
+
+        if !user.is_active() {
+            return Err(ApiError::Unauthenticated);
+        }
+        Ok(Self { user })
     }
 }
 

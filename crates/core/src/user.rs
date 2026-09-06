@@ -94,6 +94,11 @@ impl User {
     pub fn may_write(&self) -> bool {
         self.is_active() && self.role.may_write()
     }
+
+    #[must_use]
+    pub fn may_administer(&self) -> bool {
+        self.is_active() && self.role.may_administer()
+    }
 }
 
 #[cfg(test)]

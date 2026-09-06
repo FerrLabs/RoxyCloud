@@ -49,7 +49,7 @@ pub async fn login(
 }
 
 pub async fn me(State(state): State<AppState>, caller: Caller) -> Result<Json<User>, ApiError> {
-    users::by_id(&state.db, caller.user_id)
+    users::by_id(&state.db, caller.user_id())
         .await?
         .filter(User::is_active)
         .map(Json)

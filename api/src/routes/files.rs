@@ -30,9 +30,17 @@ pub async fn put(
     db::register_blob(&state.db, written.hash, size).await?;
 
     let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, caller.user_id, state.default_quota_bytes).await?;
-    let parent = db::create_directories(&mut tx, caller.user_id, &root, &segments).await?;
-    let node = db::put_file(&mut tx, caller.user_id, &parent, &name, written.hash, size).await?;
+    let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
+    let parent = db::create_directories(&mut tx, caller.user_id(), &root, &segments).await?;
+    let node = db::put_file(
+        &mut tx,
+        caller.user_id(),
+        &parent,
+        &name,
+        written.hash,
+        size,
+    )
+    .await?;
     tx.commit().await?;
     state.blobs.settle(&written).await?;
 
@@ -116,7 +124,7 @@ pub async fn rename(
     }
 
     let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, caller.user_id, state.default_quota_bytes).await?;
+    let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
     let node = db::resolve(&mut tx, &root, &source).await?;
     let parent = db::resolve(&mut tx, &root, &destination).await?;
     let moved = db::rename(&mut tx, &node, &parent, &name).await?;
@@ -139,7 +147,7 @@ pub async fn delete(
     }
 
     let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, caller.user_id, state.default_quota_bytes).await?;
+    let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
     let node = db::resolve(&mut tx, &root, &segments).await?;
     trash::send(&mut tx, &node).await?;
     tx.commit().await?;
@@ -166,7 +174,7 @@ pub async fn list_root(
     caller: Caller,
 ) -> Result<Json<Vec<Node>>, ApiError> {
     let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, caller.user_id, state.default_quota_bytes).await?;
+    let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
     tx.commit().await?;
     Ok(Json(db::list_children(&state.db, root.id).await?))
 }
@@ -174,7 +182,7 @@ pub async fn list_root(
 async fn resolve_owned(state: &AppState, caller: Caller, path: &str) -> Result<Node, ApiError> {
     let segments = parse_path(path)?;
     let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, caller.user_id, state.default_quota_bytes).await?;
+    let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
     let node = db::resolve(&mut tx, &root, &segments).await?;
     tx.commit().await?;
     Ok(node)
