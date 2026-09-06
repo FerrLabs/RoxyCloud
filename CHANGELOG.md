@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.18.0] - 2026-09-06
+
+### Features
+
+- feat(api): user administration beyond the bootstrap account (#83)
+
 ## [0.17.0] - 2026-09-05
 
 ### Features
