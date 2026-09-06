@@ -377,13 +377,17 @@ impl Harness {
     }
 
     pub async fn age_attempts(&self, by: chrono::Duration) {
-        sqlx::query("UPDATE attempts SET last_at = now() - make_interval(secs => $1)")
-            .bind(f64::from(
-                i32::try_from(by.num_seconds()).expect("a small test interval"),
-            ))
-            .execute(&self.state.db)
-            .await
-            .expect("ageing the attempts");
+        sqlx::query(
+            "UPDATE attempts
+             SET last_at = last_at - make_interval(secs => $1),
+                 blocked_until = blocked_until - make_interval(secs => $1)",
+        )
+        .bind(f64::from(
+            i32::try_from(by.num_seconds()).expect("a small test interval"),
+        ))
+        .execute(&self.state.db)
+        .await
+        .expect("ageing the attempts");
     }
 
     pub async fn expire_shares(&self) {

@@ -387,11 +387,19 @@ rather than however many the network allows. The count is taken before argon2: a
 the server a hash is a guess worth making, and a limiter that only refuses afterwards has already
 paid for the attack it is refusing.
 
-Counting and deciding are one statement, not two. A read that decides followed by a write that
-records leaves a window that every concurrent guess walks through together, which is how guessing is
-actually done: thirty simultaneous attempts against one address got twenty-six of them to argon2
-before the counter caught up. The `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` makes callers
-contend on the row lock instead, so each gets its own number and only the first ten go further.
+Counting and deciding are serialised per subject by an advisory lock. A read that decides followed
+by an unguarded write that records leaves a window every concurrent guess walks through together,
+which is how guessing is actually done: thirty simultaneous attempts against one address got
+twenty-six of them to argon2 before the counter caught up. The lock is held across the two
+statements that read the standing count and write the new one, and released before the password is
+checked. Held across argon2 instead, the same burst would exhaust the connection pool rather than
+the allowance.
+
+What the count decides is how long the *next* block runs, not whether this attempt is refused. That
+is a deadline on the row, and it passes. Deciding on the count alone is simpler and wrong: the count
+only climbs, so the eleventh attempt would shut the subject out until a full day of silence, one
+request an hour would hold it shut for nothing, and no block would ever be served. Each block, once
+served, buys one more guess, which is the ladder the day-long arithmetic above actually describes.
 
 Only a guess is counted. A visitor who opens a password-protected link without sending one has not
 guessed anything, and the 401 they get is the only thing that tells their client to ask, so counting

@@ -165,6 +165,24 @@ database_test!(
     }
 );
 
+database_test!(a_lockout_ends_when_its_block_runs_out, harness, {
+    harness.account("target@example.com", Role::Member).await;
+    for _ in 1..=FREE_ATTEMPTS {
+        login(&harness, "target@example.com", "wrong-password").await;
+    }
+
+    let blocked = login(&harness, "target@example.com", "wrong-password").await;
+    harness.age_attempts(chrono::Duration::minutes(2)).await;
+    let after = login(&harness, "target@example.com", common::PASSWORD).await;
+
+    assert_eq!(blocked.status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(
+        after.status,
+        StatusCode::OK,
+        "a block that never lapses is not a delay, it is a lockout until the row is forgotten"
+    );
+});
+
 database_test!(getting_it_right_clears_what_came_before, harness, {
     harness.account("clumsy@example.com", Role::Member).await;
 

@@ -6,6 +6,10 @@ CREATE TABLE attempts (
     failures INTEGER       NOT NULL CHECK (failures > 0),
     last_at  TIMESTAMPTZ   NOT NULL DEFAULT now(),
 
+    -- A deadline that passes, so a lockout ends. Deciding on the count alone would mean the
+    -- eleventh attempt shuts the subject out until a full day of silence.
+    blocked_until TIMESTAMPTZ,
+
     PRIMARY KEY (scope, subject)
 );
 

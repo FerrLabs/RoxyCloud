@@ -216,12 +216,13 @@ account behind the link, and every public response says `Cache-Control: no-store
 cannot go on serving a link somebody revoked.
 
 Guessing is limited wherever somebody who is not logged in gets to try an answer, which means
-`POST /v1/auth/login` and the password on a share link. Ten attempts cost nothing, the eleventh
-costs a minute, and every one after it doubles up to an hour, so a day of guessing buys a couple of
-dozen tries. The refusal is a 429 with a `Retry-After`, and it comes before the password is hashed
-rather than after, because a guess that costs the server an argon2 is a guess worth making. Counting
-and deciding happen in one statement, so a burst of simultaneous guesses contends on a row lock
-rather than all reading the same count and all getting through.
+`POST /v1/auth/login` and the password on a share link. Ten attempts cost nothing, the tenth buys a
+minute of silence, and each one after that doubles it up to an hour, so a day of guessing buys a
+couple of dozen tries. A block runs out and the next attempt is answered on its merits, so this is a
+ladder rather than a lockout. The refusal is a 429 with a `Retry-After`, and it comes before the
+password is hashed rather than after, because a guess that costs the server an argon2 is a guess
+worth making. Counting and deciding are serialised per subject, so a burst of simultaneous guesses
+does not all read the same count and all get through.
 
 Only a guess counts. Opening a password-protected link without sending a password is answered 401
 without touching the counter, since that 401 is how a client learns to ask.
