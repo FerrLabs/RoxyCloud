@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.19.0] - 2026-09-06
+
+### Features
+
+- feat(api): share a file or a folder by link (#90)
+
 ## [0.18.0] - 2026-09-06
 
 ### Features
