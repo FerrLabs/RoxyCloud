@@ -381,11 +381,23 @@ Not implemented: upload into a shared folder.
 ## Guessing
 
 Login and the share password are the two places where somebody who is not logged in gets to try an
-answer, so both go through `attempts`. Ten failures cost nothing. The eleventh costs a minute, and
-every failure after it doubles up to an hour, which turns a day of guessing into a couple of dozen
-tries rather than however many the network allows. The check runs before argon2: a guess that costs
+answer, so both go through `attempts`. Ten attempts cost nothing. The eleventh costs a minute, and
+every one after it doubles up to an hour, which turns a day of guessing into a couple of dozen tries
+rather than however many the network allows. The count is taken before argon2: a guess that costs
 the server a hash is a guess worth making, and a limiter that only refuses afterwards has already
 paid for the attack it is refusing.
+
+Counting and deciding are one statement, not two. A read that decides followed by a write that
+records leaves a window that every concurrent guess walks through together, which is how guessing is
+actually done: thirty simultaneous attempts against one address got twenty-six of them to argon2
+before the counter caught up. The `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` makes callers
+contend on the row lock instead, so each gets its own number and only the first ten go further.
+
+Only a guess is counted. A visitor who opens a password-protected link without sending one has not
+guessed anything, and the 401 they get is the only thing that tells their client to ask, so counting
+it would shut a link out after ten first visits with nobody having tried a password. Getting it
+right deletes the row, which is why the allowance counts attempts rather than failures: nothing
+accumulates against somebody who knows the answer.
 
 The counter is keyed on what is being guessed, an address for login and the token's fingerprint for
 a link, never on where the guess came from. A budget per source is a budget a botnet multiplies by
@@ -400,10 +412,14 @@ of whether an account exists, which is what the decoy hash in `password::verify_
 exists to avoid. The cost is rows for invented addresses, which the sweep clears after a day.
 
 Somebody who knows an address can keep that account locked out by failing against it, and the
-escalation that slows an attacker slows the owner the same way. That is the price of keying on the
-subject, and the alternatives cost more: keying on the address hands a botnet a fresh allowance per
-source, and letting the correct password through during a block means hashing every guess. A first
-block of one minute keeps it a nuisance; #91 tracks doing better.
+escalation that slows an attacker slows the owner the same way. Because every attempt is recorded,
+including one made while blocked, sustained hammering holds the lockout open rather than letting it
+lapse and hand back a fresh ten. That cuts both ways on purpose, and it is the price of keying on
+the subject; the alternatives cost more. Keying on the address hands a botnet a fresh allowance per
+source. Letting the correct password through during a block means hashing every guess, which is the
+cost the limiter exists to avoid. Holding a row lock across the verification instead would turn the
+same burst into pool exhaustion. A first block of one minute keeps it a nuisance; #91 tracks doing
+better.
 
 The count lives in Postgres rather than in the process, so a restart is not a way to clear it and a
 second replica is not a way to double it.

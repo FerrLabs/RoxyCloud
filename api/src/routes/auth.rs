@@ -31,21 +31,19 @@ pub async fn login(
         .parse()
         .map_err(|_| ApiError::InvalidCredentials)?;
 
-    // Before the lookup and before argon2, because a guess that costs the server a hash is a guess
-    // worth making. Unknown addresses are counted like known ones, so a 429 never says which is
-    // which.
-    attempts::check(&state.db, Scope::Login, email.as_str()).await?;
+    // Counted before the lookup and before argon2, because a guess that costs the server a hash is
+    // a guess worth making. Unknown addresses are counted like known ones, so a 429 never says
+    // which is which.
+    attempts::spend(&state.db, Scope::Login, email.as_str()).await?;
 
     let user = users::by_email(&state.db, &email).await?;
 
     let Some(user) = user.filter(User::is_active) else {
         password::verify_decoy(&credentials.password);
-        attempts::failed(&state.db, Scope::Login, email.as_str()).await?;
         return Err(ApiError::InvalidCredentials);
     };
 
     if !password::verify(&credentials.password, &user.password_hash) {
-        attempts::failed(&state.db, Scope::Login, email.as_str()).await?;
         return Err(ApiError::InvalidCredentials);
     }
     attempts::succeeded(&state.db, Scope::Login, email.as_str()).await?;

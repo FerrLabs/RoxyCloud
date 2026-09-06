@@ -222,6 +222,62 @@ database_test!(the_right_share_password_clears_what_came_before, harness, {
 });
 
 database_test!(
+    a_visit_with_no_password_is_a_challenge_not_a_guess,
+    harness,
+    {
+        let token = guarded_link(&harness, "sesame").await;
+
+        for visitor in 1..=(FREE_ATTEMPTS + 5) {
+            let answer = call(
+                &harness,
+                "GET",
+                &format!("/v1/public/{token}/content"),
+                &[],
+                "",
+            )
+            .await;
+            assert_eq!(
+                answer.status,
+                StatusCode::UNAUTHORIZED,
+                "visitor {visitor} was turned away rather than asked for the password"
+            );
+        }
+
+        assert_eq!(
+            harness.attempt_rows().await,
+            0,
+            "a 401 is how a client learns the link wants a password, so arriving without one is not          an attempt at anything"
+        );
+        let known = open(&harness, &token, "sesame").await;
+        assert_eq!(
+            known.status,
+            StatusCode::OK,
+            "fifteen people opening a link in a group chat must not lock out the one who knows it"
+        );
+    }
+);
+
+database_test!(guesses_sent_at_once_do_not_all_get_through, harness, {
+    harness.account("target@example.com", Role::Member).await;
+    let burst = FREE_ATTEMPTS * 3;
+
+    let answers = futures::future::join_all(
+        (0..burst).map(|_| login(&harness, "target@example.com", "wrong-password")),
+    )
+    .await;
+
+    let reached_the_password = answers
+        .iter()
+        .filter(|answer| answer.status == StatusCode::UNAUTHORIZED)
+        .count();
+
+    assert_eq!(
+        reached_the_password, FREE_ATTEMPTS,
+        "a read that decides and a write that records would let all {burst} through together,          which is how guessing is actually done"
+    );
+});
+
+database_test!(
     the_table_that_limits_guessing_holds_no_working_links,
     harness,
     {

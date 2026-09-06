@@ -139,14 +139,19 @@ pub async fn open(pool: &PgPool, token: &str, presented: Option<&str>) -> Result
     };
 
     if let Some(expected) = password_hash {
+        // A visitor who sent no password has not guessed anything. This 401 is the only thing that
+        // tells their client to ask for one, so counting it would shut a link out after ten first
+        // visits, nobody having guessed at all.
+        let Some(secret) = presented else {
+            return Err(ApiError::SharePassword);
+        };
+
         // Keyed on the fingerprint rather than the token, so the table that limits guessing is not
         // itself a list of working links.
         let subject = fingerprint(token);
-        attempts::check(pool, Scope::Share, &subject).await?;
+        attempts::spend(pool, Scope::Share, &subject).await?;
 
-        let matches = presented.is_some_and(|secret| password::verify(secret, &expected));
-        if !matches {
-            attempts::failed(pool, Scope::Share, &subject).await?;
+        if !password::verify(secret, &expected) {
             return Err(ApiError::SharePassword);
         }
         attempts::succeeded(pool, Scope::Share, &subject).await?;

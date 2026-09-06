@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::Duration;
 use sqlx::PgPool;
 
 use crate::error::ApiError;
@@ -26,24 +26,19 @@ pub enum Scope {
     Share,
 }
 
-/// The counter is keyed on what is being guessed, never on where the guess came from. An address is
-/// something an attacker picks, and a budget per source is a budget a botnet multiplies by the size
-/// of the botnet.
-pub async fn check(pool: &PgPool, scope: Scope, subject: &str) -> Result<(), ApiError> {
-    let Some((failures, last_at)) = recent(pool, scope, subject).await? else {
-        return Ok(());
-    };
-
-    let until = last_at + blocked_for(failures);
-    let seconds = (until - Utc::now()).num_seconds();
-    if seconds > 0 {
-        return Err(ApiError::TooManyAttempts { seconds });
-    }
-    Ok(())
-}
-
-pub async fn failed(pool: &PgPool, scope: Scope, subject: &str) -> Result<(), ApiError> {
-    sqlx::query(
+/// One statement, because two would not hold: a read that decides and a write that records leave a
+/// window every concurrent guess walks through together, and a burst is exactly how guessing is
+/// done. The row lock serialises them instead, so each caller gets its own number and only the
+/// first ten are handed on to argon2.
+///
+/// The counter is keyed on what is being guessed, an address or a link's fingerprint, never on
+/// where the guess came from. A budget per source is a budget a botnet multiplies by the size of
+/// the botnet.
+///
+/// An attempt made while blocked is recorded like any other, so sustained hammering holds the
+/// lockout open rather than letting it lapse and hand back a fresh ten.
+pub async fn spend(pool: &PgPool, scope: Scope, subject: &str) -> Result<(), ApiError> {
+    let recorded = sqlx::query_scalar::<_, i32>(
         "INSERT INTO attempts (scope, subject, failures, last_at)
          VALUES ($1, $2, 1, now())
          ON CONFLICT (scope, subject) DO UPDATE
@@ -51,13 +46,21 @@ pub async fn failed(pool: &PgPool, scope: Scope, subject: &str) -> Result<(), Ap
                  WHEN attempts.last_at < now() - make_interval(secs => $3) THEN 1
                  ELSE attempts.failures + 1
              END,
-             last_at = now()",
+             last_at = now()
+         RETURNING failures",
     )
     .bind(scope)
     .bind(subject)
     .bind(MEMORY_SECONDS)
-    .execute(pool)
+    .fetch_one(pool)
     .await?;
+
+    // The statement above set `last_at` to the database's `now()`, so what is left of the block is
+    // the whole of it. Nothing here weighs the process clock against the database's.
+    let seconds = blocked_for(recorded).num_seconds();
+    if seconds > 0 {
+        return Err(ApiError::TooManyAttempts { seconds });
+    }
     Ok(())
 }
 
@@ -81,25 +84,11 @@ pub async fn purge_expired(pool: &PgPool) -> Result<u64, ApiError> {
     Ok(removed.rows_affected())
 }
 
-async fn recent(
-    pool: &PgPool,
-    scope: Scope,
-    subject: &str,
-) -> Result<Option<(i32, DateTime<Utc>)>, ApiError> {
-    sqlx::query_as::<_, (i32, DateTime<Utc>)>(
-        "SELECT failures, last_at FROM attempts
-         WHERE scope = $1 AND subject = $2 AND last_at > now() - make_interval(secs => $3)",
-    )
-    .bind(scope)
-    .bind(subject)
-    .bind(MEMORY_SECONDS)
-    .fetch_optional(pool)
-    .await
-    .map_err(Into::into)
-}
-
-fn blocked_for(failures: i32) -> Duration {
-    let over = failures.saturating_sub(FREE_ATTEMPTS);
+/// How long the subject is shut out, given how many attempts have been recorded against it. The
+/// allowance counts attempts rather than failures because getting it right deletes the row, so
+/// nothing accumulates against somebody who knows the answer.
+fn blocked_for(recorded: i32) -> Duration {
+    let over = recorded.saturating_sub(FREE_ATTEMPTS + 1);
     let Ok(doublings) = u32::try_from(over) else {
         return Duration::zero();
     };
@@ -116,15 +105,15 @@ mod tests {
 
     #[test]
     fn a_person_who_mistypes_is_not_an_attacker() {
-        for failures in 1..FREE_ATTEMPTS {
+        for recorded in 1..=FREE_ATTEMPTS {
             assert_eq!(
-                blocked_for(failures),
+                blocked_for(recorded),
                 Duration::zero(),
-                "failure {failures} should still be free"
+                "attempt {recorded} should still be free"
             );
         }
         assert_ne!(
-            blocked_for(FREE_ATTEMPTS),
+            blocked_for(FREE_ATTEMPTS + 1),
             Duration::zero(),
             "the allowance has to end somewhere, and this is where"
         );
@@ -132,15 +121,15 @@ mod tests {
 
     #[test]
     fn the_block_doubles_with_every_failure_past_the_free_ones() {
-        assert_eq!(blocked_for(FREE_ATTEMPTS), Duration::seconds(60));
-        assert_eq!(blocked_for(FREE_ATTEMPTS + 1), Duration::seconds(120));
-        assert_eq!(blocked_for(FREE_ATTEMPTS + 2), Duration::seconds(240));
+        assert_eq!(blocked_for(FREE_ATTEMPTS + 1), Duration::seconds(60));
+        assert_eq!(blocked_for(FREE_ATTEMPTS + 2), Duration::seconds(120));
+        assert_eq!(blocked_for(FREE_ATTEMPTS + 3), Duration::seconds(240));
     }
 
     #[test]
     fn the_block_stops_growing_at_an_hour() {
         assert_eq!(
-            blocked_for(FREE_ATTEMPTS + 6),
+            blocked_for(FREE_ATTEMPTS + 7),
             Duration::seconds(LONGEST_BLOCK_SECONDS)
         );
         assert_eq!(
@@ -154,16 +143,16 @@ mod tests {
     fn a_day_of_guessing_buys_a_couple_of_dozen_tries() {
         let day = Duration::days(1);
         let mut spent = Duration::zero();
-        let mut failures = 0;
+        let mut recorded = 0;
 
         while spent < day {
-            failures += 1;
-            spent += blocked_for(failures);
+            recorded += 1;
+            spent += blocked_for(recorded);
         }
 
         assert!(
-            failures < 40,
-            "a dictionary attack got {failures} guesses in a day"
+            recorded < 40,
+            "a dictionary attack got {recorded} guesses in a day"
         );
     }
 }
