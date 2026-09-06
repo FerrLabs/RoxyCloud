@@ -420,14 +420,14 @@ of whether an account exists, which is what the decoy hash in `password::verify_
 exists to avoid. The cost is rows for invented addresses, which the sweep clears after a day.
 
 Somebody who knows an address can keep that account locked out by failing against it, and the
-escalation that slows an attacker slows the owner the same way. Because every attempt is recorded,
-including one made while blocked, sustained hammering holds the lockout open rather than letting it
-lapse and hand back a fresh ten. That cuts both ways on purpose, and it is the price of keying on
-the subject; the alternatives cost more. Keying on the address hands a botnet a fresh allowance per
-source. Letting the correct password through during a block means hashing every guess, which is the
-cost the limiter exists to avoid. Holding a row lock across the verification instead would turn the
-same burst into pool exhaustion. A first block of one minute keeps it a nuisance; #91 tracks doing
-better.
+escalation that slows an attacker slows the owner the same way. An attempt made while a block is in
+force is refused before it is counted, so hammering does not itself extend a lockout; what holds one
+open is guessing again each time a block lapses, which counts and sets a longer one. That cuts both
+ways on purpose, and it is the price of keying on the subject; the alternatives cost more. Keying on
+the address hands a botnet a fresh allowance per source. Letting the correct password through during
+a block means hashing every guess, which is the cost the limiter exists to avoid. Holding a row lock
+across the verification instead would turn the same burst into pool exhaustion. A first block of one
+minute keeps it a nuisance; #91 tracks doing better.
 
 The count lives in Postgres rather than in the process, so a restart is not a way to clear it and a
 second replica is not a way to double it.
