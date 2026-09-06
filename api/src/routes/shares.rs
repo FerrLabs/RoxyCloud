@@ -1,7 +1,7 @@
 use axum::Json;
 use axum::extract::{Path, State};
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::Response;
+use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
+use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -89,7 +89,7 @@ pub async fn list(
 
 pub async fn revoke(
     State(state): State<AppState>,
-    caller: Writer,
+    caller: Caller,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     shares::revoke(&state.db, caller.user_id(), id).await?;
@@ -100,18 +100,18 @@ pub async fn open(
     State(state): State<AppState>,
     Path(token): Path<String>,
     headers: HeaderMap,
-) -> Result<Json<Linked>, ApiError> {
+) -> Result<Response, ApiError> {
     let node = resolve(&state, &token, &[], &headers).await?;
-    linked(&state, node).await
+    listing(&state, node).await
 }
 
 pub async fn open_at(
     State(state): State<AppState>,
     Path((token, path)): Path<(String, String)>,
     headers: HeaderMap,
-) -> Result<Json<Linked>, ApiError> {
+) -> Result<Response, ApiError> {
     let node = resolve(&state, &token, &parse_path(&path)?, &headers).await?;
-    linked(&state, node).await
+    listing(&state, node).await
 }
 
 pub async fn download(
@@ -120,7 +120,7 @@ pub async fn download(
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let node = resolve(&state, &token, &[], &headers).await?;
-    super::files::bytes_of(&state, &node).await
+    contents(&state, &node).await
 }
 
 pub async fn download_at(
@@ -129,7 +129,14 @@ pub async fn download_at(
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let node = resolve(&state, &token, &parse_path(&path)?, &headers).await?;
-    super::files::bytes_of(&state, &node).await
+    contents(&state, &node).await
+}
+
+/// A public URL is stable and carries no credential, so a shared cache left to its own heuristics
+/// would keep serving a link after it was revoked, and would hand a body fetched with the right
+/// password to the next visitor who gives none.
+fn never_cached() -> [(HeaderName, HeaderValue); 1] {
+    [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))]
 }
 
 /// The one way in. A token names the node it was minted for, and a path walks down from there by
@@ -140,9 +147,11 @@ async fn resolve(
     below: &[NodeName],
     headers: &HeaderMap,
 ) -> Result<Node, ApiError> {
+    // A header value is opaque bytes, and `to_str` accepts visible ASCII alone, so asking for a
+    // string that way would refuse every password carrying an accent.
     let presented = headers
         .get(PASSWORD_HEADER)
-        .and_then(|value| value.to_str().ok());
+        .and_then(|value| std::str::from_utf8(value.as_bytes()).ok());
 
     let shared = shares::open(&state.db, token, presented).await?;
     if below.is_empty() {
@@ -155,7 +164,7 @@ async fn resolve(
     Ok(node)
 }
 
-async fn linked(state: &AppState, node: Node) -> Result<Json<Linked>, ApiError> {
+async fn listing(state: &AppState, node: Node) -> Result<Response, ApiError> {
     let children = if node.kind == NodeKind::Directory {
         db::list_children(&state.db, node.id)
             .await?
@@ -166,8 +175,18 @@ async fn linked(state: &AppState, node: Node) -> Result<Json<Linked>, ApiError> 
         Vec::new()
     };
 
-    Ok(Json(Linked {
-        entry: node.into(),
-        children,
-    }))
+    Ok((
+        never_cached(),
+        Json(Linked {
+            entry: node.into(),
+            children,
+        }),
+    )
+        .into_response())
+}
+
+async fn contents(state: &AppState, node: &Node) -> Result<Response, ApiError> {
+    let mut response = super::files::bytes_of(state, node).await?;
+    response.headers_mut().extend(never_cached());
+    Ok(response)
 }

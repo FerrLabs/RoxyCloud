@@ -207,9 +207,11 @@ including a wrong password on a link that does not exist, because a link that sa
 tells whoever guessed a token that they guessed it.
 
 Publishing is a write. A reader may download every file in the account and still gets 403 from
-`POST /v1/shares`, because handing bytes to anyone holding a URL is not reading them. An anonymous
+`POST /v1/shares`, because handing bytes to anyone holding a URL is not reading them. Revoking is
+not, so a member demoted to reader keeps the ability to take down what they published. An anonymous
 listing carries names, sizes and modification times and no identifiers: not the node ids, not the
-account behind the link.
+account behind the link, and every public response says `Cache-Control: no-store` so that a proxy
+cannot go on serving a link somebody revoked.
 
 An administrator creates the rest of the accounts, sets their roles and quotas, and can reset a
 password without knowing it. Disabling one takes effect on the account's next request rather than

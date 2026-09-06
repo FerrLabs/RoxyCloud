@@ -362,7 +362,15 @@ size and a modification time. No node ids, no owner id. Handing an unauthenticat
 identifiers the rest of the API is addressed by costs nothing to avoid and gives nothing away.
 
 Publishing takes a `Writer`. A reader may download every file in the account, and still cannot mint
-a link, because handing bytes to anyone holding a URL is not reading them.
+a link, because handing bytes to anyone holding a URL is not reading them. Revoking takes only a
+`Caller`, since it withdraws access rather than granting it, and a member demoted to reader who could
+no longer take down what they had already published would be locked out of the kill switch.
+
+Every public response carries `Cache-Control: no-store`. These URLs are stable and carry no
+credential, so a shared cache left to its own heuristics would keep serving a link after it was
+revoked, and would hand a body fetched with the right password to the next visitor who gives none.
+The authenticated routes are spared this by the `Authorization` header they carry; these have
+nothing to be spared by.
 
 Not implemented: upload into a shared folder, and any limit on how fast a password may be guessed.
 Argon2 makes each attempt expensive rather than impossible, which is the argument for the

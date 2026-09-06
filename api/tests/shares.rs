@@ -475,6 +475,127 @@ database_test!(a_link_that_would_be_born_useless_is_refused, harness, {
     );
 });
 
+database_test!(
+    a_password_outside_ascii_opens_the_link_it_guards,
+    harness,
+    {
+        let (id, bearer) = session(&harness, "owner@example.com", Role::Member).await;
+        harness.write(id, "guarded.txt", b"behind an accent").await;
+        let minted = as_account(
+            &harness,
+            "POST",
+            "/v1/shares",
+            &bearer,
+            r#"{"path":"guarded.txt","password":"mot-de-passé-très-long"}"#,
+        )
+        .await;
+        assert_eq!(minted.status, StatusCode::CREATED, "{}", minted.body);
+        let token = field(&minted.body, "token").to_owned();
+
+        let opened = with_password(
+            &harness,
+            &format!("/v1/public/{token}/content"),
+            "mot-de-passé-très-long",
+        )
+        .await;
+
+        assert_eq!(
+            opened.status,
+            StatusCode::OK,
+            "a password the API accepted has to be one a visitor can present"
+        );
+        assert_eq!(opened.body, "behind an accent");
+    }
+);
+
+database_test!(
+    a_trashed_node_is_not_found_rather_than_asked_for_its_password,
+    harness,
+    {
+        let (id, bearer) = session(&harness, "owner@example.com", Role::Member).await;
+        let node = harness.write(id, "guarded.txt", b"private").await;
+        let minted = as_account(
+            &harness,
+            "POST",
+            "/v1/shares",
+            &bearer,
+            r#"{"path":"guarded.txt","password":"twelve-characters-at-least"}"#,
+        )
+        .await;
+        let token = field(&minted.body, "token").to_owned();
+
+        harness.trash(&node).await;
+        let after = anonymous(&harness, &format!("/v1/public/{token}/content")).await;
+
+        assert_eq!(
+            after.status,
+            StatusCode::NOT_FOUND,
+            "every way a link dies has to answer alike, or the difference says which one happened"
+        );
+    }
+);
+
+database_test!(
+    a_reader_can_still_take_down_a_link_they_published,
+    harness,
+    {
+        let (_, admin) = session(&harness, "admin@example.com", Role::Admin).await;
+        let (id, bearer) = session(&harness, "demoted@example.com", Role::Member).await;
+        harness.write(id, "theirs.txt", b"published").await;
+        let minted = as_account(
+            &harness,
+            "POST",
+            "/v1/shares",
+            &bearer,
+            r#"{"path":"theirs.txt"}"#,
+        )
+        .await;
+        let token = field(&minted.body, "token").to_owned();
+        let share = field(&minted.body, "id").to_owned();
+
+        as_account(
+            &harness,
+            "PUT",
+            &format!("/v1/users/{id}/role"),
+            &admin,
+            r#"{"role":"reader"}"#,
+        )
+        .await;
+        let revoked = as_account(
+            &harness,
+            "DELETE",
+            &format!("/v1/shares/{share}"),
+            &bearer,
+            "",
+        )
+        .await;
+        let after = anonymous(&harness, &format!("/v1/public/{token}/content")).await;
+
+        assert_eq!(
+            revoked.status,
+            StatusCode::NO_CONTENT,
+            "losing the right to publish must not strand what was already published"
+        );
+        assert_eq!(after.status, StatusCode::NOT_FOUND);
+    }
+);
+
+database_test!(nothing_a_link_answers_may_be_kept_by_a_cache, harness, {
+    let (id, bearer) = session(&harness, "owner@example.com", Role::Member).await;
+    harness.write(id, "album/one.txt", b"one").await;
+    let token = link_to(&harness, &bearer, "album").await;
+
+    let listed = anonymous(&harness, &format!("/v1/public/{token}")).await;
+    let served = anonymous(&harness, &format!("/v1/public/{token}/content/one.txt")).await;
+
+    assert_eq!(
+        listed.header("cache-control"),
+        "no-store",
+        "a revoked link that a proxy keeps serving is not revoked"
+    );
+    assert_eq!(served.header("cache-control"), "no-store");
+});
+
 database_test!(a_token_nobody_minted_is_not_found, harness, {
     let answer = anonymous(&harness, "/v1/public/deadbeef/content").await;
     assert_eq!(answer.status, StatusCode::NOT_FOUND);

@@ -120,6 +120,7 @@ pub async fn open(pool: &PgPool, token: &str, presented: Option<&str>) -> Result
         "SELECT shares.id, shares.node_id, shares.password_hash
          FROM shares
          JOIN users ON users.id = shares.created_by
+         JOIN nodes ON nodes.id = shares.node_id AND nodes.deleted_at IS NULL
          WHERE shares.token_hash = $1
            AND shares.revoked_at IS NULL
            AND (shares.expires_at IS NULL OR shares.expires_at > now())
