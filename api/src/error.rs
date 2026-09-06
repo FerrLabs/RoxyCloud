@@ -1,5 +1,5 @@
 use axum::Json;
-use axum::http::StatusCode;
+use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
 
@@ -20,6 +20,8 @@ pub enum ApiError {
     NotFound,
     #[error("this link needs its password")]
     SharePassword,
+    #[error("too many attempts, try again in {seconds} seconds")]
+    TooManyAttempts { seconds: i64 },
     #[error("this account may not write")]
     Forbidden,
     #[error("{0} already exists")]
@@ -69,6 +71,7 @@ impl ApiError {
                 StatusCode::BAD_REQUEST
             }
             Self::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
+            Self::TooManyAttempts { .. } => StatusCode::TOO_MANY_REQUESTS,
             Self::Credential | Self::Storage(_) | Self::Database(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
@@ -87,6 +90,14 @@ impl IntoResponse for ApiError {
         } else {
             self.to_string()
         };
-        (status, Json(json!({ "error": body }))).into_response()
+        let mut response = (status, Json(json!({ "error": body }))).into_response();
+
+        // A limiter a client cannot cooperate with is one it answers by retrying immediately.
+        if let Self::TooManyAttempts { seconds } = self
+            && let Ok(after) = HeaderValue::from_str(&seconds.to_string())
+        {
+            response.headers_mut().insert(header::RETRY_AFTER, after);
+        }
+        response
     }
 }

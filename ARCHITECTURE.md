@@ -372,9 +372,41 @@ revoked, and would hand a body fetched with the right password to the next visit
 The authenticated routes are spared this by the `Authorization` header they carry; these have
 nothing to be spared by.
 
-Not implemented: upload into a shared folder, and any limit on how fast a password may be guessed.
-Argon2 makes each attempt expensive rather than impossible, which is the argument for the
-twelve-character floor on a share password until there is a limiter (#88).
+A share password needs six characters where an account password needs twelve. It is only ever
+guessed online, against the limiter described below; an account password has to survive an offline
+attack on a database somebody walked off with, where no limiter reaches.
+
+Not implemented: upload into a shared folder.
+
+## Guessing
+
+Login and the share password are the two places where somebody who is not logged in gets to try an
+answer, so both go through `attempts`. Ten failures cost nothing. The eleventh costs a minute, and
+every failure after it doubles up to an hour, which turns a day of guessing into a couple of dozen
+tries rather than however many the network allows. The check runs before argon2: a guess that costs
+the server a hash is a guess worth making, and a limiter that only refuses afterwards has already
+paid for the attack it is refusing.
+
+The counter is keyed on what is being guessed, an address for login and the token's fingerprint for
+a link, never on where the guess came from. A budget per source is a budget a botnet multiplies by
+the size of the botnet. The fingerprint rather than the token matters for the same reason the
+`shares` table stores one: a limiter keyed on the raw token would be a list of live links in the
+clear.
+
+Two consequences worth stating rather than leaving to be discovered.
+
+An address nobody has is counted like one somebody does. Otherwise a 429 would answer the question
+of whether an account exists, which is what the decoy hash in `password::verify_decoy` already
+exists to avoid. The cost is rows for invented addresses, which the sweep clears after a day.
+
+Somebody who knows an address can keep that account locked out by failing against it, and the
+escalation that slows an attacker slows the owner the same way. That is the price of keying on the
+subject, and the alternatives cost more: keying on the address hands a botnet a fresh allowance per
+source, and letting the correct password through during a block means hashing every guess. A first
+block of one minute keeps it a nuisance; #91 tracks doing better.
+
+The count lives in Postgres rather than in the process, so a restart is not a way to clear it and a
+second replica is not a way to double it.
 
 ## WebDAV
 

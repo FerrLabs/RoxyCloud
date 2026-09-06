@@ -4,12 +4,19 @@ use argon2::Argon2;
 use argon2::password_hash::phc::PasswordHash;
 use argon2::password_hash::{PasswordHasher, PasswordVerifier};
 
-pub const MIN_PASSWORD_LEN: usize = 12;
+/// What an account password has to be, because nothing rate-limits an offline attack on a database
+/// somebody walked off with.
+pub const MIN_ACCOUNT_PASSWORD_LEN: usize = 12;
+
+/// What a share password has to be. It is lower because it is only ever guessed online, ten tries
+/// at a time, against a limiter: six characters outlast the link. Asking for twelve on something
+/// people text to one person buys nothing and gets written down.
+pub const MIN_SHARE_PASSWORD_LEN: usize = 6;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum WeakPassword {
-    #[error("password must be at least {MIN_PASSWORD_LEN} characters")]
-    TooShort,
+    #[error("password must be at least {minimum} characters")]
+    TooShort { minimum: usize },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -39,9 +46,9 @@ pub fn verify_decoy(password: &str) {
     let _ = verify(password, decoy);
 }
 
-pub fn check_strength(password: &str) -> Result<(), WeakPassword> {
-    if password.chars().count() < MIN_PASSWORD_LEN {
-        return Err(WeakPassword::TooShort);
+pub fn check_strength(password: &str, minimum: usize) -> Result<(), WeakPassword> {
+    if password.chars().count() < minimum {
+        return Err(WeakPassword::TooShort { minimum });
     }
     Ok(())
 }
@@ -106,11 +113,28 @@ mod tests {
 
     #[test]
     fn short_passwords_are_refused_counting_characters_not_bytes() {
-        assert_eq!(check_strength("short"), Err(WeakPassword::TooShort));
+        let minimum = MIN_ACCOUNT_PASSWORD_LEN;
         assert_eq!(
-            check_strength(&"é".repeat(MIN_PASSWORD_LEN - 1)),
-            Err(WeakPassword::TooShort)
+            check_strength("short", minimum),
+            Err(WeakPassword::TooShort { minimum })
         );
-        assert!(check_strength(&"é".repeat(MIN_PASSWORD_LEN)).is_ok());
+        assert_eq!(
+            check_strength(&"é".repeat(minimum - 1), minimum),
+            Err(WeakPassword::TooShort { minimum })
+        );
+        assert!(check_strength(&"é".repeat(minimum), minimum).is_ok());
+    }
+
+    #[test]
+    fn a_share_password_is_held_to_its_own_floor_not_the_account_one() {
+        let share = "abcdef";
+        assert!(share.len() < MIN_ACCOUNT_PASSWORD_LEN);
+        assert!(check_strength(share, MIN_SHARE_PASSWORD_LEN).is_ok());
+        assert_eq!(
+            check_strength("abcde", MIN_SHARE_PASSWORD_LEN),
+            Err(WeakPassword::TooShort {
+                minimum: MIN_SHARE_PASSWORD_LEN
+            })
+        );
     }
 }

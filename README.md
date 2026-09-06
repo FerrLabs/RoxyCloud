@@ -199,8 +199,10 @@ row is not a working link. The token is the whole credential, and it names one n
 can write reaches anything the link does not cover.
 
 A link can carry an expiry and a password. The password is chosen by a person rather than generated,
-so it goes through the same argon2 hash and the same twelve-character floor as an account password,
-and it travels in an `X-Share-Password` header rather than in the URL that already carries the token.
+so it goes through argon2 rather than a fingerprint, and it travels in an `X-Share-Password` header
+rather than in the URL that already carries the token. Six characters is enough for it, where an
+account password needs twelve: a share password is only ever guessed online against the limiter
+below, while an account password has to survive an offline attack on a stolen database.
 Revoking is immediate, and so is everything else that should take a link down: the file going to the
 trash, the account that published it being disabled, the expiry passing. All of them answer 404,
 including a wrong password on a link that does not exist, because a link that says "wrong password"
@@ -212,6 +214,19 @@ not, so a member demoted to reader keeps the ability to take down what they publ
 listing carries names, sizes and modification times and no identifiers: not the node ids, not the
 account behind the link, and every public response says `Cache-Control: no-store` so that a proxy
 cannot go on serving a link somebody revoked.
+
+Guessing is limited wherever somebody who is not logged in gets to try an answer, which means
+`POST /v1/auth/login` and the password on a share link. Ten failures cost nothing, the eleventh
+costs a minute, and every failure after it doubles up to an hour, so a day of guessing buys a couple
+of dozen tries. The refusal is a 429 with a `Retry-After`, and it comes before the password is
+hashed rather than after, because a guess that costs the server an argon2 is a guess worth making.
+
+The count belongs to what is being guessed, not to where the guess came from: an address for login,
+the token's fingerprint for a link. Changing address does not shed it, and an address nobody has is
+counted like one somebody does, so a 429 never answers whether an account exists. Getting it right
+clears the count. Two things follow: someone who knows an address can keep that account locked out
+by failing against it (#91), and the counts live in Postgres, so restarting the server does not
+clear them.
 
 An administrator creates the rest of the accounts, sets their roles and quotas, and can reset a
 password without knowing it. Disabling one takes effect on the account's next request rather than

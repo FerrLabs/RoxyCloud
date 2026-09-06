@@ -362,6 +362,30 @@ impl Harness {
             .expect("ageing the blob");
     }
 
+    pub async fn attempt_rows(&self) -> i64 {
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM attempts")
+            .fetch_one(&self.state.db)
+            .await
+            .expect("counting the attempts")
+    }
+
+    pub async fn attempt_subjects(&self) -> Vec<String> {
+        sqlx::query_scalar::<_, String>("SELECT subject FROM attempts")
+            .fetch_all(&self.state.db)
+            .await
+            .expect("reading the attempts")
+    }
+
+    pub async fn age_attempts(&self, by: chrono::Duration) {
+        sqlx::query("UPDATE attempts SET last_at = now() - make_interval(secs => $1)")
+            .bind(f64::from(
+                i32::try_from(by.num_seconds()).expect("a small test interval"),
+            ))
+            .execute(&self.state.db)
+            .await
+            .expect("ageing the attempts");
+    }
+
     pub async fn expire_shares(&self) {
         sqlx::query("UPDATE shares SET expires_at = now() - INTERVAL '1 second'")
             .execute(&self.state.db)

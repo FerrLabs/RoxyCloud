@@ -26,6 +26,11 @@ pub fn spawn(state: AppState, every: Duration, grace: Duration) {
                 Ok(_) => {}
                 Err(error) => error!(%error, "purging expired locks failed"),
             }
+            match crate::attempts::purge_expired(&state.db).await {
+                Ok(expired) if expired > 0 => info!(attempts = expired, "removed expired attempts"),
+                Ok(_) => {}
+                Err(error) => error!(%error, "purging expired attempts failed"),
+            }
             match sweep(&state, grace).await {
                 Ok(collected) if collected.blobs > 0 => {
                     info!(
