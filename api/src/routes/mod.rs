@@ -1,6 +1,7 @@
 pub mod app_passwords;
 pub mod auth;
 pub mod files;
+pub mod search;
 pub mod shares;
 pub mod trash;
 pub mod users;
@@ -38,6 +39,7 @@ pub fn router(state: AppState) -> Router {
             "/v1/public/{token}/content/{*path}",
             get(shares::download_at),
         )
+        .route("/v1/search", get(search::search))
         .route("/v1/move", post(files::rename))
         .route("/v1/trash", get(trash::list))
         .route("/v1/trash/{id}", delete(trash::purge))

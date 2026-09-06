@@ -120,6 +120,7 @@ PUT    /v1/files/{*path}      upload, creating parent directories
 GET    /v1/files/{*path}      download
 DELETE /v1/files/{*path}      move to trash
 POST   /v1/move               rename a node, or move it under another directory
+GET    /v1/search?q=          find a node by part of its name
 GET    /v1/app-passwords      the credentials this account has minted
 POST   /v1/app-passwords      mint one, shown once
 DELETE /v1/app-passwords/{id} revoke one, taking effect immediately
@@ -214,6 +215,16 @@ not, so a member demoted to reader keeps the ability to take down what they publ
 listing carries names, sizes and modification times and no identifiers: not the node ids, not the
 account behind the link, and every public response says `Cache-Control: no-store` so that a proxy
 cannot go on serving a link somebody revoked.
+
+`GET /v1/search?q=` matches part of a name against the account's own live tree, case-insensitively,
+prefix matches first. A result carries the path it was found at, because a name on its own tells you
+that you have a file called `notes.md` without telling you which of the four it is. What was typed is
+a literal: `%` and `_` are escaped rather than passed to the pattern matcher, so searching for `%`
+finds files with a percent sign in the name instead of returning everything. The trash is not
+searched, and `limit` and `offset` page through the results, capped at 200 at a time.
+
+This is names only. Searching inside documents needs text extraction per format, and that is a
+different feature rather than a bigger version of this one.
 
 Guessing is limited wherever somebody who is not logged in gets to try an answer, which means
 `POST /v1/auth/login` and the password on a share link. Ten attempts cost nothing, the tenth buys a

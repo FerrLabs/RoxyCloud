@@ -34,11 +34,11 @@ export const fr: SiteContent = {
         "Des comptes par mot de passe en Argon2id, des jetons de session, et la connexion depuis l'application web, la fenêtre desktop et la ligne de commande",
         "Les mots de passe applicatifs, et le WebDAV qu'ils authentifient",
         'Les liens de partage, avec expiration et mot de passe optionnels',
+        'La recherche par nom, avec le chemin de chaque résultat',
         'Le ramasse-miettes qui récupère les blobs que plus rien ne référence',
       ],
       plannedHeading: "Ce qui n'est pas encore écrit",
       planned: [
-        'La recherche par nom',
         'La connexion OIDC',
         'Le backend S3',
         'Le moteur de synchronisation derrière le client desktop',
@@ -226,6 +226,7 @@ pnpm --filter @roxycloud/web build \\
         ['GET', '/v1/files/{*path}', 'Télécharger'],
         ['DELETE', '/v1/files/{*path}', 'Mettre à la corbeille'],
         ['POST', '/v1/move', 'Renommer un nœud, ou le déplacer sous un autre répertoire'],
+        ['GET', '/v1/search?q=', 'Trouver un nœud par une partie de son nom'],
         ['GET', '/v1/app-passwords', 'Les identifiants créés par ce compte'],
         ['POST', '/v1/app-passwords', "En créer un, affiché une seule fois"],
         ['DELETE', '/v1/app-passwords/{id}', 'En révoquer un, avec effet immédiat'],
@@ -283,7 +284,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'Ce qui manque',
-      body: "La recherche par nom, les envois reprenables, la connexion OIDC et le backend S3 sont suivis en issues, et aucun n'est implémenté. Un chemin absent du tableau ci-dessus répond 404.",
+      body: "Les envois reprenables, la connexion OIDC et le backend S3 sont suivis en issues, et aucun n'est implémenté. Un chemin absent du tableau ci-dessus répond 404.",
     },
   },
 };
