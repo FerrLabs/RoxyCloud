@@ -109,6 +109,30 @@ database_test!(
     }
 );
 
+database_test!(
+    a_path_never_names_a_directory_in_another_account,
+    harness,
+    {
+        let (mine, bearer) = session(&harness, "mine@example.com").await;
+        let (theirs, _) = session(&harness, "theirs@example.com").await;
+        harness
+            .write(theirs, "confidential-plans/decoy.txt", b"theirs")
+            .await;
+        let foreign = harness.resolve(theirs, "confidential-plans").await;
+        let ours = harness.write(mine, "budget.md", b"mine").await;
+
+        harness.graft(ours.id, foreign.id).await;
+        let found = search(&harness, &bearer, "budget").await;
+
+        assert_eq!(found.names(), ["budget.md"]);
+        assert_eq!(
+            found.paths(),
+            ["budget.md"],
+            "the walk up has to stop at the account boundary rather than trusting the tree to be intact"
+        );
+    }
+);
+
 database_test!(the_path_says_where_the_match_is, harness, {
     let (id, bearer) = session(&harness, "owner@example.com").await;
     harness

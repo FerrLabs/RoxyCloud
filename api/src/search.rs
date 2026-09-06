@@ -19,8 +19,11 @@ pub struct Hit {
 }
 
 /// Substring match on the name, over one account's live tree, prefix matches first. The owner is a
-/// bound parameter rather than a filter applied to a wider result, so there is no ordering of the
-/// clauses that would let another account's node through.
+/// bound parameter rather than a filter applied to a wider result, so no page can hold a foreign
+/// row. The walk up to build the path carries the same clause: today nothing can give a node a
+/// parent in another account, and if that ever changes the leak would be the ancestor names rather
+/// than the node, which is the kind of thing a query should refuse on its own rather than inherit
+/// from the tree being intact.
 pub async fn by_name(
     pool: &PgPool,
     owner_id: Uuid,
@@ -31,7 +34,7 @@ pub async fn by_name(
     let query = query.trim();
     if query.is_empty() {
         return Err(ApiError::WrongKind {
-            expected: "something to search for",
+            expected: "search term",
         });
     }
 
@@ -55,7 +58,7 @@ pub async fn by_name(
                SELECT lineage.of, above.id, above.parent_id, above.name, lineage.climbed + 1
                FROM lineage
                JOIN nodes above ON above.id = lineage.parent_id
-               WHERE above.parent_id IS NOT NULL
+               WHERE above.parent_id IS NOT NULL AND above.owner_id = $1
            ) CYCLE id SET looped USING crumbs
            SELECT found.id, found.owner_id, found.parent_id, found.name, found.kind,
                   found.blob_hash, found.size, found.etag, found.created_at, found.updated_at,

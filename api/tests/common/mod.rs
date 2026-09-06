@@ -362,6 +362,17 @@ impl Harness {
             .expect("ageing the blob");
     }
 
+    /// Moves a node under a parent the API would never allow, to check that a query defends itself
+    /// rather than trusting the tree to be intact.
+    pub async fn graft(&self, node: Uuid, parent: Uuid) {
+        sqlx::query("UPDATE nodes SET parent_id = $2 WHERE id = $1")
+            .bind(node)
+            .bind(parent)
+            .execute(&self.state.db)
+            .await
+            .expect("grafting the node");
+    }
+
     pub async fn attempt_rows(&self) -> i64 {
         sqlx::query_scalar::<_, i64>("SELECT count(*) FROM attempts")
             .fetch_one(&self.state.db)
