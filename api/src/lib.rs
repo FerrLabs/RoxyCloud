@@ -7,6 +7,7 @@ pub mod db;
 pub mod error;
 pub mod password;
 pub mod routes;
+pub mod search;
 pub mod shares;
 pub mod state;
 pub mod storage;

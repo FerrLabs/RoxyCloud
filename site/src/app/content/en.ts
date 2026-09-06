@@ -34,11 +34,11 @@ export const en: SiteContent = {
         'Password accounts with Argon2id, session tokens, and login from the web app, the desktop window and the CLI',
         'App passwords, and the WebDAV surface they authenticate',
         'Share links, with an optional expiry and an optional password',
+        'Search by name, with the path each match was found at',
         'The sweep that collects blobs nothing points at any more',
       ],
       plannedHeading: 'Not written yet',
       planned: [
-        'Search by name',
         'OIDC login',
         'The S3 backend',
         'The sync engine behind the desktop client',
@@ -226,6 +226,7 @@ pnpm --filter @roxycloud/web build \\
         ['GET', '/v1/files/{*path}', 'Download'],
         ['DELETE', '/v1/files/{*path}', 'Move to the trash'],
         ['POST', '/v1/move', 'Rename a node, or move it under another directory'],
+        ['GET', '/v1/search?q=', 'Find a node by part of its name'],
         ['GET', '/v1/app-passwords', 'The credentials this account has minted'],
         ['POST', '/v1/app-passwords', 'Mint one, shown once'],
         ['DELETE', '/v1/app-passwords/{id}', 'Revoke one, taking effect immediately'],
@@ -283,7 +284,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'What is missing',
-      body: 'Search by name, resumable uploads, OIDC login and the S3 backend are tracked as issues, and none of them are implemented. A path that is not in the table above answers 404.',
+      body: 'Resumable uploads, OIDC login and the S3 backend are tracked as issues, and none of them are implemented. A path that is not in the table above answers 404.',
     },
   },
 };
