@@ -372,9 +372,65 @@ revoked, and would hand a body fetched with the right password to the next visit
 The authenticated routes are spared this by the `Authorization` header they carry; these have
 nothing to be spared by.
 
-Not implemented: upload into a shared folder, and any limit on how fast a password may be guessed.
-Argon2 makes each attempt expensive rather than impossible, which is the argument for the
-twelve-character floor on a share password until there is a limiter (#88).
+A share password needs six characters where an account password needs twelve. It is only ever
+guessed online, against the limiter described below; an account password has to survive an offline
+attack on a database somebody walked off with, where no limiter reaches.
+
+Not implemented: upload into a shared folder.
+
+## Guessing
+
+Login and the share password are the two places where somebody who is not logged in gets to try an
+answer, so both go through `attempts`. Ten attempts cost nothing. The eleventh costs a minute, and
+every one after it doubles up to an hour, which turns a day of guessing into a couple of dozen tries
+rather than however many the network allows. The count is taken before argon2: a guess that costs
+the server a hash is a guess worth making, and a limiter that only refuses afterwards has already
+paid for the attack it is refusing.
+
+Counting and deciding are serialised per subject by an advisory lock. A read that decides followed
+by an unguarded write that records leaves a window every concurrent guess walks through together,
+which is how guessing is actually done: thirty simultaneous attempts against one address got
+twenty-six of them to argon2 before the counter caught up. The lock is held across the two
+statements that read the standing count and write the new one, and released before the password is
+checked. Held across argon2 instead, the same burst would exhaust the connection pool rather than
+the allowance.
+
+What the count decides is how long the *next* block runs, not whether this attempt is refused. That
+is a deadline on the row, and it passes. Deciding on the count alone is simpler and wrong: the count
+only climbs, so the eleventh attempt would shut the subject out until a full day of silence, one
+request an hour would hold it shut for nothing, and no block would ever be served. Each block, once
+served, buys one more guess, which is the ladder the day-long arithmetic above actually describes.
+
+Only a guess is counted. A visitor who opens a password-protected link without sending one has not
+guessed anything, and the 401 they get is the only thing that tells their client to ask, so counting
+it would shut a link out after ten first visits with nobody having tried a password. Getting it
+right deletes the row, which is why the allowance counts attempts rather than failures: nothing
+accumulates against somebody who knows the answer.
+
+The counter is keyed on what is being guessed, an address for login and the token's fingerprint for
+a link, never on where the guess came from. A budget per source is a budget a botnet multiplies by
+the size of the botnet. The fingerprint rather than the token matters for the same reason the
+`shares` table stores one: a limiter keyed on the raw token would be a list of live links in the
+clear.
+
+Two consequences worth stating rather than leaving to be discovered.
+
+An address nobody has is counted like one somebody does. Otherwise a 429 would answer the question
+of whether an account exists, which is what the decoy hash in `password::verify_decoy` already
+exists to avoid. The cost is rows for invented addresses, which the sweep clears after a day.
+
+Somebody who knows an address can keep that account locked out by failing against it, and the
+escalation that slows an attacker slows the owner the same way. An attempt made while a block is in
+force is refused before it is counted, so hammering does not itself extend a lockout; what holds one
+open is guessing again each time a block lapses, which counts and sets a longer one. That cuts both
+ways on purpose, and it is the price of keying on the subject; the alternatives cost more. Keying on
+the address hands a botnet a fresh allowance per source. Letting the correct password through during
+a block means hashing every guess, which is the cost the limiter exists to avoid. Holding a row lock
+across the verification instead would turn the same burst into pool exhaustion. A first block of one
+minute keeps it a nuisance; #91 tracks doing better.
+
+The count lives in Postgres rather than in the process, so a restart is not a way to clear it and a
+second replica is not a way to double it.
 
 ## WebDAV
 

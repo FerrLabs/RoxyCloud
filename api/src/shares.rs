@@ -3,6 +3,7 @@ use serde::Serialize;
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
+use crate::attempts::{self, Scope};
 use crate::db::node_columns;
 use crate::error::ApiError;
 use crate::password;
@@ -44,7 +45,7 @@ pub async fn mint(
 
     let password_hash = match password {
         Some(secret) => {
-            password::check_strength(secret)?;
+            password::check_strength(secret, password::MIN_SHARE_PASSWORD_LEN)?;
             Some(password::hash(secret)?)
         }
         None => None,
@@ -138,10 +139,22 @@ pub async fn open(pool: &PgPool, token: &str, presented: Option<&str>) -> Result
     };
 
     if let Some(expected) = password_hash {
-        let matches = presented.is_some_and(|secret| password::verify(secret, &expected));
-        if !matches {
+        // A visitor who sent no password has not guessed anything. This 401 is the only thing that
+        // tells their client to ask for one, so counting it would shut a link out after ten first
+        // visits, nobody having guessed at all.
+        let Some(secret) = presented else {
+            return Err(ApiError::SharePassword);
+        };
+
+        // Keyed on the fingerprint rather than the token, so the table that limits guessing is not
+        // itself a list of working links.
+        let subject = fingerprint(token);
+        attempts::spend(pool, Scope::Share, &subject).await?;
+
+        if !password::verify(secret, &expected) {
             return Err(ApiError::SharePassword);
         }
+        attempts::succeeded(pool, Scope::Share, &subject).await?;
     }
 
     let node = sqlx::query_as::<_, Node>(concat!(

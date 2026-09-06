@@ -43,7 +43,7 @@ pub async fn create(
     plaintext: &str,
     role: Role,
 ) -> Result<User, ApiError> {
-    password::check_strength(plaintext)?;
+    password::check_strength(plaintext, password::MIN_ACCOUNT_PASSWORD_LEN)?;
     let hash = password::hash(plaintext)?;
 
     sqlx::query_as::<_, User>(concat!(
@@ -112,7 +112,7 @@ pub async fn set_role(pool: &PgPool, id: Uuid, role: Role) -> Result<User, ApiEr
 }
 
 pub async fn set_password(pool: &PgPool, id: Uuid, plaintext: &str) -> Result<(), ApiError> {
-    password::check_strength(plaintext)?;
+    password::check_strength(plaintext, password::MIN_ACCOUNT_PASSWORD_LEN)?;
     let hash = password::hash(plaintext)?;
 
     let changed = sqlx::query("UPDATE users SET password_hash = $2 WHERE id = $1")
