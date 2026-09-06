@@ -54,12 +54,19 @@ pub async fn get(
     Path(path): Path<String>,
 ) -> Result<Response, ApiError> {
     let node = resolve_owned(&state, caller, &path).await?;
+    bytes_of(&state, &node).await
+}
+
+/// Every route that answers with the contents of a file goes through here, share links included,
+/// so the headers that keep uploaded bytes from rendering are attached once rather than remembered
+/// by each caller.
+pub(crate) async fn bytes_of(state: &AppState, node: &Node) -> Result<Response, ApiError> {
     let (NodeKind::File, Some(hash)) = (node.kind, node.blob_hash) else {
         return Err(ApiError::WrongKind { expected: "file" });
     };
 
     let file = state.blobs.read(hash).await?;
-    let etag = etag_header(&node)?;
+    let etag = etag_header(node)?;
 
     Ok((
         [
