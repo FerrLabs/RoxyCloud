@@ -336,6 +336,11 @@ URL, and the PKCE verifier behind it never leaves the server, so a code intercep
 is not enough to finish the flow. A state is spendable once: one that could be spent twice is a code
 that could be replayed.
 
+The flow is tied to the browser that started it by an `HttpOnly` cookie carrying the state, because
+a live code and state pair alone would otherwise be enough to sign somebody else's browser in as the
+attacker. The issuer in the token is compared, not merely required: a multi-tenant provider signs
+every tenant with the same keys.
+
 An address the provider has not vouched for never reaches an account, whether that account exists or
 not. Asserting somebody else's address at a provider that never checked it is the classic way one of
 these integrations is broken, so the decision lives in one function and is tested from both
