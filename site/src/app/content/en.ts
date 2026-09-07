@@ -37,12 +37,12 @@ export const en: SiteContent = {
         'Search by name, with the path each match was found at',
         'Resumable uploads, so a large file over a bad link does not start again from zero',
         'Thumbnails, made on demand and cached against the source digest',
+        'OIDC login alongside passwords, with an admin switch to turn passwords off',
         'The sweep that collects blobs nothing points at any more',
         'S3-compatible object storage as well as local disk, which is what lets the chart run more than one replica',
       ],
       plannedHeading: 'Not written yet',
       planned: [
-        'OIDC login',
         'The sync engine behind the desktop client',
       ],
     },
@@ -222,6 +222,10 @@ pnpm --filter @roxycloud/web build \\
         ['GET', '/health', 'Liveness, and the only route that takes no token'],
         ['POST', '/v1/auth/login', 'Exchange an email and a password for a session token'],
         ['GET', '/v1/auth/me', 'The authenticated account'],
+        ['GET', '/v1/auth/methods', 'What this installation offers to sign in with'],
+        ['PUT', '/v1/auth/methods', 'Turn password login off or on (admin)'],
+        ['POST', '/v1/auth/oidc/start', 'Begin an authorization code flow'],
+        ['POST', '/v1/auth/oidc/callback', 'Finish one, answering a session token'],
         ['GET', '/v1/folders', 'List the root'],
         ['GET', '/v1/folders/{*path}', 'List a directory'],
         ['PUT', '/v1/files/{*path}', 'Upload, creating the parent directories'],
@@ -294,7 +298,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'What is missing',
-      body: 'OIDC login is tracked as an issue and is not implemented. A path that is not in the table above answers 404.',
+      body: 'A path that is not in the table above answers 404.',
     },
   },
 };

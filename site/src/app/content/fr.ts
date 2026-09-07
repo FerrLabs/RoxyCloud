@@ -37,12 +37,12 @@ export const fr: SiteContent = {
         'La recherche par nom, avec le chemin de chaque résultat',
         "Les envois reprenables, pour qu'un gros fichier sur une mauvaise ligne ne reparte pas de zéro",
         'Les miniatures, générées à la demande et mises en cache sur le digest de la source',
+        "La connexion OIDC à côté des mots de passe, avec un interrupteur admin pour couper ces derniers",
         'Le ramasse-miettes qui récupère les blobs que plus rien ne référence',
         "Le stockage objet compatible S3 en plus du disque local, ce qui permet au chart de faire tourner plusieurs répliques",
       ],
       plannedHeading: "Ce qui n'est pas encore écrit",
       planned: [
-        'La connexion OIDC',
         'Le moteur de synchronisation derrière le client desktop',
       ],
     },
@@ -222,6 +222,10 @@ pnpm --filter @roxycloud/web build \\
         ['GET', '/health', 'Vérification de vie, la seule route sans jeton'],
         ['POST', '/v1/auth/login', 'Échanger un email et un mot de passe contre un jeton de session'],
         ['GET', '/v1/auth/me', 'Le compte authentifié'],
+        ['GET', '/v1/auth/methods', "Ce que cette installation propose pour se connecter"],
+        ['PUT', '/v1/auth/methods', 'Couper ou rétablir la connexion par mot de passe (admin)'],
+        ['POST', '/v1/auth/oidc/start', "Commencer un flux d'autorisation"],
+        ['POST', '/v1/auth/oidc/callback', 'Le terminer, en répondant un jeton de session'],
         ['GET', '/v1/folders', 'Lister la racine'],
         ['GET', '/v1/folders/{*path}', 'Lister un répertoire'],
         ['PUT', '/v1/files/{*path}', 'Envoyer, en créant les répertoires parents'],
@@ -294,7 +298,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'Ce qui manque',
-      body: "La connexion OIDC est suivie en issue et n'est pas implémentée. Un chemin absent du tableau ci-dessus répond 404.",
+      body: "Un chemin absent du tableau ci-dessus répond 404.",
     },
   },
 };

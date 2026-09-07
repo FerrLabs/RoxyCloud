@@ -1,6 +1,7 @@
 pub mod app_passwords;
 pub mod auth;
 pub mod files;
+pub mod oidc;
 pub mod search;
 pub mod shares;
 pub mod thumbnails;
@@ -20,6 +21,12 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/v1/auth/login", post(auth::login))
         .route("/v1/auth/me", get(auth::me))
+        .route(
+            "/v1/auth/methods",
+            get(oidc::methods).put(oidc::set_methods),
+        )
+        .route("/v1/auth/oidc/start", post(oidc::begin))
+        .route("/v1/auth/oidc/callback", post(oidc::callback))
         .route(
             "/v1/app-passwords",
             get(app_passwords::list).post(app_passwords::mint),
