@@ -227,6 +227,7 @@ pnpm --filter @roxycloud/web build \\
         ['GET', '/v1/files/{*path}', 'Download'],
         ['DELETE', '/v1/files/{*path}', 'Move to the trash'],
         ['POST', '/v1/move', 'Rename a node, or move it under another directory'],
+        ['GET', '/v1/uploads', 'The sessions this account is holding open'],
         ['POST', '/v1/uploads', 'Open a resumable upload'],
         ['GET', '/v1/uploads/{id}', 'Where it got to, for resuming'],
         ['PATCH', '/v1/uploads/{id}', 'Append at Upload-Offset'],

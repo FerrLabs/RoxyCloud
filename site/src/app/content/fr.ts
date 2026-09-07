@@ -227,6 +227,7 @@ pnpm --filter @roxycloud/web build \\
         ['GET', '/v1/files/{*path}', 'Télécharger'],
         ['DELETE', '/v1/files/{*path}', 'Mettre à la corbeille'],
         ['POST', '/v1/move', 'Renommer un nœud, ou le déplacer sous un autre répertoire'],
+        ['GET', '/v1/uploads', 'Les sessions que ce compte garde ouvertes'],
         ['POST', '/v1/uploads', 'Ouvrir un envoi reprenable'],
         ['GET', '/v1/uploads/{id}', 'Où il en est, pour reprendre'],
         ['PATCH', '/v1/uploads/{id}', 'Ajouter à Upload-Offset'],

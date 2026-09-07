@@ -42,7 +42,7 @@ pub fn router(state: AppState) -> Router {
             get(shares::download_at),
         )
         .route("/v1/search", get(search::search))
-        .route("/v1/uploads", post(uploads::begin))
+        .route("/v1/uploads", get(uploads::mine).post(uploads::begin))
         .route(
             "/v1/uploads/{id}",
             get(uploads::status)
