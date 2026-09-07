@@ -1,5 +1,7 @@
 use axum::Json;
 use axum::extract::State;
+use axum::http::{HeaderMap, HeaderValue, header};
+use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 
 use crate::auth::Admin;
@@ -7,6 +9,11 @@ use crate::error::ApiError;
 use crate::routes::auth::Session;
 use crate::state::AppState;
 use crate::{oidc, settings};
+
+/// Ties a flow to the browser that started it. Without it, whoever holds a live `code` and `state`
+/// pair can finish the flow in somebody else's browser, and that somebody is then signed in as the
+/// attacker with their uploads filed into the attacker's account.
+const FLOW_COOKIE: &str = "roxycloud_oidc";
 
 #[derive(Serialize)]
 pub struct Beginning {
@@ -40,7 +47,7 @@ pub async fn methods(State(state): State<AppState>) -> Result<Json<Methods>, Api
     }))
 }
 
-pub async fn begin(State(state): State<AppState>) -> Result<Json<Beginning>, ApiError> {
+pub async fn begin(State(state): State<AppState>) -> Result<Response, ApiError> {
     let provider = state.oidc.as_ref().ok_or(ApiError::NotFound)?;
     let found = oidc::discover(&state.http, &provider.issuer).await?;
 
@@ -56,19 +63,44 @@ pub async fn begin(State(state): State<AppState>) -> Result<Json<Beginning>, Api
         urlencoding(&started.challenge),
     );
 
-    Ok(Json(Beginning {
-        authorize_url,
-        state: started.state,
-    }))
+    let cookie = format!(
+        "{FLOW_COOKIE}={}; HttpOnly; SameSite=Lax; Path=/; Max-Age=900{}",
+        started.state,
+        if provider.redirect_url.starts_with("https://") {
+            "; Secure"
+        } else {
+            ""
+        }
+    );
+
+    Ok((
+        [(
+            header::SET_COOKIE,
+            HeaderValue::from_str(&cookie).map_err(|_| ApiError::Credential)?,
+        )],
+        Json(Beginning {
+            authorize_url,
+            state: started.state,
+        }),
+    )
+        .into_response())
 }
 
 /// The browser hands back the code it was given, and the state it was given with it. The verifier
 /// never left this server, so a code intercepted on the way is not enough to finish the flow.
 pub async fn callback(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(returned): Json<Returned>,
 ) -> Result<Json<Session>, ApiError> {
     let provider = state.oidc.as_ref().ok_or(ApiError::NotFound)?;
+
+    // The state the browser was given when it started, which an attacker who merely holds a code
+    // cannot produce in somebody else's browser.
+    if cookie(&headers, FLOW_COOKIE).is_none_or(|carried| carried != returned.state) {
+        return Err(ApiError::Unauthenticated);
+    }
+
     let verifier = oidc::claim_flow(&state.db, &returned.state).await?;
     let found = oidc::discover(&state.http, &provider.issuer).await?;
 
@@ -120,6 +152,16 @@ pub async fn set_methods(
         password: request.password,
         oidc: state.oidc.is_some(),
     }))
+}
+
+fn cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+    headers
+        .get(header::COOKIE)
+        .and_then(|value| value.to_str().ok())?
+        .split(';')
+        .filter_map(|pair| pair.trim().split_once('='))
+        .find(|(key, _)| *key == name)
+        .map(|(_, value)| value)
 }
 
 fn urlencoding(raw: &str) -> String {

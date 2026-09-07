@@ -78,7 +78,15 @@ administrator does it from the running system, and it is refused when no provide
 
 The `PKCE` verifier never leaves the server, so a code intercepted on the way back is not enough to
 finish the flow, and a state is spendable once, because a state that could be spent twice is a code
-that could be replayed. The token's own header says which algorithm signed it and whoever sent the
+that could be replayed. The state is also carried in an `HttpOnly`, `SameSite=Lax` cookie set when
+the flow begins and checked when it returns, which ties the flow to the browser that started it: a
+code alone would otherwise let an attacker finish their own flow in somebody else's browser, and
+that person would then be signed in as the attacker with their uploads filed into the attacker's
+account.
+
+The issuer is compared rather than merely required. A multi-tenant provider signs every tenant's
+tokens with the same keys, so accepting anything that verifies against the `JWKS` would let a user
+in an unrelated tenant reach `admit` and be mapped to a local account by address. The token's own header says which algorithm signed it and whoever sent the
 token wrote that header, so what is accepted is pinned rather than read from it.
 
 `oidc::admit` is the only place that decides which account a set of claims may be. An address the
