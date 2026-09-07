@@ -50,7 +50,11 @@ jobs:
           tool: cargo-tarpaulin
       # roxycloud-app is excluded: it has no tests, and building it would need
       # both the webview toolchain and a built web/dist for generate_context!.
-      - run: cargo tarpaulin --workspace --exclude roxycloud-app --out xml --skip-clean
+      #
+      # The llvm engine rather than the default ptrace one, which segfaults on a test binary that
+      # spawns blocking threads. Thumbnail decoding runs off the async runtime on purpose, so the
+      # coverage tool is what has to give.
+      - run: cargo tarpaulin --workspace --exclude roxycloud-app --engine llvm --out xml --skip-clean
         env:
           DATABASE_URL: postgres://roxy:roxy@localhost:5432/roxycloud
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
