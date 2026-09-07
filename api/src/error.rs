@@ -42,6 +42,8 @@ pub enum ApiError {
     Incomplete { received: i64, expected: i64 },
     #[error("this account already has {most} uploads open")]
     TooManySessions { most: i64 },
+    #[error("another request is writing to this upload")]
+    AlreadyWriting,
     #[error("expected a {expected}")]
     WrongKind { expected: &'static str },
     #[error("storage failure")]
@@ -79,9 +81,10 @@ impl ApiError {
             Self::WeakPassword(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::NotFound | Self::Storage(StorageError::NotFound(_)) => StatusCode::NOT_FOUND,
             Self::Forbidden => StatusCode::FORBIDDEN,
-            Self::Conflict(_) | Self::MoveIntoSelf | Self::OffsetMismatch { .. } => {
-                StatusCode::CONFLICT
-            }
+            Self::Conflict(_)
+            | Self::MoveIntoSelf
+            | Self::AlreadyWriting
+            | Self::OffsetMismatch { .. } => StatusCode::CONFLICT,
             Self::Incomplete { .. } => StatusCode::BAD_REQUEST,
             Self::Locked(_) => StatusCode::LOCKED,
             Self::InvalidPath(_) | Self::InvalidEmail(_) | Self::WrongKind { .. } => {

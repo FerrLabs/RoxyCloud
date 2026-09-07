@@ -22,6 +22,11 @@ pub const LIFETIME_HOURS: i64 = 24;
 /// session and hold all of it for a day.
 pub const MOST_SESSIONS: i64 = 8;
 
+/// How long one write may hold a session before another may take it. Long enough for a slow body,
+/// short enough that a request that died holding the claim does not strand the session for the day
+/// it would otherwise have left.
+const CLAIM_MINUTES: i64 = 5;
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Session {
     pub id: Uuid,
@@ -66,8 +71,11 @@ impl Staging {
     /// recorded once a whole chunk has drained, so a request that died mid-body left bytes past
     /// the offset the session remembers, and appending after them would duplicate a region and
     /// lose the tail. A connection lost mid-chunk is the case this feature exists for, so it is
-    /// the case the write has to be correct under. Truncating also makes two requests at the same
-    /// offset idempotent rather than interleaved.
+    /// the case the write has to be correct under.
+    ///
+    /// This is not enough on its own to make two writes at the same offset safe: they do not share
+    /// a file cursor, so the second truncating under the first leaves a hole of zeros between
+    /// them. What keeps them apart is the claim `append` takes on the session.
     async fn write_at<S, E>(
         &self,
         staged: &str,
@@ -235,8 +243,16 @@ where
     let at = u64::try_from(offset).map_err(|_| ApiError::WrongKind {
         expected: "offset that is not negative",
     })?;
-    let received = staging.write_at(&session.staged, at, chunks).await?;
-    let received = i64::try_from(received).map_err(|_| ApiError::QuotaExceeded)?;
+
+    claim(pool, session.id).await?;
+    let written = staging.write_at(&session.staged, at, chunks).await;
+    let received = match written {
+        Ok(received) => i64::try_from(received).map_err(|_| ApiError::QuotaExceeded)?,
+        Err(err) => {
+            release(pool, session.id).await;
+            return Err(err);
+        }
+    };
 
     if received > session.size {
         staging.discard(&session.staged).await;
@@ -247,7 +263,7 @@ where
     }
 
     sqlx::query_as::<_, Session>(
-        "UPDATE uploads SET received = $2 WHERE id = $1
+        "UPDATE uploads SET received = $2, writing_until = NULL WHERE id = $1
          RETURNING id, owner_id, path, size, received, staged, expires_at",
     )
     .bind(session.id)
@@ -255,6 +271,36 @@ where
     .fetch_one(pool)
     .await
     .map_err(Into::into)
+}
+
+/// Takes the session for the length of one write, or refuses.
+///
+/// A lock or a `SELECT ... FOR UPDATE` would serialise them too, but it would hold a Postgres
+/// transaction open for as long as the client takes to send its body, which is exactly what this
+/// endpoint is built to be slow at. The claim expires instead, so a request that dies holding it
+/// does not strand the session.
+async fn claim(pool: &PgPool, id: Uuid) -> Result<(), ApiError> {
+    let taken = sqlx::query(
+        "UPDATE uploads
+         SET writing_until = now() + make_interval(mins => $2)
+         WHERE id = $1 AND (writing_until IS NULL OR writing_until < now())",
+    )
+    .bind(id)
+    .bind(i32::try_from(CLAIM_MINUTES).unwrap_or(5))
+    .execute(pool)
+    .await?;
+
+    if taken.rows_affected() == 0 {
+        return Err(ApiError::AlreadyWriting);
+    }
+    Ok(())
+}
+
+async fn release(pool: &PgPool, id: Uuid) {
+    let _ = sqlx::query("UPDATE uploads SET writing_until = NULL WHERE id = $1")
+        .bind(id)
+        .execute(pool)
+        .await;
 }
 
 pub async fn abandon(pool: &PgPool, staging: &Staging, session: &Session) -> Result<(), ApiError> {
