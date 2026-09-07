@@ -17,6 +17,11 @@ use crate::error::ApiError;
 /// tunnel, short enough that the scratch space is not a place things accumulate.
 pub const LIFETIME_HOURS: i64 = 24;
 
+/// How many sessions one account may hold open. The quota check when a session opens is not a
+/// reservation, so without a ceiling one account can stage close to its whole quota once per
+/// session and hold all of it for a day.
+pub const MOST_SESSIONS: i64 = 8;
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Session {
     pub id: Uuid,
@@ -137,6 +142,18 @@ pub async fn begin(
     if size < 0 {
         return Err(ApiError::WrongKind {
             expected: "size in bytes",
+        });
+    }
+
+    let open = sqlx::query_scalar::<_, i64>(
+        "SELECT count(*) FROM uploads WHERE owner_id = $1 AND expires_at > now()",
+    )
+    .bind(owner_id)
+    .fetch_one(pool)
+    .await?;
+    if open >= MOST_SESSIONS {
+        return Err(ApiError::TooManySessions {
+            most: MOST_SESSIONS,
         });
     }
 

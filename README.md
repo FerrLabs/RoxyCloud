@@ -245,7 +245,11 @@ costs no extra round trip. `POST /v1/uploads/{id}/finish` hashes what arrived an
 
 The digest is taken by rehashing the staged file at the end rather than carrying a hasher between
 requests, because a hasher state persisted across two processes is a second thing that can disagree
-with the bytes. Quota is checked when the session opens as well as charged when it finishes, so a
+with the bytes. An account may hold eight sessions open at once. The quota check when a session opens is not a
+reservation, so without a ceiling one account could stage close to its whole quota once per session
+and hold all of it for a day.
+
+Quota is checked when the session opens as well as charged when it finishes, so a
 client does not spend an hour sending a file there was never room for.
 
 A chunk is written at the offset the session records rather than appended to the end, and the file

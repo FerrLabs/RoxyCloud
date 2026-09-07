@@ -40,6 +40,8 @@ pub enum ApiError {
     OffsetMismatch { expected: i64 },
     #[error("this upload has {received} of {expected} bytes")]
     Incomplete { received: i64, expected: i64 },
+    #[error("this account already has {most} uploads open")]
+    TooManySessions { most: i64 },
     #[error("expected a {expected}")]
     WrongKind { expected: &'static str },
     #[error("storage failure")]
@@ -86,7 +88,9 @@ impl ApiError {
                 StatusCode::BAD_REQUEST
             }
             Self::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
-            Self::TooManyAttempts { .. } => StatusCode::TOO_MANY_REQUESTS,
+            Self::TooManySessions { .. } | Self::TooManyAttempts { .. } => {
+                StatusCode::TOO_MANY_REQUESTS
+            }
             Self::Credential | Self::Storage(_) | Self::Database(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
