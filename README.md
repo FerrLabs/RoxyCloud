@@ -255,8 +255,10 @@ and hold all of it for a day.
 Quota is checked when the session opens as well as charged when it finishes, so a
 client does not spend an hour sending a file there was never room for.
 
-A session is claimed for the length of one write, and a second write while that claim stands is
-refused with a 409. Two writers do not share a file cursor, so without it the second truncating
+A session is claimed for the length of one write by a named holder, and a second write while that
+claim stands is refused with a 409. What a request records is what it wrote, counted as it goes,
+rather than the length the file ends up at: a body slower than the claim can have it taken away
+mid-write, and the file then measures somebody else's write head. Two writers do not share a file cursor, so without it the second truncating
 under the first would leave a hole of zeros between their write heads, and a length that happened to
 land on the promised size would be stored under an ETag over those zeros. The claim expires by
 itself, so a request that died holding it does not strand the session for the day it has left. A

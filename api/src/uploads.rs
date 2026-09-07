@@ -95,15 +95,20 @@ impl Staging {
         file.set_len(offset).await?;
         file.seek(std::io::SeekFrom::Start(offset)).await?;
 
+        let mut written = 0u64;
         while let Some(chunk) = chunks.next().await {
             let chunk = chunk.map_err(|err| {
                 ApiError::Storage(crate::storage::StorageError::Upstream(Box::new(err)))
             })?;
             file.write_all(&chunk).await?;
+            written += chunk.len() as u64;
         }
         file.sync_all().await?;
 
-        Ok(file.metadata().await?.len())
+        // What this request wrote, not what the file measures. A writer whose claim lapsed
+        // mid-body leaves its own head further along, and the length would count the zeros
+        // between the two heads as arrived.
+        Ok(offset + written)
     }
 
     async fn discard(&self, staged: &str) {
@@ -244,12 +249,12 @@ where
         expected: "offset that is not negative",
     })?;
 
-    claim(pool, session.id).await?;
+    let writer = claim(pool, session.id).await?;
     let written = staging.write_at(&session.staged, at, chunks).await;
     let received = match written {
         Ok(received) => i64::try_from(received).map_err(|_| ApiError::QuotaExceeded)?,
         Err(err) => {
-            release(pool, session.id).await;
+            release(pool, session.id, writer).await;
             return Err(err);
         }
     };
@@ -262,15 +267,20 @@ where
         });
     }
 
+    // Scoped to the holder: a writer whose claim lapsed while its body drained records nothing and
+    // does not clear the claim of whoever holds it now. The stray tail it left is cut by the next
+    // `set_len(offset)`, so the staged file stays a correct prefix of `received`.
     sqlx::query_as::<_, Session>(
-        "UPDATE uploads SET received = $2, writing_until = NULL WHERE id = $1
+        "UPDATE uploads SET received = $2, writing_until = NULL, writer = NULL
+         WHERE id = $1 AND writer = $3
          RETURNING id, owner_id, path, size, received, staged, expires_at",
     )
     .bind(session.id)
     .bind(received)
-    .fetch_one(pool)
-    .await
-    .map_err(Into::into)
+    .bind(writer)
+    .fetch_optional(pool)
+    .await?
+    .ok_or(ApiError::AlreadyWriting)
 }
 
 /// Takes the session for the length of one write, or refuses.
@@ -279,28 +289,33 @@ where
 /// transaction open for as long as the client takes to send its body, which is exactly what this
 /// endpoint is built to be slow at. The claim expires instead, so a request that dies holding it
 /// does not strand the session.
-async fn claim(pool: &PgPool, id: Uuid) -> Result<(), ApiError> {
+async fn claim(pool: &PgPool, id: Uuid) -> Result<Uuid, ApiError> {
+    let writer = Uuid::now_v7();
     let taken = sqlx::query(
         "UPDATE uploads
-         SET writing_until = now() + make_interval(mins => $2)
+         SET writing_until = now() + make_interval(mins => $2), writer = $3
          WHERE id = $1 AND (writing_until IS NULL OR writing_until < now())",
     )
     .bind(id)
     .bind(i32::try_from(CLAIM_MINUTES).unwrap_or(5))
+    .bind(writer)
     .execute(pool)
     .await?;
 
     if taken.rows_affected() == 0 {
         return Err(ApiError::AlreadyWriting);
     }
-    Ok(())
+    Ok(writer)
 }
 
-async fn release(pool: &PgPool, id: Uuid) {
-    let _ = sqlx::query("UPDATE uploads SET writing_until = NULL WHERE id = $1")
-        .bind(id)
-        .execute(pool)
-        .await;
+async fn release(pool: &PgPool, id: Uuid, writer: Uuid) {
+    let _ = sqlx::query(
+        "UPDATE uploads SET writing_until = NULL, writer = NULL WHERE id = $1 AND writer = $2",
+    )
+    .bind(id)
+    .bind(writer)
+    .execute(pool)
+    .await;
 }
 
 pub async fn abandon(pool: &PgPool, staging: &Staging, session: &Session) -> Result<(), ApiError> {

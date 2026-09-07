@@ -2,6 +2,7 @@ mod common;
 
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode, header};
+use bytes::Bytes;
 use http_body_util::BodyExt;
 use roxycloud_api::build_router;
 use roxycloud_core::role::Role;
@@ -241,6 +242,73 @@ database_test!(
         assert_eq!(allowed.offset(), 400);
     }
 );
+
+database_test!(a_writer_whose_claim_lapsed_records_nothing, harness, {
+    let (id, _) = session(&harness, "owner@example.com", Role::Member).await;
+    let opened = roxycloud_api::uploads::begin(
+        &harness.state.db,
+        &harness.state.staging,
+        id,
+        "lapsed.bin",
+        1000,
+    )
+    .await
+    .expect("a session");
+
+    // A body slower than the claim, driven at this level because the race cannot be produced
+    // through two HTTP requests in one task. The stream stops after its first chunk, the claim is
+    // handed to somebody else, and only then does the write finish.
+    let (tell, waiting) = tokio::sync::oneshot::channel::<()>();
+    let (resume, wait) = tokio::sync::oneshot::channel::<()>();
+    let stopped = std::sync::Arc::new(tokio::sync::Mutex::new(Some(tell)));
+    let held = std::sync::Arc::new(tokio::sync::Mutex::new(Some(wait)));
+    let body = futures::stream::unfold(0u8, move |step| {
+        let stopped = stopped.clone();
+        let held = held.clone();
+        async move {
+            match step {
+                0 => Some((Ok::<_, std::io::Error>(Bytes::from_static(b"first")), 1)),
+                1 => {
+                    if let Some(tell) = stopped.lock().await.take() {
+                        tell.send(()).ok();
+                    }
+                    if let Some(wait) = held.lock().await.take() {
+                        wait.await.ok();
+                    }
+                    Some((Ok(Bytes::from_static(b"second")), 2))
+                }
+                _ => None,
+            }
+        }
+    });
+
+    let sending = roxycloud_api::uploads::append(
+        &harness.state.db,
+        &harness.state.staging,
+        &opened,
+        0,
+        Box::pin(body),
+    );
+    let stealing = async {
+        waiting.await.ok();
+        harness.steal_claim(opened.id).await;
+        resume.send(()).ok();
+    };
+
+    let (outcome, ()) = tokio::join!(sending, stealing);
+
+    assert!(
+        matches!(outcome, Err(roxycloud_api::error::ApiError::AlreadyWriting)),
+        "a writer that lost its claim has to record nothing"
+    );
+    let after = roxycloud_api::uploads::of(&harness.state.db, id, opened.id)
+        .await
+        .expect("the session");
+    assert_eq!(
+        after.received, 0,
+        "recording here would count the zeros between two write heads as arrived"
+    );
+});
 
 database_test!(
     a_claim_nobody_released_does_not_strand_the_session,

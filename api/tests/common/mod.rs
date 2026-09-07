@@ -419,6 +419,20 @@ impl Harness {
         .expect("holding the upload");
     }
 
+    /// Hands the claim to somebody else while a write is in flight, which is what a body slower
+    /// than the claim lets happen.
+    pub async fn steal_claim(&self, id: Uuid) {
+        sqlx::query(
+            "UPDATE uploads
+             SET writing_until = now() + INTERVAL '5 minutes', writer = gen_random_uuid()
+             WHERE id = $1",
+        )
+        .bind(id)
+        .execute(&self.state.db)
+        .await
+        .expect("stealing the claim");
+    }
+
     pub async fn release_upload(&self, id: &str) {
         sqlx::query("UPDATE uploads SET writing_until = NULL WHERE id = $1::uuid")
             .bind(id)
