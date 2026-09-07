@@ -62,6 +62,7 @@ Migrations run on boot. Configuration is environment only:
 | `JWT_SECRET` | required | HS256 secret used to sign session tokens |
 | `PORT` | `3001` | Listen port |
 | `BLOB_BACKEND` | `local` | `local` or `s3` |
+| `UPLOAD_ROOT` | beside `BLOB_ROOT` | Scratch space for resumable uploads in flight; refused at startup if unset when the backend is `s3` |
 | `BLOB_ROOT` | `./data` | Local blob store root, when the backend is `local` |
 | `S3_BUCKET` | | Required when the backend is `s3` |
 | `S3_ENDPOINT` | | MinIO or Garage URL; leave unset for AWS |
@@ -127,6 +128,12 @@ PUT    /v1/files/{*path}      upload, creating parent directories
 GET    /v1/files/{*path}      download
 DELETE /v1/files/{*path}      move to trash
 POST   /v1/move               rename a node, or move it under another directory
+GET    /v1/uploads            the sessions this account is holding open
+POST   /v1/uploads            open a resumable upload
+GET    /v1/uploads/{id}       where it got to, for resuming
+PATCH  /v1/uploads/{id}       append at Upload-Offset
+POST   /v1/uploads/{id}/finish  hash what arrived and place it
+DELETE /v1/uploads/{id}       abandon it, taking the staged bytes
 GET    /v1/search?q=          find a node by part of its name
 GET    /v1/app-passwords      the credentials this account has minted
 POST   /v1/app-passwords      mint one, shown once
@@ -230,6 +237,53 @@ not, so a member demoted to reader keeps the ability to take down what they publ
 listing carries names, sizes and modification times and no identifiers: not the node ids, not the
 account behind the link, and every public response says `Cache-Control: no-store` so that a proxy
 cannot go on serving a link somebody revoked.
+
+A large file over a bad link should not start again from zero. `POST /v1/uploads` opens a session
+for a path and a size, `PATCH` appends at `Upload-Offset`, and a client that lost the connection asks
+`GET /v1/uploads/{id}` where it got to rather than guessing: it knows what it sent, not what arrived.
+A chunk at the wrong offset is refused with the real one in the `Upload-Offset` header, so resyncing
+costs no extra round trip. `POST /v1/uploads/{id}/finish` hashes what arrived and places it.
+
+The digest is taken by rehashing the staged file at the end rather than carrying a hasher between
+requests, because a hasher state persisted across two processes is a second thing that can disagree
+with the bytes. An account may hold eight sessions open at once, counted and inserted under the same lock so that
+requests arriving together do not all read a count below the ceiling. `GET /v1/uploads` lists what
+is open, so reaching the ceiling is something a client can act on rather than wait out. The quota check when a session opens is not a
+reservation, so without a ceiling one account could stage close to its whole quota once per session
+and hold all of it for a day.
+
+Quota is checked when the session opens as well as charged when it finishes, so a
+client does not spend an hour sending a file there was never room for.
+
+A session is claimed for the length of one write by a named holder, and a second write while that
+claim stands is refused with a 409. Two writers do not share a file cursor, so without it the second
+truncating under the first would leave a hole of zeros between their write heads, and a length that
+happened to land on the promised size would be stored under an ETag over those zeros.
+
+The claim is renewed every half of its life for as long as the body drains, and a renewal that does
+not land ends the write there with a 409. A body slower than the claim would otherwise outlive it,
+and its remaining bytes would land inside the region the next holder goes on to record, which is the
+same corruption by a longer route. Everything a write does after that point is scoped to the holder:
+what it records, what it releases, and the teardown that an over-send triggers, so a writer that
+lost the session cannot take the session away from whoever has it. What a request records is also
+what it wrote, counted as it goes, rather than the length the file ends up at, which would count
+somebody else's write head as arrived.
+
+The claim expires by itself, so a request that died holding it does not strand the session for the
+day it has left. A lock would serialise them too, but it would hold a database transaction open for
+as long as the client takes to send its body, which is what this endpoint is built to be slow at.
+
+A chunk is written at the offset the session records rather than appended to the end, and the file
+is cut back to that offset first. A request that died mid-body left bytes past that offset, because
+`received` is only recorded once a whole chunk has drained, and appending after them would duplicate
+a region and lose the tail while still reaching the promised size. That is the case the feature
+exists for, so it is the case the write has to be correct under.
+
+The bytes of a session in flight live on local disk whichever backend owns the blobs. An object
+store has no append, and its multipart parts have a five mebibyte floor that would decide the
+client's chunk size and make an offset below a part boundary unresumable. The cost is scratch space
+under `UPLOAD_ROOT` for uploads in flight, bounded by the twenty-four hour session lifetime, and the
+sweep reconciles that directory against the sessions that still exist.
 
 `GET /v1/search?q=` matches part of a name against the account's own live tree, case-insensitively,
 prefix matches first. A result carries the path it was found at, because a name on its own tells you

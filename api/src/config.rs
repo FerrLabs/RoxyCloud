@@ -22,6 +22,7 @@ pub struct Config {
     pub port: u16,
     pub database_url: String,
     pub blobs: BlobBackend,
+    pub upload_root: PathBuf,
     pub web_root: Option<PathBuf>,
     pub jwt_secret: String,
     pub cors_allowed_origins: Vec<String>,
@@ -56,10 +57,12 @@ const DEFAULT_BLOB_GRACE_PERIOD_SECONDS: u64 = 24 * 60 * 60;
 
 impl Config {
     pub fn from_env() -> Result<Self, ConfigError> {
+        let backend = blobs()?;
         Ok(Self {
             port: parse_or("PORT", 3001)?,
             database_url: required("DATABASE_URL")?,
-            blobs: blobs()?,
+            blobs: backend.clone(),
+            upload_root: upload_root(&backend)?,
             web_root: optional("WEB_ROOT").map(PathBuf::from),
             jwt_secret: required("JWT_SECRET")?,
             cors_allowed_origins: optional("CORS_ALLOWED_ORIGINS")
@@ -81,6 +84,21 @@ impl Config {
             )?,
             bootstrap_admin: bootstrap_admin(),
         })
+    }
+}
+
+/// Beside the blobs by default, because that is the one directory a deployment has already had to
+/// make writable. An object store deployment has no such directory, so it has to say where.
+fn upload_root(blobs: &BlobBackend) -> Result<PathBuf, ConfigError> {
+    if let Some(configured) = optional("UPLOAD_ROOT") {
+        return Ok(PathBuf::from(configured));
+    }
+    match blobs {
+        BlobBackend::Local { root } => Ok(root.join("uploads")),
+        // Falling back to a relative path would stage uploads on the container's ephemeral disk,
+        // which is the one place this design says the bytes must not live, and the deployment
+        // would find out when the disk filled rather than at startup.
+        BlobBackend::S3(_) => Err(ConfigError::Missing("UPLOAD_ROOT")),
     }
 }
 

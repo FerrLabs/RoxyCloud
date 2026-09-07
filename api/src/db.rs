@@ -433,6 +433,32 @@ pub(crate) async fn release_blob(
     Ok(())
 }
 
+/// Whether the account could hold `size` more bytes right now. A resumable upload asks before it
+/// starts, so a client does not spend an hour sending a file there was never room for. It is not a
+/// reservation: what actually charges the quota is the write at the end.
+pub async fn room_for(
+    tx: &mut Transaction<'_, Postgres>,
+    owner_id: Uuid,
+    size: i64,
+) -> Result<(), ApiError> {
+    let fits = sqlx::query_scalar::<_, bool>(
+        // Compared this way round so a declared size near the top of the range does not overflow
+        // the addition and answer 500 where it meant 507.
+        "SELECT $2 <= bytes_max - bytes_used FROM quotas WHERE owner_id = $1",
+    )
+    .bind(owner_id)
+    .bind(size)
+    .fetch_optional(&mut **tx)
+    .await?
+    .unwrap_or(true);
+
+    if fits {
+        Ok(())
+    } else {
+        Err(ApiError::QuotaExceeded)
+    }
+}
+
 pub(crate) async fn charge_quota(
     tx: &mut Transaction<'_, Postgres>,
     owner_id: Uuid,
