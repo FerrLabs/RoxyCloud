@@ -154,7 +154,7 @@ pub async fn open(pool: &PgPool, token: &str, presented: Option<&str>) -> Result
         if !password::verify(secret, &expected) {
             return Err(ApiError::SharePassword);
         }
-        attempts::succeeded(pool, Scope::Share, &subject).await?;
+        attempts::forget(pool, Scope::Share, &subject).await?;
     }
 
     let node = sqlx::query_as::<_, Node>(concat!(

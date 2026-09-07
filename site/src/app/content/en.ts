@@ -238,6 +238,7 @@ pnpm --filter @roxycloud/web build \\
         ['PUT', '/v1/users/{id}/role', 'Admin, member or reader (admin)'],
         ['PUT', '/v1/users/{id}/quota', 'How many bytes it may hold (admin)'],
         ['PUT', '/v1/users/{id}/password', 'Reset it without knowing the old one (admin)'],
+        ['POST', '/v1/users/{id}/unlock', 'Let a locked out account try again (admin)'],
         ['GET', '/v1/trash', 'What the account has deleted'],
         ['POST', '/v1/trash/{id}/restore', 'Bring it back, with the directories it needs'],
         ['DELETE', '/v1/trash/{id}', 'Delete it for good, and release its bytes'],

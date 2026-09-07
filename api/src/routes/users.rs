@@ -4,6 +4,7 @@ use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::attempts::{self, Scope};
 use crate::auth::{Admin, Caller};
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -115,6 +116,21 @@ pub async fn enable(
     Path(id): Path<Uuid>,
 ) -> Result<Json<User>, ApiError> {
     Ok(Json(users::set_disabled(&state.db, id, false).await?))
+}
+
+/// The counter that stops somebody guessing an account belongs to the account, not to whoever is
+/// guessing, so an attacker can hold its owner out by failing against it. Waiting for them to lose
+/// interest is not a recovery plan; this is the way back in.
+pub async fn unlock(
+    State(state): State<AppState>,
+    _: Admin,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    let user = users::by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    attempts::forget(&state.db, Scope::Login, user.email.as_str()).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn set_role(
