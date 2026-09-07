@@ -35,3 +35,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "roxycloud.claimName" -}}
 {{- default (include "roxycloud.fullname" .) .Values.persistence.existingClaim }}
 {{- end }}
+
+{{- define "roxycloud.s3Secret" -}}
+{{- .Values.blobs.s3.existingSecret | default (include "roxycloud.fullname" .) -}}
+{{- end -}}

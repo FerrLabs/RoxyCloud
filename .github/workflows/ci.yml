@@ -32,6 +32,16 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
+      - name: An object store, so the S3 backend is exercised rather than assumed
+        run: |
+          docker run -d --name minio -p 9000:9000 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin minio/minio:latest server /data
+          for _ in $(seq 1 30); do
+            curl -fsS http://localhost:9000/minio/health/live > /dev/null && exit 0
+            sleep 1
+          done
+          echo "MinIO never came up" >&2
+          exit 1
+
       - name: Tauri needs a webview and a tray at build time
         run: |
           sudo apt-get update
@@ -60,6 +70,7 @@ jobs:
       - run: cargo test --workspace --locked
         env:
           DATABASE_URL: postgres://roxy:roxy@localhost:5432/roxycloud
+          S3_TEST_ENDPOINT: http://localhost:9000
 
   chart:
     runs-on: ubuntu-latest
@@ -72,6 +83,7 @@ jobs:
           curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz             | tar -xz -C /usr/local/bin kubeconform
           helm template roxycloud deploy/helm/roxycloud             --set database.url=postgres://u:p@db/roxycloud             --set jwt.secret=secret             --set ingress.enabled=true             --set ingress.host=roxycloud.example             --set ingress.tls.enabled=true             --set ingress.tls.secretName=roxycloud-tls             | kubeconform -strict -summary
           helm template roxycloud deploy/helm/roxycloud             --set database.existingSecret=roxycloud-database             --set jwt.existingSecret=roxycloud-jwt             --set persistence.enabled=false             --set config.blobSweepIntervalSeconds=0             | kubeconform -strict -summary
+          helm template roxycloud deploy/helm/roxycloud             --set database.url=postgres://u:p@db/roxycloud             --set jwt.secret=secret             --set blobs.backend=s3             --set blobs.s3.bucket=roxycloud             --set blobs.s3.existingSecret=roxycloud-s3             --set replicaCount=3             | kubeconform -strict -summary
 
   compose:
     runs-on: ubuntu-latest

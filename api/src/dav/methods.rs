@@ -297,7 +297,9 @@ async fn put(state: AppState, caller: DavCaller, request: Request) -> Result<Res
     let root = root_of(&state, owner).await?;
     let written = state
         .blobs
-        .write(request.into_body().into_data_stream())
+        .write(crate::storage::upload(
+            request.into_body().into_data_stream(),
+        ))
         .await?;
     let size = i64::try_from(written.size).map_err(|_| ApiError::QuotaExceeded)?;
     db::register_blob(&state.db, written.hash, size).await?;

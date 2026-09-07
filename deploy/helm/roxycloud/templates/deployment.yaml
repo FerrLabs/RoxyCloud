@@ -4,10 +4,19 @@ metadata:
   name: {{ include "roxycloud.fullname" . }}
   labels:
     {{- include "roxycloud.labels" . | nindent 4 }}
+{{- $local := eq .Values.blobs.backend "local" }}
+{{- if and $local (gt (int .Values.replicaCount) 1) }}
+{{- fail "blobs.backend=local puts the blobs in one pod's volume, so a second replica would serve half the files; set blobs.backend=s3 to run more than one" }}
+{{- end }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   strategy:
+    {{- if $local }}
+    # One volume, one writer: the old pod has to let go before the new one starts.
     type: Recreate
+    {{- else }}
+    type: RollingUpdate
+    {{- end }}
   selector:
     matchLabels:
       {{- include "roxycloud.selectorLabels" . | nindent 6 }}
@@ -46,8 +55,39 @@ spec:
           env:
             - name: PORT
               value: {{ .Values.service.port | quote }}
+            {{- if $local }}
             - name: BLOB_ROOT
               value: /var/lib/roxycloud
+            {{- else }}
+            - name: BLOB_BACKEND
+              value: s3
+            - name: S3_BUCKET
+              value: {{ required "set blobs.s3.bucket when blobs.backend is s3" .Values.blobs.s3.bucket | quote }}
+            {{- with .Values.blobs.s3.endpoint }}
+            - name: S3_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.blobs.s3.region }}
+            - name: S3_REGION
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.blobs.s3.prefix }}
+            - name: S3_PREFIX
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if or .Values.blobs.s3.existingSecret .Values.blobs.s3.accessKeyId }}
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "roxycloud.s3Secret" . }}
+                  key: {{ .Values.blobs.s3.accessKeyIdKey }}
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "roxycloud.s3Secret" . }}
+                  key: {{ .Values.blobs.s3.secretAccessKeyKey }}
+            {{- end }}
+            {{- end }}
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -110,9 +150,12 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- if $local }}
           volumeMounts:
             - name: blobs
               mountPath: /var/lib/roxycloud
+          {{- end }}
+      {{- if $local }}
       volumes:
         - name: blobs
           {{- if .Values.persistence.enabled }}
@@ -121,6 +164,7 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

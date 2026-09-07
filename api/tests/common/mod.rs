@@ -21,6 +21,8 @@ pub const PASSWORD: &str = "twelve-characters-at-least";
 pub struct Harness {
     pub state: AppState,
     pub blob_root: PathBuf,
+    /// The same store the state holds, kept concrete so a test can look at the files on disk.
+    local: Arc<LocalBlobStore>,
     maintenance: PgPool,
     database: String,
 }
@@ -53,18 +55,21 @@ impl Harness {
             .expect("running the migrations");
 
         let blob_root = std::env::temp_dir().join(format!("roxy-blobs-{database}"));
-        let blobs = LocalBlobStore::open(&blob_root)
-            .await
-            .expect("opening the blob store");
+        let blobs = Arc::new(
+            LocalBlobStore::open(&blob_root)
+                .await
+                .expect("opening the blob store"),
+        );
 
         Some(Self {
             state: AppState {
                 db,
-                blobs: Arc::new(blobs),
+                blobs: blobs.clone(),
                 sessions: Arc::new(Sessions::new("test-secret", chrono::Duration::hours(1))),
                 default_quota_bytes: 1_000_000,
             },
             blob_root,
+            local: blobs,
             maintenance,
             database,
         })
@@ -123,9 +128,9 @@ impl Harness {
         let written = self
             .state
             .blobs
-            .write(futures::stream::iter([Ok::<_, std::io::Error>(
-                bytes::Bytes::copy_from_slice(contents),
-            )]))
+            .write(roxycloud_api::storage::upload(futures::stream::iter([
+                Ok::<_, std::io::Error>(bytes::Bytes::copy_from_slice(contents)),
+            ])))
             .await
             .expect("writing the blob");
 
@@ -150,9 +155,9 @@ impl Harness {
         let written = self
             .state
             .blobs
-            .write(futures::stream::iter([Ok::<_, std::io::Error>(
-                bytes::Bytes::copy_from_slice(contents),
-            )]))
+            .write(roxycloud_api::storage::upload(futures::stream::iter([
+                Ok::<_, std::io::Error>(bytes::Bytes::copy_from_slice(contents)),
+            ])))
             .await
             .expect("writing the blob");
         (
@@ -164,9 +169,9 @@ impl Harness {
     pub async fn stage_kept(&self, contents: &[u8]) -> roxycloud_api::storage::Written {
         self.state
             .blobs
-            .write(futures::stream::iter([Ok::<_, std::io::Error>(
-                bytes::Bytes::copy_from_slice(contents),
-            )]))
+            .write(roxycloud_api::storage::upload(futures::stream::iter([
+                Ok::<_, std::io::Error>(bytes::Bytes::copy_from_slice(contents)),
+            ])))
             .await
             .expect("writing the blob")
     }
@@ -344,7 +349,7 @@ impl Harness {
     }
 
     pub async fn blob_file_exists(&self, hash: BlobHash) -> bool {
-        tokio::fs::try_exists(self.state.blobs.path_for(hash))
+        tokio::fs::try_exists(self.local.path_for(hash))
             .await
             .unwrap_or(false)
     }

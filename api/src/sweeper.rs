@@ -66,7 +66,7 @@ pub async fn sweep(state: &AppState, grace: Duration) -> Result<Collected, ApiEr
             continue;
         };
 
-        if written_within(&state.blobs.path_for(hash), grace).await {
+        if state.blobs.written_within(hash, grace).await {
             tx.commit().await?;
             continue;
         }
@@ -95,13 +95,6 @@ async fn orphaned(pool: &PgPool, grace: Duration) -> Result<Vec<BlobHash>, ApiEr
     .fetch_all(pool)
     .await
     .map_err(Into::into)
-}
-
-async fn written_within(path: &std::path::Path, grace: Duration) -> bool {
-    tokio::fs::metadata(path)
-        .await
-        .and_then(|meta| meta.modified())
-        .is_ok_and(|at| at.elapsed().is_ok_and(|since| since < grace))
 }
 
 fn interval_of(grace: Duration) -> sqlx::postgres::types::PgInterval {

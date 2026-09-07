@@ -10,6 +10,7 @@ use crate::auth::{Caller, Writer};
 use crate::db;
 use crate::error::ApiError;
 use crate::state::AppState;
+use crate::storage;
 use crate::trash;
 use roxycloud_core::name::parse_path;
 use roxycloud_core::node::{Node, NodeKind};
@@ -25,7 +26,10 @@ pub async fn put(
         expected: "file path",
     })?;
 
-    let written = state.blobs.write(body.into_data_stream()).await?;
+    let written = state
+        .blobs
+        .write(storage::upload(body.into_data_stream()))
+        .await?;
     let size = i64::try_from(written.size).map_err(|_| ApiError::QuotaExceeded)?;
     db::register_blob(&state.db, written.hash, size).await?;
 

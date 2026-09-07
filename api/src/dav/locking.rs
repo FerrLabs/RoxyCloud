@@ -135,9 +135,12 @@ async fn empty_file(
 
     let written = state
         .blobs
-        .write(futures::stream::iter([Ok::<_, std::io::Error>(
+        .write(crate::storage::upload(futures::stream::iter([Ok::<
+            _,
+            std::io::Error,
+        >(
             bytes::Bytes::new(),
-        )]))
+        )])))
         .await?;
     db::register_blob(&state.db, written.hash, 0).await?;
     let node = db::put_file(tx, owner, &parent, name, written.hash, 0).await?;

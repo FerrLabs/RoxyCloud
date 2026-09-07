@@ -2,10 +2,26 @@ use std::env::{self, VarError};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
+pub enum BlobBackend {
+    Local { root: PathBuf },
+    S3(S3Config),
+}
+
+#[derive(Debug, Clone)]
+pub struct S3Config {
+    pub bucket: String,
+    pub region: Option<String>,
+    pub endpoint: Option<String>,
+    pub prefix: String,
+    pub access_key_id: Option<String>,
+    pub secret_access_key: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Config {
     pub port: u16,
     pub database_url: String,
-    pub blob_root: PathBuf,
+    pub blobs: BlobBackend,
     pub web_root: Option<PathBuf>,
     pub jwt_secret: String,
     pub cors_allowed_origins: Vec<String>,
@@ -43,7 +59,7 @@ impl Config {
         Ok(Self {
             port: parse_or("PORT", 3001)?,
             database_url: required("DATABASE_URL")?,
-            blob_root: PathBuf::from(optional("BLOB_ROOT").unwrap_or_else(|| "./data".to_owned())),
+            blobs: blobs()?,
             web_root: optional("WEB_ROOT").map(PathBuf::from),
             jwt_secret: required("JWT_SECRET")?,
             cors_allowed_origins: optional("CORS_ALLOWED_ORIGINS")
@@ -65,6 +81,29 @@ impl Config {
             )?,
             bootstrap_admin: bootstrap_admin(),
         })
+    }
+}
+
+/// Local disk unless `BLOB_BACKEND=s3`. An unknown value is refused rather than quietly falling
+/// back, because a deployment that meant S3 and got local disk loses every upload when the pod
+/// restarts.
+fn blobs() -> Result<BlobBackend, ConfigError> {
+    match optional("BLOB_BACKEND").as_deref() {
+        None | Some("local") => Ok(BlobBackend::Local {
+            root: PathBuf::from(optional("BLOB_ROOT").unwrap_or_else(|| "./data".to_owned())),
+        }),
+        Some("s3") => Ok(BlobBackend::S3(S3Config {
+            bucket: required("S3_BUCKET")?,
+            region: optional("S3_REGION"),
+            endpoint: optional("S3_ENDPOINT"),
+            prefix: optional("S3_PREFIX").unwrap_or_default(),
+            access_key_id: optional("S3_ACCESS_KEY_ID"),
+            secret_access_key: optional("S3_SECRET_ACCESS_KEY"),
+        })),
+        Some(_) => Err(ConfigError::Invalid {
+            name: "BLOB_BACKEND",
+            reason: "expected local or s3",
+        }),
     }
 }
 

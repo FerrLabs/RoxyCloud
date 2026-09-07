@@ -36,11 +36,11 @@ export const fr: SiteContent = {
         'Les liens de partage, avec expiration et mot de passe optionnels',
         'La recherche par nom, avec le chemin de chaque résultat',
         'Le ramasse-miettes qui récupère les blobs que plus rien ne référence',
+        "Le stockage objet compatible S3 en plus du disque local, ce qui permet au chart de faire tourner plusieurs répliques",
       ],
       plannedHeading: "Ce qui n'est pas encore écrit",
       planned: [
         'La connexion OIDC',
-        'Le backend S3',
         'Le moteur de synchronisation derrière le client desktop',
       ],
     },
@@ -284,7 +284,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'Ce qui manque',
-      body: "Les envois reprenables, la connexion OIDC et le backend S3 sont suivis en issues, et aucun n'est implémenté. Un chemin absent du tableau ci-dessus répond 404.",
+      body: "Les envois reprenables, la connexion OIDC et les miniatures sont suivis en issues, et aucun n'est implémenté. Un chemin absent du tableau ci-dessus répond 404.",
     },
   },
 };
