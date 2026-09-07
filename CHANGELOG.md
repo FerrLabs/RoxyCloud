@@ -4,6 +4,16 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.23.0] - 2026-09-07
+
+### Features
+
+- feat(auth): let an administrator unlock an account somebody shut out (#105)
+
+### Bug Fixes
+
+- fix(storage): sweep what an upload left staged and nobody came back for (#104)
+
 ## [0.22.0] - 2026-09-07
 
 ### Features
