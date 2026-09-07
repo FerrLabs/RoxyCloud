@@ -43,6 +43,9 @@ getrandom = "0.4"
 percent-encoding = { workspace = true }
 quick-xml = "0.41"
 async-trait = "0.1"
+reqwest = { workspace = true }
+base64 = "0.22"
+sha2 = "0.10"
 
 # Pure Rust decoders on purpose: the classic remote-code-execution surface in this area is a C
 # image library, and the default features here pull none.

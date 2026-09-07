@@ -30,7 +30,19 @@ pub struct Config {
     pub session_ttl_seconds: i64,
     pub blob_sweep_interval_seconds: u64,
     pub blob_grace_period_seconds: u64,
+    pub oidc: Option<OidcConfig>,
     pub bootstrap_admin: Option<BootstrapAdmin>,
+}
+
+#[derive(Debug, Clone)]
+pub struct OidcConfig {
+    pub issuer: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub redirect_url: String,
+    /// Whether a verified address nobody has an account for becomes one. A deployment that invites
+    /// people through its provider wants this; one with a fixed roster does not.
+    pub create_accounts: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +94,7 @@ impl Config {
                 "BLOB_GRACE_PERIOD_SECONDS",
                 DEFAULT_BLOB_GRACE_PERIOD_SECONDS,
             )?,
+            oidc: oidc(),
             bootstrap_admin: bootstrap_admin(),
         })
     }
@@ -123,6 +136,17 @@ fn blobs() -> Result<BlobBackend, ConfigError> {
             reason: "expected local or s3",
         }),
     }
+}
+
+fn oidc() -> Option<OidcConfig> {
+    Some(OidcConfig {
+        issuer: optional("OIDC_ISSUER")?,
+        client_id: optional("OIDC_CLIENT_ID")?,
+        client_secret: optional("OIDC_CLIENT_SECRET")?,
+        redirect_url: optional("OIDC_REDIRECT_URL")?,
+        create_accounts: optional("OIDC_CREATE_ACCOUNTS")
+            .is_some_and(|value| matches!(value.as_str(), "1" | "true" | "yes")),
+    })
 }
 
 fn bootstrap_admin() -> Option<BootstrapAdmin> {

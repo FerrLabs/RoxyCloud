@@ -17,9 +17,9 @@ pub struct Credentials {
 
 #[derive(Serialize)]
 pub struct Session {
-    token: String,
-    expires_in: i64,
-    user: User,
+    pub token: String,
+    pub expires_in: i64,
+    pub user: User,
 }
 
 pub async fn login(
@@ -34,6 +34,12 @@ pub async fn login(
     // Counted before the lookup and before argon2, because a guess that costs the server a hash is
     // a guess worth making. Unknown addresses are counted like known ones, so a 429 never says
     // which is which.
+    // An installation that has turned passwords off has a provider instead, and a route that
+    // still took them would be the way around that decision.
+    if !crate::settings::password_login_allowed(&state.db).await? {
+        return Err(ApiError::NotFound);
+    }
+
     attempts::spend(&state.db, Scope::Login, email.as_str()).await?;
 
     let user = users::by_email(&state.db, &email).await?;
