@@ -73,6 +73,7 @@ impl Harness {
                         .expect("opening the upload staging"),
                 ),
                 sessions: Arc::new(Sessions::new("test-secret", chrono::Duration::hours(1))),
+                decoders: Arc::new(tokio::sync::Semaphore::new(2)),
                 default_quota_bytes: 1_000_000,
             },
             blob_root,

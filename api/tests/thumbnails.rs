@@ -112,19 +112,19 @@ database_test!(
     }
 );
 
-database_test!(a_thumbnail_is_not_served_as_something_to_render, harness, {
+database_test!(a_thumbnail_says_what_it_actually_is, harness, {
     let (id, bearer) = session(&harness, "owner@example.com").await;
     harness.write(id, "holiday.png", &png(400, 300)).await;
 
     let answer = get(&harness, &bearer, "/v1/thumbnails/holiday.png").await;
 
-    assert_eq!(answer.header("content-type"), "application/octet-stream");
-    assert_eq!(answer.header("content-disposition"), "attachment");
     assert_eq!(
-        answer.header("x-content-type-options"),
-        "nosniff",
-        "one exception is how the rule that nothing renders on this origin stops being true"
+        answer.header("content-type"),
+        "image/webp",
+        "octet-stream plus nosniff is refused by browsers in an img, and these bytes came out of          our own encoder rather than from a person"
     );
+    assert_eq!(answer.header("content-disposition"), "attachment");
+    assert_eq!(answer.header("x-content-type-options"), "nosniff");
 });
 
 database_test!(what_is_not_an_image_gets_no_thumbnail, harness, {
