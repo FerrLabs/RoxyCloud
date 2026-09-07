@@ -14,6 +14,7 @@ pub struct AppState {
     pub db: PgPool,
     pub blobs: Arc<dyn BlobStore>,
     pub sessions: Arc<Sessions>,
+    pub staging: Arc<crate::uploads::Staging>,
     pub default_quota_bytes: i64,
 }
 
@@ -66,10 +67,19 @@ impl AppState {
             .context("connecting to Postgres")?;
 
         let blobs = open_blobs(&cfg.blobs).await?;
+        let staging = crate::uploads::Staging::open(&cfg.upload_root)
+            .await
+            .with_context(|| {
+                format!(
+                    "opening the upload staging at {}",
+                    cfg.upload_root.display()
+                )
+            })?;
 
         Ok(Self {
             db,
             blobs,
+            staging: Arc::new(staging),
             sessions: Arc::new(Sessions::new(
                 &cfg.jwt_secret,
                 chrono::Duration::seconds(cfg.session_ttl_seconds),

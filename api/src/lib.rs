@@ -13,6 +13,7 @@ pub mod state;
 pub mod storage;
 pub mod sweeper;
 pub mod trash;
+pub mod uploads;
 pub mod users;
 
 use std::path::Path;
