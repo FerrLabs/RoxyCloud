@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.21.0] - 2026-09-07
+
+### Features
+
+- feat(storage): S3-compatible backend, and the trait it justifies (#100)
+
 ## [0.20.0] - 2026-09-06
 
 ### Features
