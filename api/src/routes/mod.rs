@@ -27,6 +27,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/users", get(users::list).post(users::create))
         .route("/v1/users/{id}/disable", post(users::disable))
         .route("/v1/users/{id}/enable", post(users::enable))
+        .route("/v1/users/{id}/unlock", post(users::unlock))
         .route("/v1/users/{id}/role", put(users::set_role))
         .route("/v1/users/{id}/quota", put(users::set_quota))
         .route("/v1/users/{id}/password", put(users::reset_password))

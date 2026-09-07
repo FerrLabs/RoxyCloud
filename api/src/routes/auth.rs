@@ -46,7 +46,7 @@ pub async fn login(
     if !password::verify(&credentials.password, &user.password_hash) {
         return Err(ApiError::InvalidCredentials);
     }
-    attempts::succeeded(&state.db, Scope::Login, email.as_str()).await?;
+    attempts::forget(&state.db, Scope::Login, email.as_str()).await?;
 
     Ok(Json(Session {
         token: state.sessions.issue(user.id)?,

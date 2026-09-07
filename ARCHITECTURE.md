@@ -460,7 +460,9 @@ ways on purpose, and it is the price of keying on the subject; the alternatives 
 the address hands a botnet a fresh allowance per source. Letting the correct password through during
 a block means hashing every guess, which is the cost the limiter exists to avoid. Holding a row lock
 across the verification instead would turn the same burst into pool exhaustion. A first block of one
-minute keeps it a nuisance; #91 tracks doing better.
+minute keeps it a nuisance, and `POST /v1/users/{id}/unlock` is the way back in when it is more than
+that: an administrator drops what has been counted against the account, so recovery does not depend
+on the attacker losing interest.
 
 The count lives in Postgres rather than in the process, so a restart is not a way to clear it and a
 second replica is not a way to double it.

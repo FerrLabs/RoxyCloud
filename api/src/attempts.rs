@@ -101,9 +101,10 @@ pub async fn spend(pool: &PgPool, scope: Scope, subject: &str) -> Result<(), Api
     Ok(())
 }
 
-/// Getting it right clears the count, so nine typos followed by the real password do not leave
-/// somebody one mistake away from being locked out of their own account.
-pub async fn succeeded(pool: &PgPool, scope: Scope, subject: &str) -> Result<(), ApiError> {
+/// Drops everything counted against a subject. Getting it right calls this, so nine typos followed
+/// by the real password do not leave somebody one mistake away from being locked out; so does an
+/// administrator, for the person an attacker has shut out of their own account.
+pub async fn forget(pool: &PgPool, scope: Scope, subject: &str) -> Result<(), ApiError> {
     sqlx::query("DELETE FROM attempts WHERE scope = $1 AND subject = $2")
         .bind(scope)
         .bind(subject)

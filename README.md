@@ -139,6 +139,7 @@ POST   /v1/users/{id}/enable  let it back in                           (admin)
 PUT    /v1/users/{id}/role    admin, member or reader                  (admin)
 PUT    /v1/users/{id}/quota   how many bytes it may hold               (admin)
 PUT    /v1/users/{id}/password reset it without knowing the old one    (admin)
+POST   /v1/users/{id}/unlock  let a locked out account try again       (admin)
 GET    /v1/shares             the links this account has published
 POST   /v1/shares             publish one, its token shown once
 DELETE /v1/shares/{id}        revoke one, taking effect immediately
@@ -258,6 +259,9 @@ counted like one somebody does, so a 429 never answers whether an account exists
 clears the count. Two things follow: someone who knows an address can keep that account locked out
 by failing against it (#91), and the counts live in Postgres, so restarting the server does not
 clear them.
+
+`POST /v1/users/{id}/unlock` is the way back in for somebody an attacker has shut out of their own
+account. Waiting for whoever is guessing to lose interest is not a recovery plan.
 
 An administrator creates the rest of the accounts, sets their roles and quotas, and can reset a
 password without knowing it. Disabling one takes effect on the account's next request rather than

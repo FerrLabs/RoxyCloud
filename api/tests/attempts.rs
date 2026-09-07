@@ -183,6 +183,79 @@ database_test!(a_lockout_ends_when_its_block_runs_out, harness, {
     );
 });
 
+database_test!(
+    an_administrator_can_let_a_locked_out_account_back_in,
+    harness,
+    {
+        let admin = harness.account("admin@example.com", Role::Admin).await;
+        let bearer = harness.state.sessions.issue(admin.id).expect("a token");
+        let target = harness.account("target@example.com", Role::Member).await;
+
+        for _ in 1..=FREE_ATTEMPTS {
+            login(&harness, "target@example.com", "wrong-password").await;
+        }
+        let shut_out = login(&harness, "target@example.com", common::PASSWORD).await;
+
+        let unlocked = call(
+            &harness,
+            "POST",
+            &format!("/v1/users/{}/unlock", target.id),
+            &[(header::AUTHORIZATION.as_str(), &format!("Bearer {bearer}"))],
+            "",
+        )
+        .await;
+        let after = login(&harness, "target@example.com", common::PASSWORD).await;
+
+        assert_eq!(shut_out.status, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(unlocked.status, StatusCode::NO_CONTENT);
+        assert_eq!(
+            after.status,
+            StatusCode::OK,
+            "waiting for an attacker to lose interest is not a recovery plan"
+        );
+    }
+);
+
+database_test!(only_an_administrator_may_unlock_an_account, harness, {
+    let target = harness.account("target@example.com", Role::Member).await;
+    let member = harness.account("member@example.com", Role::Member).await;
+    let reader = harness.account("reader@example.com", Role::Reader).await;
+
+    for who in [member, reader] {
+        let bearer = harness.state.sessions.issue(who.id).expect("a token");
+        let answer = call(
+            &harness,
+            "POST",
+            &format!("/v1/users/{}/unlock", target.id),
+            &[(header::AUTHORIZATION.as_str(), &format!("Bearer {bearer}"))],
+            "",
+        )
+        .await;
+        assert_eq!(answer.status, StatusCode::FORBIDDEN);
+    }
+});
+
+database_test!(
+    unlocking_an_account_nobody_locked_is_not_an_error,
+    harness,
+    {
+        let admin = harness.account("admin@example.com", Role::Admin).await;
+        let bearer = harness.state.sessions.issue(admin.id).expect("a token");
+        let target = harness.account("calm@example.com", Role::Member).await;
+
+        let answer = call(
+            &harness,
+            "POST",
+            &format!("/v1/users/{}/unlock", target.id),
+            &[(header::AUTHORIZATION.as_str(), &format!("Bearer {bearer}"))],
+            "",
+        )
+        .await;
+
+        assert_eq!(answer.status, StatusCode::NO_CONTENT);
+    }
+);
+
 database_test!(getting_it_right_clears_what_came_before, harness, {
     harness.account("clumsy@example.com", Role::Member).await;
 
