@@ -1,0 +1,67 @@
+<dialog #dialog (cancel)="dismiss()">
+  @if (minted(); as link) {
+    <div class="done">
+      <h2>Link to {{ node().name }}</h2>
+      <p class="hint">
+        This is the only time the link is shown. The server keeps a fingerprint of it and cannot
+        show it again.
+      </p>
+      <div class="link">
+        <input type="text" readonly [value]="url()" (focus)="$any($event.target).select()" />
+        <button type="button" class="primary" (click)="copy()">
+          {{ copied() ? 'Copied' : 'Copy' }}
+        </button>
+      </div>
+      @if (link.has_password) {
+        <p class="hint">Whoever opens it will be asked for the password you set.</p>
+      }
+      @if (failure(); as message) {
+        <p class="failure" role="alert">{{ message }}</p>
+      }
+      <div class="actions">
+        <button type="button" class="primary" (click)="dismiss()">Done</button>
+      </div>
+    </div>
+  } @else {
+    <form method="dialog" (submit)="$event.preventDefault(); mint()">
+      <h2>Share {{ node().name }}</h2>
+      <p class="hint">
+        Anyone holding the link can
+        {{ node().kind === 'directory' ? 'browse and download this folder' : 'download this file' }}
+        without an account.
+      </p>
+
+      <label>
+        Expires on
+        <input
+          type="date"
+          [value]="expiry()"
+          (input)="expiry.set($any($event.target).value)"
+        />
+      </label>
+      <p class="hint">Leave it empty for a link that does not expire.</p>
+
+      <label>
+        Password
+        <input
+          type="password"
+          autocomplete="new-password"
+          [value]="password()"
+          (input)="password.set($any($event.target).value)"
+        />
+      </label>
+      <p class="hint">Optional, and at least six characters. It is not part of the link.</p>
+
+      @if (failure(); as message) {
+        <p class="failure" role="alert">{{ message }}</p>
+      }
+
+      <div class="actions">
+        <button type="button" class="ghost" (click)="dismiss()">Cancel</button>
+        <button type="submit" class="primary" [disabled]="busy()">
+          {{ busy() ? 'Creating' : 'Create link' }}
+        </button>
+      </div>
+    </form>
+  }
+</dialog>

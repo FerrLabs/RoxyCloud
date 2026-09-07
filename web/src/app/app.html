@@ -1,29 +1,33 @@
-<header>
-  <div class="bar">
-    <p class="wordmark">
-      <img src="favicon.svg" alt="" width="24" height="24" />
-      RoxyCloud
-    </p>
-    @if (session.isReader()) {
-      <p class="badge">Read only</p>
-    }
-  </div>
-</header>
-
-<main id="content">
-  @if (connected()) {
-    <router-outlet />
-  } @else {
-    <section class="sign-in">
-      <h1>Sign in</h1>
-      @if (error(); as message) {
-        <p class="failure" role="alert">{{ message }}</p>
+@if (recipient()) {
+  <router-outlet />
+} @else {
+  <header>
+    <div class="bar">
+      <p class="wordmark">
+        <img src="favicon.svg" alt="" width="24" height="24" />
+        RoxyCloud
+      </p>
+      @if (session.isReader()) {
+        <p class="badge">Read only</p>
       }
-      <rx-login-form [busy]="busy()" (submitted)="signIn($event)" />
-    </section>
-  }
-</main>
+    </div>
+  </header>
 
-<footer>
-  <a [href]="sourceUrl" rel="noreferrer">Source</a>
-</footer>
+  <main id="content">
+    @if (connected()) {
+      <router-outlet />
+    } @else {
+      <section class="sign-in">
+        <h1>Sign in</h1>
+        @if (error(); as message) {
+          <p class="failure" role="alert">{{ message }}</p>
+        }
+        <rx-login-form [busy]="busy()" (submitted)="signIn($event)" />
+      </section>
+    }
+  </main>
+
+  <footer>
+    <a [href]="sourceUrl" rel="noreferrer">Source</a>
+  </footer>
+}

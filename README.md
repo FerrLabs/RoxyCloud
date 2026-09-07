@@ -216,6 +216,13 @@ trash, the account that published it being disabled, the expiry passing. All of 
 including a wrong password on a link that does not exist, because a link that says "wrong password"
 tells whoever guessed a token that they guessed it.
 
+In the web app the share action sits next to rename and delete, and a Links button lists what the
+account has published, with the expiry, when each was last opened, and a revoke. The token appears
+once, in the dialog that mints it, because the server keeps only a fingerprint and cannot show it
+again. A link opens at `/#/s/{token}`, which is a page with none of the app's chrome on it: whoever
+follows it has no account, is never shown a sign-in form, and no request that page makes carries a
+session.
+
 Publishing is a write. A reader may download every file in the account and still gets 403 from
 `POST /v1/shares`, because handing bytes to anyone holding a URL is not reading them. Revoking is
 not, so a member demoted to reader keeps the ability to take down what they published. An anonymous

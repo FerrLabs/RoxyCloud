@@ -33,7 +33,7 @@ export const en: SiteContent = {
         'Upload, download, listing, trash and restore over REST',
         'Password accounts with Argon2id, session tokens, and login from the web app, the desktop window and the CLI',
         'App passwords, and the WebDAV surface they authenticate',
-        'Share links, with an optional expiry and an optional password',
+        'Share links, with an optional expiry and an optional password, published and revoked from the web app',
         'Search by name, with the path each match was found at',
         'The sweep that collects blobs nothing points at any more',
         'S3-compatible object storage as well as local disk, which is what lets the chart run more than one replica',
