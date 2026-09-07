@@ -145,11 +145,17 @@ pub async fn begin(
         });
     }
 
+    // Counted and inserted under the same lock, or concurrent requests all read a count below the
+    // ceiling and all insert. It is the lock the tree already takes to serialise one owner's
+    // writes rather than a second mechanism.
+    let mut tx = pool.begin().await?;
+    crate::db::lock_owner(&mut tx, owner_id).await?;
+
     let open = sqlx::query_scalar::<_, i64>(
         "SELECT count(*) FROM uploads WHERE owner_id = $1 AND expires_at > now()",
     )
     .bind(owner_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
     if open >= MOST_SESSIONS {
         return Err(ApiError::TooManySessions {
@@ -160,7 +166,7 @@ pub async fn begin(
     let staged = Uuid::now_v7().to_string();
     staging.create(&staged).await?;
 
-    sqlx::query_as::<_, Session>(
+    let session = sqlx::query_as::<_, Session>(
         "INSERT INTO uploads (id, owner_id, path, size, staged, expires_at)
          VALUES ($1, $2, $3, $4, $5, now() + make_interval(hours => $6))
          RETURNING id, owner_id, path, size, received, staged, expires_at",
@@ -171,7 +177,24 @@ pub async fn begin(
     .bind(size)
     .bind(&staged)
     .bind(i32::try_from(LIFETIME_HOURS).unwrap_or(24))
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    Ok(session)
+}
+
+/// What the account is holding open, so hitting the ceiling is something a client can see and act
+/// on rather than something it waits out.
+pub async fn of_owner(pool: &PgPool, owner_id: Uuid) -> Result<Vec<Session>, ApiError> {
+    sqlx::query_as::<_, Session>(
+        "SELECT id, owner_id, path, size, received, staged, expires_at
+         FROM uploads
+         WHERE owner_id = $1 AND expires_at > now()
+         ORDER BY expires_at",
+    )
+    .bind(owner_id)
+    .fetch_all(pool)
     .await
     .map_err(Into::into)
 }

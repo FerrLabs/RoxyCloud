@@ -54,6 +54,13 @@ pub async fn begin(
     Ok((StatusCode::CREATED, Json(session)))
 }
 
+pub async fn mine(
+    State(state): State<AppState>,
+    caller: Caller,
+) -> Result<Json<Vec<uploads::Session>>, ApiError> {
+    Ok(Json(uploads::of_owner(&state.db, caller.user_id()).await?))
+}
+
 pub async fn status(
     State(state): State<AppState>,
     caller: Caller,

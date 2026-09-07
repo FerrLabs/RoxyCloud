@@ -128,6 +128,7 @@ PUT    /v1/files/{*path}      upload, creating parent directories
 GET    /v1/files/{*path}      download
 DELETE /v1/files/{*path}      move to trash
 POST   /v1/move               rename a node, or move it under another directory
+GET    /v1/uploads            the sessions this account is holding open
 POST   /v1/uploads            open a resumable upload
 GET    /v1/uploads/{id}       where it got to, for resuming
 PATCH  /v1/uploads/{id}       append at Upload-Offset
@@ -245,7 +246,9 @@ costs no extra round trip. `POST /v1/uploads/{id}/finish` hashes what arrived an
 
 The digest is taken by rehashing the staged file at the end rather than carrying a hasher between
 requests, because a hasher state persisted across two processes is a second thing that can disagree
-with the bytes. An account may hold eight sessions open at once. The quota check when a session opens is not a
+with the bytes. An account may hold eight sessions open at once, counted and inserted under the same lock so that
+requests arriving together do not all read a count below the ceiling. `GET /v1/uploads` lists what
+is open, so reaching the ceiling is something a client can act on rather than wait out. The quota check when a session opens is not a
 reservation, so without a ceiling one account could stage close to its whole quota once per session
 and hold all of it for a day.
 

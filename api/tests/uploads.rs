@@ -319,6 +319,25 @@ database_test!(
     }
 );
 
+database_test!(sessions_opened_at_once_do_not_all_get_through, harness, {
+    let (_, bearer) = session(&harness, "owner@example.com", Role::Member).await;
+
+    let paths: Vec<String> = (0..20).map(|which| format!("burst-{which}.bin")).collect();
+    let answers =
+        futures::future::join_all(paths.iter().map(|path| begin(&harness, &bearer, path, 10)))
+            .await;
+
+    let opened = answers
+        .iter()
+        .filter(|answer| answer.status == StatusCode::CREATED)
+        .count();
+
+    assert_eq!(
+        opened, 8,
+        "counting and inserting without a lock lets every concurrent request read the same count"
+    );
+});
+
 database_test!(one_account_cannot_hold_every_session_open, harness, {
     let (_, bearer) = session(&harness, "owner@example.com", Role::Member).await;
 
@@ -328,6 +347,29 @@ database_test!(one_account_cannot_hold_every_session_open, harness, {
     }
     let refused = begin(&harness, &bearer, "one-too-many.bin", 10).await;
 
+    // Hitting the ceiling has to be something a client can act on rather than wait out.
+    let listed = call(&harness, "GET", "/v1/uploads", &bearer, &[], Vec::new()).await;
+    assert_eq!(
+        listed.body.matches("\"path\"").count(),
+        8,
+        "{}",
+        listed.body
+    );
+
+    let first = listed.id();
+    let dropped = call(
+        &harness,
+        "DELETE",
+        &format!("/v1/uploads/{first}"),
+        &bearer,
+        &[],
+        Vec::new(),
+    )
+    .await;
+    assert_eq!(dropped.status, StatusCode::NO_CONTENT);
+    let after = begin(&harness, &bearer, "room-again.bin", 10).await;
+
+    assert_eq!(after.status, StatusCode::CREATED, "{}", after.body);
     assert_eq!(
         refused.status,
         StatusCode::TOO_MANY_REQUESTS,
