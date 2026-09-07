@@ -32,9 +32,9 @@ pub(super) async fn local_store() -> (LocalBlobStore, tempfile::TempDir) {
 
 pub(super) struct S3Fixture {
     pub store: S3BlobStore,
-    client: Client,
-    bucket: String,
-    prefix: String,
+    pub client: Client,
+    pub bucket: String,
+    pub prefix: String,
 }
 
 impl S3Fixture {
@@ -317,6 +317,183 @@ both_backends!(
         assert_eq!(BlobHash::from(blake3::hash(&buf)), written.hash);
     }
 );
+
+both_backends!(a_sweep_leaves_a_staged_upload_that_is_still_young, store, {
+    let written = store
+        .write(stream_of(&[b"just staged"]))
+        .await
+        .expect("write");
+
+    assert_eq!(
+        store
+            .sweep_staged(Duration::from_secs(3600))
+            .await
+            .expect("sweep"),
+        0,
+        "a sweep that takes an upload in flight is worse than one that never runs"
+    );
+    assert!(store.read(written.hash).await.is_ok());
+});
+
+#[tokio::test]
+async fn a_local_upload_nobody_settled_is_swept() {
+    let (store, dir) = local_store().await;
+    let first = store
+        .write(stream_of(&[b"same bytes"]))
+        .await
+        .expect("first");
+    store.settle(&first).await.expect("settle");
+
+    // The deduplicating path keeps the temp file so `settle` can put it back if the destination
+    // vanished. A caller that fails before settling never comes back for it, and until this swept
+    // nothing did.
+    let again = store
+        .write(stream_of(&[b"same bytes"]))
+        .await
+        .expect("second");
+    assert!(again.deduplicated);
+    assert_eq!(staged_files(&dir).await, 1);
+
+    age_staged(&dir, Duration::from_secs(600)).await;
+    let cleared = store
+        .sweep_staged(Duration::from_secs(60))
+        .await
+        .expect("sweep");
+
+    assert_eq!(cleared, 1);
+    assert_eq!(staged_files(&dir).await, 0);
+    assert!(
+        store.read(again.hash).await.is_ok(),
+        "the blob itself is not the sweep's business here"
+    );
+}
+
+async fn staged_files(dir: &tempfile::TempDir) -> usize {
+    let mut entries = tokio::fs::read_dir(dir.path().join("tmp"))
+        .await
+        .expect("tmp dir");
+    let mut count = 0;
+    while entries.next_entry().await.expect("entry").is_some() {
+        count += 1;
+    }
+    count
+}
+
+async fn age_staged(dir: &tempfile::TempDir, by: Duration) {
+    let mut entries = tokio::fs::read_dir(dir.path().join("tmp"))
+        .await
+        .expect("tmp dir");
+    while let Some(entry) = entries.next_entry().await.expect("entry") {
+        std::fs::File::options()
+            .write(true)
+            .open(entry.path())
+            .expect("opening the staged file")
+            .set_modified(SystemTime::now() - by)
+            .expect("ageing the staged file");
+    }
+}
+
+#[tokio::test]
+async fn an_object_store_sweeps_an_upload_a_killed_process_left_behind() {
+    let Some(fixture) = s3_store().await else {
+        eprintln!("skipping: S3_TEST_ENDPOINT is not set");
+        return;
+    };
+
+    // What a process killed mid-upload leaves: parts that no listing of objects shows and that the
+    // bill does.
+    let failing = upload(futures::stream::iter(vec![
+        Ok(Bytes::from(vec![b'x'; 9 * 1024 * 1024])),
+        Err(std::io::Error::other("connection reset")),
+    ]));
+    assert!(fixture.store.write(failing).await.is_err());
+    assert_eq!(
+        fixture.unfinished_uploads().await,
+        0,
+        "the write aborts its own"
+    );
+
+    // What a killed process leaves instead: parts nobody aborted, which no listing of objects
+    // shows and the bill does. `initiated` is set by the server, so a zero grace is what makes it
+    // stale rather than ageing it.
+    let orphan = format!("{}tmp/{}", fixture.prefix, uuid::Uuid::now_v7());
+    fixture
+        .client
+        .create_multipart_upload()
+        .bucket(&fixture.bucket)
+        .key(&orphan)
+        .send()
+        .await
+        .expect("starting an upload nobody finishes");
+    assert_eq!(fixture.unfinished_uploads().await, 1);
+
+    let cleared = fixture
+        .store
+        .sweep_staged(Duration::ZERO)
+        .await
+        .expect("sweep");
+
+    assert_eq!(cleared, 1);
+    assert_eq!(fixture.unfinished_uploads().await, 0);
+}
+
+#[tokio::test]
+async fn an_object_store_sweeps_a_copy_a_killed_process_left_at_the_digest_key() {
+    let Some(fixture) = s3_store().await else {
+        eprintln!("skipping: S3_TEST_ENDPOINT is not set");
+        return;
+    };
+
+    // `copy_in_parts` starts its multipart at the destination key rather than under the staging
+    // directory, so a sweep that matched on `tmp/` would walk past this one for good.
+    let at_a_digest = format!("{}ab/cd/{}", fixture.prefix, "0".repeat(64));
+    fixture
+        .client
+        .create_multipart_upload()
+        .bucket(&fixture.bucket)
+        .key(&at_a_digest)
+        .send()
+        .await
+        .expect("starting a copy nobody finishes");
+
+    let cleared = fixture
+        .store
+        .sweep_staged(Duration::ZERO)
+        .await
+        .expect("sweep");
+
+    assert_eq!(cleared, 1);
+    assert_eq!(fixture.unfinished_uploads().await, 0);
+}
+
+#[tokio::test]
+async fn an_object_store_sweeps_a_staging_object_nobody_placed() {
+    let Some(fixture) = s3_store().await else {
+        eprintln!("skipping: S3_TEST_ENDPOINT is not set");
+        return;
+    };
+
+    let orphan = format!("{}tmp/{}", fixture.prefix, uuid::Uuid::now_v7());
+    fixture
+        .client
+        .put_object()
+        .bucket(&fixture.bucket)
+        .key(&orphan)
+        .body(aws_sdk_s3::primitives::ByteStream::from_static(b"staged"))
+        .send()
+        .await
+        .expect("staging an object nobody places");
+    assert_eq!(fixture.keys().await, vec![orphan]);
+
+    let cleared = fixture
+        .store
+        .sweep_staged(Duration::ZERO)
+        .await
+        .expect("sweep");
+
+    assert_eq!(cleared, 1);
+    assert!(fixture.keys().await.is_empty());
+}
 
 #[test]
 fn a_stamp_the_clock_has_not_reached_counts_as_recent() {

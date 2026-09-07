@@ -118,6 +118,25 @@ impl BlobStore for LocalBlobStore {
             .and_then(|meta| meta.modified())
             .is_ok_and(|at| is_recent(at, grace))
     }
+
+    async fn sweep_staged(&self, grace: Duration) -> Result<u64, StorageError> {
+        let mut entries = fs::read_dir(self.root.join("tmp")).await?;
+        let mut removed = 0;
+
+        while let Some(entry) = entries.next_entry().await? {
+            let stale = entry
+                .metadata()
+                .await
+                .and_then(|meta| meta.modified())
+                .is_ok_and(|at| !is_recent(at, grace));
+
+            if stale && fs::remove_file(entry.path()).await.is_ok() {
+                removed += 1;
+            }
+        }
+
+        Ok(removed)
+    }
 }
 
 async fn rename_or_discard(staged: &Path, destination: &Path) -> Result<(), StorageError> {

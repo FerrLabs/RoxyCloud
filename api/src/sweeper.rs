@@ -31,6 +31,11 @@ pub fn spawn(state: AppState, every: Duration, grace: Duration) {
                 Ok(_) => {}
                 Err(error) => error!(%error, "purging expired attempts failed"),
             }
+            match state.blobs.sweep_staged(grace).await {
+                Ok(cleared) if cleared > 0 => info!(staged = cleared, "cleared stale uploads"),
+                Ok(_) => {}
+                Err(error) => error!(%error, "clearing stale uploads failed"),
+            }
             match sweep(&state, grace).await {
                 Ok(collected) if collected.blobs > 0 => {
                     info!(

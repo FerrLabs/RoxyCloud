@@ -262,8 +262,9 @@ instead of racing. S3 has no rename, so a write streams into a staging object, t
 server-side to the digest key and deletes the staging one before it returns. The copy costs no
 egress, and clearing the staging object inside the write rather than in `settle` matters: a caller
 does its own database work in between and can fail there, and nothing walks the staging prefix
-looking for orphans. The local store still defers to `settle` on its deduplicating path, which has
-the same hole (#102).
+looking for orphans. The local store still defers to `settle` on its deduplicating path, so that it can
+put the temp file back if the destination vanished in between; what that used to leak is now the
+sweep's business.
 
 An upload past eight mebibytes switches to a multipart upload, and anything smaller goes as a single
 request rather than the three a multipart needs. Every failure path aborts the multipart upload,
@@ -273,6 +274,14 @@ parts too, since a single `CopyObject` will not carry it.
 Local disk means one replica owns the directory, so the chart refuses a second one. That constraint
 is the reason the S3 backend exists: with an object store the pods share nothing, and `replicaCount`
 becomes a number worth setting.
+
+The staging area has an owner that is not the request that filled it. A caller does its own database
+work between `write` and `settle` and can fail there, and a process can be killed mid-upload, so the
+sweep clears what is older than the grace period: a temp file on local disk, and on the object store
+both a staging object and a multipart upload nobody completed, the second of which appears in no
+listing of objects and is charged for regardless. Multipart uploads are matched on the store's whole
+prefix rather than on the staging directory, because the copy onto a digest key starts one there
+too; with no prefix configured that is the bucket, which the store already assumes it owns.
 
 The sweep asks the store whether a blob was written recently rather than looking at a file, which is
 a modification time on one backend and a `HEAD` on the other. That is what keeps a delete followed by

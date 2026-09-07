@@ -65,14 +65,17 @@ impl S3BlobStore {
         }
     }
 
-    async fn discard(&self, key: &str) {
-        let _ = self
-            .client
+    /// Answers whether the store confirmed the delete. A caller on its way out has nothing to do
+    /// with the news; the sweep counts it, because reporting bytes as cleared when they are still
+    /// there and still billed is worse than reporting nothing.
+    async fn discard(&self, key: &str) -> bool {
+        self.client
             .delete_object()
             .bucket(&self.bucket)
             .key(key)
             .send()
-            .await;
+            .await
+            .is_ok()
     }
 
     /// Streams the upload into one staging object, hashing as it goes. A stream that fits in a
@@ -223,7 +226,7 @@ impl S3BlobStore {
                 .send()
                 .await;
         }
-        self.discard(key).await;
+        let _ = self.discard(key).await;
     }
 
     /// Whether the blob was already there. The key is the digest, so one that is already there is
@@ -402,6 +405,117 @@ impl BlobStore for S3BlobStore {
         head.last_modified()
             .and_then(|at| SystemTime::try_from(*at).ok())
             .is_some_and(|at| is_recent(at, grace))
+    }
+
+    /// Two kinds of leftover, and the second is the one that costs money quietly: a staging object
+    /// a killed process never placed, and a multipart upload nobody completed, whose parts are
+    /// kept and charged for without appearing in any listing of objects.
+    async fn sweep_staged(&self, grace: Duration) -> Result<u64, StorageError> {
+        let mut removed = self.sweep_staged_objects(grace).await?;
+        removed += self.sweep_unfinished_uploads(grace).await?;
+        Ok(removed)
+    }
+}
+
+impl S3BlobStore {
+    fn staging_prefix(&self) -> String {
+        format!("{}tmp/", self.prefix)
+    }
+
+    async fn sweep_staged_objects(&self, grace: Duration) -> Result<u64, StorageError> {
+        let mut removed = 0;
+        let mut after: Option<String> = None;
+
+        loop {
+            let listed = self
+                .client
+                .list_objects_v2()
+                .bucket(&self.bucket)
+                .prefix(self.staging_prefix())
+                .set_continuation_token(after.take())
+                .send()
+                .await
+                .map_err(|err| remote(&err))?;
+
+            for object in listed.contents() {
+                let stale = object
+                    .last_modified()
+                    .and_then(|at| SystemTime::try_from(*at).ok())
+                    .is_some_and(|at| !is_recent(at, grace));
+
+                if let (true, Some(key)) = (stale, object.key())
+                    && self.discard(key).await
+                {
+                    removed += 1;
+                }
+            }
+
+            after = listed.next_continuation_token().map(ToOwned::to_owned);
+            if after.is_none() {
+                break;
+            }
+        }
+        Ok(removed)
+    }
+
+    /// Every multipart this store starts lives under its prefix, including the one `copy_in_parts`
+    /// begins at the digest key, so matching on the prefix rather than on the staging directory is
+    /// what covers both. With no prefix configured that is the whole bucket, which the store
+    /// already assumes it owns, since `key_for` writes at the root.
+    ///
+    /// The listing is not filtered server-side because `MinIO` answers a prefixed
+    /// `ListMultipartUploads` with nothing at all.
+    async fn sweep_unfinished_uploads(&self, grace: Duration) -> Result<u64, StorageError> {
+        let mut removed = 0;
+        let mut key_marker: Option<String> = None;
+        let mut upload_marker: Option<String> = None;
+
+        loop {
+            let listed = self
+                .client
+                .list_multipart_uploads()
+                .bucket(&self.bucket)
+                .set_key_marker(key_marker.take())
+                .set_upload_id_marker(upload_marker.take())
+                .send()
+                .await
+                .map_err(|err| remote(&err))?;
+
+            for upload in listed.uploads() {
+                let stale = upload
+                    .initiated()
+                    .and_then(|at| SystemTime::try_from(*at).ok())
+                    .is_some_and(|at| !is_recent(at, grace));
+                let mine = upload
+                    .key()
+                    .is_some_and(|key| key.starts_with(self.prefix.as_str()));
+
+                if let (true, true, Some(key), Some(id)) =
+                    (stale, mine, upload.key(), upload.upload_id())
+                    && self
+                        .client
+                        .abort_multipart_upload()
+                        .bucket(&self.bucket)
+                        .key(key)
+                        .upload_id(id)
+                        .send()
+                        .await
+                        .is_ok()
+                {
+                    removed += 1;
+                }
+            }
+
+            if !listed.is_truncated().unwrap_or(false) {
+                break;
+            }
+            key_marker = listed.next_key_marker().map(ToOwned::to_owned);
+            upload_marker = listed.next_upload_id_marker().map(ToOwned::to_owned);
+            if key_marker.is_none() && upload_marker.is_none() {
+                break;
+            }
+        }
+        Ok(removed)
     }
 }
 
