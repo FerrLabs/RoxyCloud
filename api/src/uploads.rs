@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
 use bytes::Bytes;
+use std::time::Duration;
+
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt};
 use serde::Serialize;
@@ -53,18 +55,32 @@ impl Staging {
         Ok(())
     }
 
-    /// Appends and answers how many bytes the file holds afterwards. The write is opened for
-    /// append rather than seeking to the offset, because the offset the caller was told is the
-    /// length of this file and nothing else may have written to it.
-    async fn append<S, E>(&self, staged: &str, mut chunks: S) -> Result<u64, ApiError>
+    /// Writes at `offset` and answers how many bytes the file holds afterwards.
+    ///
+    /// The file is cut back to the offset first rather than appended to. `received` is only
+    /// recorded once a whole chunk has drained, so a request that died mid-body left bytes past
+    /// the offset the session remembers, and appending after them would duplicate a region and
+    /// lose the tail. A connection lost mid-chunk is the case this feature exists for, so it is
+    /// the case the write has to be correct under. Truncating also makes two requests at the same
+    /// offset idempotent rather than interleaved.
+    async fn write_at<S, E>(
+        &self,
+        staged: &str,
+        offset: u64,
+        mut chunks: S,
+    ) -> Result<u64, ApiError>
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin,
         E: std::error::Error + Send + Sync + 'static,
     {
+        use tokio::io::AsyncSeekExt;
+
         let mut file = fs::OpenOptions::new()
-            .append(true)
+            .write(true)
             .open(self.path_for(staged))
             .await?;
+        file.set_len(offset).await?;
+        file.seek(std::io::SeekFrom::Start(offset)).await?;
 
         while let Some(chunk) = chunks.next().await {
             let chunk = chunk.map_err(|err| {
@@ -83,7 +99,12 @@ impl Staging {
 
     /// Clears staged files no session names any more, which is what a crash between deleting the
     /// row and deleting the file would otherwise leave for good.
-    pub async fn sweep(&self, live: &[String]) -> Result<u64, ApiError> {
+    ///
+    /// A file younger than the grace is left alone whatever the list says: `begin` creates the file
+    /// before it inserts the row, so a sweep landing between the two would otherwise take a file
+    /// the session about to exist is going to need. The blob store answers the same shape the same
+    /// way rather than inventing a second rule.
+    pub async fn sweep(&self, live: &[String], grace: Duration) -> Result<u64, ApiError> {
         let mut entries = fs::read_dir(&self.root).await?;
         let mut removed = 0;
 
@@ -92,8 +113,13 @@ impl Staging {
                 .file_name()
                 .to_str()
                 .is_some_and(|name| live.iter().any(|staged| staged == name));
+            let young = entry
+                .metadata()
+                .await
+                .and_then(|meta| meta.modified())
+                .is_ok_and(|at| crate::storage::is_recent(at, grace));
 
-            if !named && fs::remove_file(entry.path()).await.is_ok() {
+            if !named && !young && fs::remove_file(entry.path()).await.is_ok() {
                 removed += 1;
             }
         }
@@ -166,7 +192,10 @@ where
         });
     }
 
-    let received = staging.append(&session.staged, chunks).await?;
+    let at = u64::try_from(offset).map_err(|_| ApiError::WrongKind {
+        expected: "offset that is not negative",
+    })?;
+    let received = staging.write_at(&session.staged, at, chunks).await?;
     let received = i64::try_from(received).map_err(|_| ApiError::QuotaExceeded)?;
 
     if received > session.size {

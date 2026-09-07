@@ -62,7 +62,7 @@ Migrations run on boot. Configuration is environment only:
 | `JWT_SECRET` | required | HS256 secret used to sign session tokens |
 | `PORT` | `3001` | Listen port |
 | `BLOB_BACKEND` | `local` | `local` or `s3` |
-| `UPLOAD_ROOT` | beside `BLOB_ROOT` | Scratch space for resumable uploads in flight; required when the backend is `s3` |
+| `UPLOAD_ROOT` | beside `BLOB_ROOT` | Scratch space for resumable uploads in flight; refused at startup if unset when the backend is `s3` |
 | `BLOB_ROOT` | `./data` | Local blob store root, when the backend is `local` |
 | `S3_BUCKET` | | Required when the backend is `s3` |
 | `S3_ENDPOINT` | | MinIO or Garage URL; leave unset for AWS |
@@ -247,6 +247,12 @@ The digest is taken by rehashing the staged file at the end rather than carrying
 requests, because a hasher state persisted across two processes is a second thing that can disagree
 with the bytes. Quota is checked when the session opens as well as charged when it finishes, so a
 client does not spend an hour sending a file there was never room for.
+
+A chunk is written at the offset the session records rather than appended to the end, and the file
+is cut back to that offset first. A request that died mid-body left bytes past that offset, because
+`received` is only recorded once a whole chunk has drained, and appending after them would duplicate
+a region and lose the tail while still reaching the promised size. That is the case the feature
+exists for, so it is the case the write has to be correct under.
 
 The bytes of a session in flight live on local disk whichever backend owns the blobs. An object
 store has no append, and its multipart parts have a five mebibyte floor that would decide the

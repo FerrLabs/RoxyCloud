@@ -88,8 +88,11 @@ pub async fn append(
     )
     .await?;
 
+    // 200 rather than 204: hyper writes no body for a 204, so a 204 carrying JSON announces bytes
+    // that never arrive. The offset is in the header either way; the body saves a second call for
+    // the expiry.
     Ok((
-        StatusCode::NO_CONTENT,
+        StatusCode::OK,
         offset_header(advanced.received),
         Json(advanced),
     )
