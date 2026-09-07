@@ -43,7 +43,7 @@ export function describeExpiry(share: Share, now = new Date()): string {
   }
   const at = new Date(share.expires_at);
   if (Number.isNaN(at.getTime())) {
-    return 'No expiry';
+    return 'Expiry unreadable';
   }
   const label = at.toLocaleDateString(undefined, {
     day: 'numeric',
@@ -63,12 +63,14 @@ export function describeUse(share: Share): string {
     : `Last opened ${at.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
 }
 
-export function endOfDay(day: string): string | undefined {
-  if (day.length === 0) {
-    return undefined;
-  }
+export function endOfDay(day: string): string | null {
   const at = new Date(`${day}T23:59:59`);
-  return Number.isNaN(at.getTime()) ? undefined : at.toISOString();
+  return Number.isNaN(at.getTime()) ? null : at.toISOString();
+}
+
+export function today(): string {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 
 export function describeLink(share: Share): string {

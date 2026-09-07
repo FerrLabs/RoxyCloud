@@ -64,6 +64,7 @@ export class FileBrowser {
   protected readonly canShare = computed(
     () => this.platform.share !== undefined && this.canWrite(),
   );
+  protected readonly canSeeLinks = computed(() => this.platform.listShares !== undefined);
   protected readonly dragging = signal(false);
   protected readonly pending = signal(0);
   protected readonly announcement = signal<string | null>(null);

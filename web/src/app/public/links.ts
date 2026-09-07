@@ -14,6 +14,15 @@ export class LinkIsGone extends Error {
   }
 }
 
+export class LinkIsBusy extends Error {
+  readonly seconds: number;
+
+  constructor(seconds: number) {
+    super('too many attempts on this link');
+    this.seconds = seconds;
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class PublicLinks {
   async open(token: string, password: string, path: string): Promise<Linked> {
@@ -43,6 +52,9 @@ export class PublicLinks {
 
     if (response.status === 401) {
       throw new LinkNeedsPassword();
+    }
+    if (response.status === 429) {
+      throw new LinkIsBusy(Number(response.headers.get('Retry-After') ?? 60));
     }
     if (!response.ok) {
       throw new LinkIsGone();

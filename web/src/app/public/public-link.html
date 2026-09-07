@@ -24,6 +24,11 @@
     </section>
   } @else if (link.isLoading()) {
     <p class="state" aria-busy="true">Opening this link</p>
+  } @else if (busyFor(); as seconds) {
+    <section class="state">
+      <h1>Too many attempts</h1>
+      <p class="detail">Wait about {{ seconds }} seconds and try again.</p>
+    </section>
   } @else if (link.error()) {
     <section class="state">
       <h1>This link is no longer available</h1>
@@ -41,8 +46,8 @@
       } @else {
         @if (trail().length > 0) {
           <nav class="trail" aria-label="Folders above this one">
-            <button type="button" class="crumb" (click)="upTo(0)">{{ shared.name }}</button>
-            @for (name of trail(); track $index; let depth = $index) {
+            <button type="button" class="crumb" (click)="upTo(0)">{{ root() }}</button>
+            @for (name of above(); track $index; let depth = $index) {
               <span aria-hidden="true">/</span>
               <button type="button" class="crumb" (click)="upTo(depth + 1)">{{ name }}</button>
             }

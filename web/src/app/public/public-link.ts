@@ -10,7 +10,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { formatDate, formatSize } from '../node';
 import type { PublicEntry } from '../share';
-import { LinkNeedsPassword, PublicLinks } from './links';
+import { LinkIsBusy, LinkNeedsPassword, PublicLinks } from './links';
 
 @Component({
   selector: 'rx-public-link',
@@ -27,6 +27,7 @@ export class PublicLink {
   protected readonly password = signal('');
   protected readonly draft = signal('');
   protected readonly trail = signal<string[]>([]);
+  protected readonly root = signal('');
   protected readonly failure = signal<string | null>(null);
   protected readonly busy = signal(false);
 
@@ -41,6 +42,13 @@ export class PublicLink {
     () => this.link.error() instanceof LinkNeedsPassword,
   );
 
+  protected readonly busyFor = computed(() => {
+    const error = this.link.error();
+    return error instanceof LinkIsBusy ? error.seconds : null;
+  });
+
+  protected readonly above = computed(() => this.trail().slice(0, -1));
+
   protected readonly entry = computed(() => this.link.value()?.entry ?? null);
   protected readonly children = computed(() => this.link.value()?.children ?? []);
 
@@ -52,9 +60,13 @@ export class PublicLink {
   }
 
   protected enter(child: PublicEntry): void {
-    if (child.kind === 'directory') {
-      this.trail.update((trail) => [...trail, child.name]);
+    if (child.kind !== 'directory') {
+      return;
     }
+    if (this.trail().length === 0) {
+      this.root.set(this.entry()?.name ?? '');
+    }
+    this.trail.update((trail) => [...trail, child.name]);
   }
 
   protected upTo(depth: number): void {

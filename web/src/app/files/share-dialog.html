@@ -35,6 +35,7 @@
         Expires on
         <input
           type="date"
+          [min]="earliest"
           [value]="expiry()"
           (input)="expiry.set($any($event.target).value)"
         />

@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import type { Node } from '../node';
 import { PLATFORM } from '../platform';
-import { endOfDay, linkFor, type Minted } from '../share';
+import { endOfDay, linkFor, today, type Minted } from '../share';
 
 @Component({
   selector: 'rx-share-dialog',
@@ -30,6 +30,7 @@ export class ShareDialog {
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
   protected readonly expiry = signal('');
+  protected readonly earliest = today();
   protected readonly password = signal('');
   protected readonly busy = signal(false);
   protected readonly failure = signal<string | null>(null);
@@ -46,6 +47,13 @@ export class ShareDialog {
       return;
     }
 
+    const day = this.expiry();
+    const expires = day.length === 0 ? undefined : endOfDay(day);
+    if (expires === null) {
+      this.failure.set('That expiry is not a date the browser understands.');
+      return;
+    }
+
     this.failure.set(null);
     this.busy.set(true);
     try {
@@ -53,7 +61,7 @@ export class ShareDialog {
       this.minted.set(
         await create({
           path: this.path(),
-          expires_at: endOfDay(this.expiry()),
+          expires_at: expires,
           password: password.length > 0 ? password : undefined,
         }),
       );
