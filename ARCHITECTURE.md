@@ -55,6 +55,7 @@ Two authentication paths, because DAV clients cannot do anything modern:
 | Web app | Password login (Argon2id) or OIDC, exchanged for a session cookie |
 | WebDAV client | Scoped app password over Basic auth, minted in the web app |
 | Share link | Opaque token in the URL, optionally password-protected |
+| Provider | `OIDC` authorization code with `PKCE`, mapped to an account by a verified address |
 
 Every account carries a role, `admin`, `member` or `reader`, and the write routes take a `Writer`
 extractor rather than a `Caller`, so refusing a reader is visible in the handler signature and costs
@@ -69,6 +70,22 @@ that can change the account.
 The FerrLabs hosted deployment is the same binary with OIDC pointed at the FerrLabs identity
 provider. It gets no special code path, which keeps the self-hosted build and the one we operate on
 the same tested surface.
+
+A provider signs people in alongside passwords rather than instead of them: a self-hoster with no
+identity provider still needs a way in, and `PUT /v1/auth/methods` is what turns passwords off once
+the provider is known to work. That is a setting rather than an environment variable so an
+administrator does it from the running system, and it is refused when no provider is configured.
+
+The `PKCE` verifier never leaves the server, so a code intercepted on the way back is not enough to
+finish the flow, and a state is spendable once, because a state that could be spent twice is a code
+that could be replayed. The token's own header says which algorithm signed it and whoever sent the
+token wrote that header, so what is accepted is pinned rather than read from it.
+
+`oidc::admit` is the only place that decides which account a set of claims may be. An address the
+provider has not vouched for reaches no account, whether that account exists or not: asserting
+somebody else's address at a provider that never checked it is the classic way one of these
+integrations is broken, and it is one `if` away in either direction. A missing `email_verified` claim
+is not a verified address.
 
 
 ## Repository layout
