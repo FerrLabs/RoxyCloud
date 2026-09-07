@@ -129,17 +129,20 @@ impl S3BlobStore {
                     .map_err(|err| remote(&err))?;
             }
             Some(mut started) => {
-                if rest.is_empty() {
-                    // A stream that divided exactly into parts has nothing left to send, and S3
-                    // refuses a zero-length part.
-                } else {
-                    self.send_part(&mut started, key, rest).await?;
+                // A stream that divided exactly into parts has nothing left to send, and S3
+                // refuses a zero-length part.
+                let mut outcome = Ok(());
+                if !rest.is_empty() {
+                    outcome = self.send_part(&mut started, key, rest).await;
                 }
-                let finishing = self.finish(&started, key).await;
-                if finishing.is_err() {
+                if outcome.is_ok() {
+                    outcome = self.finish(&started, key).await;
+                }
+                if outcome.is_err() {
+                    // Handed back, so `stage` still has something to abort.
                     *upload = Some(started);
                 }
-                finishing?;
+                outcome?;
             }
         }
 
@@ -252,6 +255,32 @@ impl S3BlobStore {
 
     async fn copy_in_parts(&self, from: &str, to: &str, size: u64) -> Result<(), StorageError> {
         let mut upload = self.begin(to).await?;
+        match self.copy_parts(&mut upload, from, to, size).await {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                // Parts nobody completes are kept and charged for, the same as on the write path.
+                // Only the upload is aborted, never the destination key: another writer may have
+                // placed the same digest there while this copy was failing.
+                let _ = self
+                    .client
+                    .abort_multipart_upload()
+                    .bucket(&self.bucket)
+                    .key(to)
+                    .upload_id(&upload.id)
+                    .send()
+                    .await;
+                Err(err)
+            }
+        }
+    }
+
+    async fn copy_parts(
+        &self,
+        upload: &mut Multipart,
+        from: &str,
+        to: &str,
+        size: u64,
+    ) -> Result<(), StorageError> {
         let span = LARGEST_SINGLE_COPY;
         let mut start = 0u64;
 
@@ -285,7 +314,7 @@ impl S3BlobStore {
             start = end + 1;
         }
 
-        self.finish(&upload, to).await
+        self.finish(upload, to).await
     }
 }
 
@@ -337,21 +366,37 @@ impl BlobStore for S3BlobStore {
         Ok(Box::pin(object.body.into_async_read()))
     }
 
+    /// Unlike `discard`, a refusal here is reported. The sweep deletes the row that names the blob
+    /// only once this succeeds, so swallowing the error would leave an object nothing names and no
+    /// later sweep can find.
     async fn remove(&self, hash: BlobHash) -> Result<(), StorageError> {
-        self.discard(&self.key_for(hash)).await;
-        Ok(())
+        match self
+            .client
+            .delete_object()
+            .bucket(&self.bucket)
+            .key(self.key_for(hash))
+            .send()
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(err) if is_missing(&err) => Ok(()),
+            Err(err) => Err(remote(&err)),
+        }
     }
 
     async fn written_within(&self, hash: BlobHash, grace: Duration) -> bool {
-        let Ok(head) = self
+        let head = match self
             .client
             .head_object()
             .bucket(&self.bucket)
             .key(self.key_for(hash))
             .send()
             .await
-        else {
-            return false;
+        {
+            Ok(head) => head,
+            // Absent is nothing to protect. Anything else means the store did not answer, and a
+            // collector that reads "I could not tell" as "safe to delete" deletes live bytes.
+            Err(err) => return !is_missing(&err),
         };
 
         head.last_modified()

@@ -114,6 +114,47 @@ pub(super) async fn s3_store() -> Option<S3Fixture> {
     })
 }
 
+/// A store pointed at an address nothing is listening on, so every request fails the way a network
+/// fails rather than the way a missing object does. Retries are off, or each call would spend the
+/// SDK's backoff before answering.
+fn unreachable_store() -> S3BlobStore {
+    use aws_sdk_s3::config::retry::RetryConfig;
+    use aws_sdk_s3::config::{BehaviorVersion, Credentials, Region};
+
+    let config = aws_sdk_s3::Config::builder()
+        .behavior_version(BehaviorVersion::latest())
+        .region(Region::new("us-east-1"))
+        .credentials_provider(Credentials::new("k", "s", None, None, "roxycloud-test"))
+        .endpoint_url("http://127.0.0.1:1")
+        .force_path_style(true)
+        .retry_config(RetryConfig::disabled())
+        .build();
+
+    S3BlobStore::new(Client::from_conf(config), "unreachable".to_owned(), "t")
+}
+
+#[tokio::test]
+async fn a_store_that_cannot_answer_does_not_licence_a_delete() {
+    let hash = BlobHash::from(blake3::hash(b"somebody else's bytes"));
+
+    assert!(
+        unreachable_store()
+            .written_within(hash, Duration::from_secs(3600))
+            .await,
+        "a collector that reads a timeout as \"old enough to delete\" deletes live bytes"
+    );
+}
+
+#[tokio::test]
+async fn a_delete_the_store_refused_is_reported() {
+    let hash = BlobHash::from(blake3::hash(b"still there"));
+
+    assert!(
+        unreachable_store().remove(hash).await.is_err(),
+        "the sweep drops the row that names the blob once this returns Ok, so a swallowed failure          orphans the object for good"
+    );
+}
+
 /// One body, run against local disk and against an object store, because a backend that passes its
 /// own tests and disagrees with the other one is the failure mode a trait invites.
 macro_rules! both_backends {
