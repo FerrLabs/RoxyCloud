@@ -12,6 +12,7 @@ const FLOW_MINUTES: i64 = 15;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Discovery {
+    pub issuer: String,
     pub authorization_endpoint: String,
     pub token_endpoint: String,
     pub jwks_uri: String,
@@ -136,13 +137,20 @@ pub async fn discover(http: &reqwest::Client, issuer: &str) -> Result<Discovery,
         "{}/.well-known/openid-configuration",
         issuer.trim_end_matches('/')
     );
-    http.get(url)
+    let found = http
+        .get(url)
         .send()
         .await
         .map_err(|_| ApiError::Unauthenticated)?
         .json::<Discovery>()
         .await
-        .map_err(|_| ApiError::Unauthenticated)
+        .map_err(|_| ApiError::Unauthenticated)?;
+
+    // A document that names somebody else is not this provider's, whoever served it.
+    if found.issuer.trim_end_matches('/') != issuer.trim_end_matches('/') {
+        return Err(ApiError::Unauthenticated);
+    }
+    Ok(found)
 }
 
 #[derive(Deserialize)]
@@ -215,7 +223,12 @@ async fn verify(
     let key = jwks
         .keys
         .iter()
-        .find(|key| key.kid == header.kid || jwks.keys.len() == 1)
+        .find(|key| match header.kid.as_deref() {
+            Some(kid) => key.kid.as_deref() == Some(kid),
+            // A lone key is used only when the token names none. Matching one whose `kid`
+            // contradicts the header would hide a rotation gone wrong.
+            None => jwks.keys.len() == 1,
+        })
         .ok_or(ApiError::Unauthenticated)?;
     let (modulus, exponent) = key
         .n
@@ -230,6 +243,11 @@ async fn verify(
     let mut validation = Validation::new(Algorithm::RS256);
     validation.algorithms = vec![Algorithm::RS256, Algorithm::RS384, Algorithm::RS512];
     validation.set_audience(&[client_id]);
+    // Required and *compared*. Without this any token signed by a key in this JWKS is accepted,
+    // which on a multi-tenant provider, where tenants share signing keys, means a user in an
+    // unrelated tenant reaches `admit` and is mapped to a local account by address: the takeover
+    // the rest of this module is written to prevent.
+    validation.set_issuer(&[&provider.issuer]);
     validation.set_required_spec_claims(&["exp", "iss", "aud"]);
 
     decode::<Claims>(token, &decoding, &validation)

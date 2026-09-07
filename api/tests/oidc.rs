@@ -198,23 +198,41 @@ database_test!(an_expired_flow_is_not_worth_a_verifier, harness, {
 });
 
 database_test!(password_login_can_be_turned_off_and_back_on, harness, {
+    harness.account("admin@example.com", Role::Admin).await;
+    let credentials = format!(
+        r#"{{"email":"admin@example.com","password":"{}"}}"#,
+        common::PASSWORD
+    );
+
+    let before = call(&harness, "POST", "/v1/auth/login", "", &credentials).await;
+
+    // Set directly rather than through the route, which refuses this with no provider configured.
+    // The branch under test is the one in `auth::login`, and it decides whether an installation is
+    // still signable-into at all.
+    roxycloud_api::settings::allow_password_login(&harness.state.db, false)
+        .await
+        .expect("turning it off");
+    let off = call(&harness, "POST", "/v1/auth/login", "", &credentials).await;
+
+    roxycloud_api::settings::allow_password_login(&harness.state.db, true)
+        .await
+        .expect("turning it back on");
+    let on = call(&harness, "POST", "/v1/auth/login", "", &credentials).await;
+
+    assert_eq!(before.0, StatusCode::OK);
+    assert_eq!(
+        off.0,
+        StatusCode::NOT_FOUND,
+        "a route that still took passwords would be the way around the decision"
+    );
+    assert_eq!(on.0, StatusCode::OK);
+});
+
+database_test!(turning_off_the_only_way_in_is_refused, harness, {
     let admin = harness.account("admin@example.com", Role::Admin).await;
     let bearer = harness.state.sessions.issue(admin.id).expect("a token");
 
-    let before = call(
-        &harness,
-        "POST",
-        "/v1/auth/login",
-        "",
-        &format!(
-            r#"{{"email":"admin@example.com","password":"{}"}}"#,
-            common::PASSWORD
-        ),
-    )
-    .await;
-
-    // With no provider configured there would be no way back in, so this is refused.
-    let refused = call(
+    let (status, _) = call(
         &harness,
         "PUT",
         "/v1/auth/methods",
@@ -223,11 +241,10 @@ database_test!(password_login_can_be_turned_off_and_back_on, harness, {
     )
     .await;
 
-    assert_eq!(before.0, StatusCode::OK);
     assert_eq!(
-        refused.0,
+        status,
         StatusCode::BAD_REQUEST,
-        "turning off the only way in is not a setting anybody meant to change"
+        "with no provider configured there would be nothing left to sign in with"
     );
 });
 

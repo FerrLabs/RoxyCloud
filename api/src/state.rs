@@ -89,7 +89,12 @@ impl AppState {
                 std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get),
             )),
             oidc: cfg.oidc.clone().map(Arc::new),
-            http: reqwest::Client::new(),
+            // A provider that accepts the connection and then says nothing would otherwise hold
+            // the four calls on the sign-in path open indefinitely.
+            http: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build()
+                .context("building the HTTP client")?,
             sessions: Arc::new(Sessions::new(
                 &cfg.jwt_secret,
                 chrono::Duration::seconds(cfg.session_ttl_seconds),
