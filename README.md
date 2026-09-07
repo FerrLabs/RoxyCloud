@@ -22,7 +22,7 @@ Your files, on hardware you own, under the AGPL.
 
 Early, and not yet usable end to end.
 
-Done: content-addressed local blob store with dedup, the node tree with quotas and blob refcounts,
+Done: content-addressed blob store with dedup, on local disk or S3, the node tree with quotas and blob refcounts,
 and upload, download, listing, trash and restore over REST.
 
 Done too: password accounts with Argon2id, session tokens, and login from the web app, the desktop
@@ -61,7 +61,14 @@ Migrations run on boot. Configuration is environment only:
 | `DATABASE_URL` | required | Postgres connection string |
 | `JWT_SECRET` | required | HS256 secret used to sign session tokens |
 | `PORT` | `3001` | Listen port |
-| `BLOB_ROOT` | `./data` | Local blob store root |
+| `BLOB_BACKEND` | `local` | `local` or `s3` |
+| `BLOB_ROOT` | `./data` | Local blob store root, when the backend is `local` |
+| `S3_BUCKET` | | Required when the backend is `s3` |
+| `S3_ENDPOINT` | | MinIO or Garage URL; leave unset for AWS |
+| `S3_REGION` | | Region, when the endpoint needs one |
+| `S3_PREFIX` | | Key prefix, for sharing a bucket |
+| `S3_ACCESS_KEY_ID` | | Omit to use the credentials the environment provides |
+| `S3_SECRET_ACCESS_KEY` | | |
 | `WEB_ROOT` | unset | Directory holding the built web app, served alongside the API |
 | `CORS_ALLOWED_ORIGINS` | empty | Comma-separated origins for the SPA, not needed when `WEB_ROOT` serves it |
 | `DEFAULT_QUOTA_BYTES` | 10 GiB | Quota granted on first write |

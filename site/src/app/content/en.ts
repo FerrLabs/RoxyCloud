@@ -36,11 +36,11 @@ export const en: SiteContent = {
         'Share links, with an optional expiry and an optional password',
         'Search by name, with the path each match was found at',
         'The sweep that collects blobs nothing points at any more',
+        'S3-compatible object storage as well as local disk, which is what lets the chart run more than one replica',
       ],
       plannedHeading: 'Not written yet',
       planned: [
         'OIDC login',
-        'The S3 backend',
         'The sync engine behind the desktop client',
       ],
     },
@@ -284,7 +284,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'What is missing',
-      body: 'Resumable uploads, OIDC login and the S3 backend are tracked as issues, and none of them are implemented. A path that is not in the table above answers 404.',
+      body: 'Resumable uploads, OIDC login and thumbnails are tracked as issues, and none of them are implemented. A path that is not in the table above answers 404.',
     },
   },
 };

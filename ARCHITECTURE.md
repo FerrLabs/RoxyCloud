@@ -245,14 +245,35 @@ requests, and the SPA uses it for optimistic concurrency.
 
 ### Blob backends
 
-v1 ships two backends: local filesystem, sharded two levels deep on the digest prefix so no
-directory grows past a few thousand entries, and S3-compatible object storage. The local store
-landed first and is a concrete type; the trait arrives with the S3 backend, when a second caller
-actually exists to justify it.
+Two backends behind one `BlobStore` trait: local filesystem and S3-compatible object storage. Both
+shard two levels deep on the digest prefix, so no directory and no key prefix holds every blob in
+the deployment. `BLOB_BACKEND` picks one, and an unrecognised value is refused rather than quietly
+falling back, because a deployment that meant S3 and got local disk loses every upload when the pod
+restarts.
 
-Writes stage to a temp file while hashing, then rename into place under the digest. A rename is
-atomic on both POSIX and NTFS, so a torn upload leaves a temp file and never a corrupt blob, and a
-concurrent write of identical content collapses onto the same path instead of racing.
+The trait arrived with the second backend rather than before it. One implementation behind an
+interface is a guess about what varies; two are evidence.
+
+The name a blob is stored under is the hash of its contents, which is only known once the whole
+stream has been read. Each backend resolves that its own way. Local writes to a temp file while
+hashing, then renames into place: a rename is atomic on POSIX and NTFS, so a torn upload leaves a
+temp file and never a corrupt blob, and two writers of identical content collapse onto the same path
+instead of racing. S3 has no rename, so a write streams into a staging object, then copies
+server-side to the digest key and deletes the staging one. The copy costs no egress and the staging
+object is what `settle` clears up.
+
+An upload past eight mebibytes switches to a multipart upload, and anything smaller goes as a single
+request rather than the three a multipart needs. Every failure path aborts the multipart upload,
+because parts nobody completes are kept and charged for. A blob past five gibibytes is copied in
+parts too, since a single `CopyObject` will not carry it.
+
+Local disk means one replica owns the directory, so the chart refuses a second one. That constraint
+is the reason the S3 backend exists: with an object store the pods share nothing, and `replicaCount`
+becomes a number worth setting.
+
+The sweep asks the store whether a blob was written recently rather than looking at a file, which is
+a modification time on one backend and a `HEAD` on the other. That is what keeps a delete followed by
+a re-upload of the same content from racing the collector.
 
 ## Request path
 

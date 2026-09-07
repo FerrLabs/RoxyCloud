@@ -33,8 +33,28 @@ config:
   blobSweepIntervalSeconds: ""
   blobGracePeriodSeconds: ""
 
-# The blob store is a directory on disk, so one replica owns it. Until the S3
-# backend lands there is no configuration here that makes a second one safe.
+# Where the bytes live. On local disk one replica owns the directory, so the
+# chart refuses a second one; an object store has no such constraint and is what
+# makes replicaCount worth setting.
+blobs:
+  backend: local
+  s3:
+    bucket: ""
+    # Leave empty for AWS. MinIO and Garage want their own URL here.
+    endpoint: ""
+    region: us-east-1
+    prefix: ""
+    # Omit both to use whatever credentials the pod already has, which is how a
+    # role attached to the service account works.
+    accessKeyId: ""
+    secretAccessKey: ""
+    existingSecret: ""
+    accessKeyIdKey: s3-access-key-id
+    secretAccessKeyKey: s3-secret-access-key
+
+replicaCount: 1
+
+# Only read when blobs.backend is local.
 persistence:
   enabled: true
   existingClaim: ""
