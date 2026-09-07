@@ -22,6 +22,7 @@ pub struct Config {
     pub port: u16,
     pub database_url: String,
     pub blobs: BlobBackend,
+    pub upload_root: PathBuf,
     pub web_root: Option<PathBuf>,
     pub jwt_secret: String,
     pub cors_allowed_origins: Vec<String>,
@@ -60,6 +61,9 @@ impl Config {
             port: parse_or("PORT", 3001)?,
             database_url: required("DATABASE_URL")?,
             blobs: blobs()?,
+            upload_root: PathBuf::from(
+                optional("UPLOAD_ROOT").unwrap_or_else(|| "./data/uploads".to_owned()),
+            ),
             web_root: optional("WEB_ROOT").map(PathBuf::from),
             jwt_secret: required("JWT_SECRET")?,
             cors_allowed_origins: optional("CORS_ALLOWED_ORIGINS")

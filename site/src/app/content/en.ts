@@ -35,6 +35,7 @@ export const en: SiteContent = {
         'App passwords, and the WebDAV surface they authenticate',
         'Share links, with an optional expiry and an optional password, published and revoked from the web app',
         'Search by name, with the path each match was found at',
+        'Resumable uploads, so a large file over a bad link does not start again from zero',
         'The sweep that collects blobs nothing points at any more',
         'S3-compatible object storage as well as local disk, which is what lets the chart run more than one replica',
       ],
@@ -226,6 +227,11 @@ pnpm --filter @roxycloud/web build \\
         ['GET', '/v1/files/{*path}', 'Download'],
         ['DELETE', '/v1/files/{*path}', 'Move to the trash'],
         ['POST', '/v1/move', 'Rename a node, or move it under another directory'],
+        ['POST', '/v1/uploads', 'Open a resumable upload'],
+        ['GET', '/v1/uploads/{id}', 'Where it got to, for resuming'],
+        ['PATCH', '/v1/uploads/{id}', 'Append at Upload-Offset'],
+        ['POST', '/v1/uploads/{id}/finish', 'Hash what arrived and place it'],
+        ['DELETE', '/v1/uploads/{id}', 'Abandon it, taking the staged bytes'],
         ['GET', '/v1/search?q=', 'Find a node by part of its name'],
         ['GET', '/v1/app-passwords', 'The credentials this account has minted'],
         ['POST', '/v1/app-passwords', 'Mint one, shown once'],
@@ -285,7 +291,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'What is missing',
-      body: 'Resumable uploads, OIDC login and thumbnails are tracked as issues, and none of them are implemented. A path that is not in the table above answers 404.',
+      body: 'OIDC login and thumbnails are tracked as issues, and neither is implemented. A path that is not in the table above answers 404.',
     },
   },
 };

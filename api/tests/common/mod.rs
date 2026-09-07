@@ -21,6 +21,7 @@ pub const PASSWORD: &str = "twelve-characters-at-least";
 pub struct Harness {
     pub state: AppState,
     pub blob_root: PathBuf,
+    pub upload_root: PathBuf,
     /// The same store the state holds, kept concrete so a test can look at the files on disk.
     local: Arc<LocalBlobStore>,
     maintenance: PgPool,
@@ -55,6 +56,7 @@ impl Harness {
             .expect("running the migrations");
 
         let blob_root = std::env::temp_dir().join(format!("roxy-blobs-{database}"));
+        let upload_root = std::env::temp_dir().join(format!("roxy-uploads-{database}"));
         let blobs = Arc::new(
             LocalBlobStore::open(&blob_root)
                 .await
@@ -65,10 +67,16 @@ impl Harness {
             state: AppState {
                 db,
                 blobs: blobs.clone(),
+                staging: Arc::new(
+                    roxycloud_api::uploads::Staging::open(&upload_root)
+                        .await
+                        .expect("opening the upload staging"),
+                ),
                 sessions: Arc::new(Sessions::new("test-secret", chrono::Duration::hours(1))),
                 default_quota_bytes: 1_000_000,
             },
             blob_root,
+            upload_root,
             local: blobs,
             maintenance,
             database,
@@ -78,6 +86,7 @@ impl Harness {
     pub async fn stop(self) {
         self.state.db.close().await;
         let _ = tokio::fs::remove_dir_all(&self.blob_root).await;
+        let _ = tokio::fs::remove_dir_all(&self.upload_root).await;
         let _ = self
             .maintenance
             .execute(AssertSqlSafe(format!(
@@ -376,6 +385,24 @@ impl Harness {
             .execute(&self.state.db)
             .await
             .expect("grafting the node");
+    }
+
+    pub async fn staged_uploads(&self) -> usize {
+        let mut entries = tokio::fs::read_dir(&self.upload_root)
+            .await
+            .expect("the staging directory");
+        let mut count = 0;
+        while entries.next_entry().await.expect("entry").is_some() {
+            count += 1;
+        }
+        count
+    }
+
+    pub async fn expire_uploads(&self) {
+        sqlx::query("UPDATE uploads SET expires_at = now() - INTERVAL '1 second'")
+            .execute(&self.state.db)
+            .await
+            .expect("expiring the uploads");
     }
 
     pub async fn attempt_rows(&self) -> i64 {

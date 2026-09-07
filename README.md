@@ -62,6 +62,7 @@ Migrations run on boot. Configuration is environment only:
 | `JWT_SECRET` | required | HS256 secret used to sign session tokens |
 | `PORT` | `3001` | Listen port |
 | `BLOB_BACKEND` | `local` | `local` or `s3` |
+| `UPLOAD_ROOT` | `./data/uploads` | Scratch space for resumable uploads in flight |
 | `BLOB_ROOT` | `./data` | Local blob store root, when the backend is `local` |
 | `S3_BUCKET` | | Required when the backend is `s3` |
 | `S3_ENDPOINT` | | MinIO or Garage URL; leave unset for AWS |
@@ -127,6 +128,11 @@ PUT    /v1/files/{*path}      upload, creating parent directories
 GET    /v1/files/{*path}      download
 DELETE /v1/files/{*path}      move to trash
 POST   /v1/move               rename a node, or move it under another directory
+POST   /v1/uploads            open a resumable upload
+GET    /v1/uploads/{id}       where it got to, for resuming
+PATCH  /v1/uploads/{id}       append at Upload-Offset
+POST   /v1/uploads/{id}/finish  hash what arrived and place it
+DELETE /v1/uploads/{id}       abandon it, taking the staged bytes
 GET    /v1/search?q=          find a node by part of its name
 GET    /v1/app-passwords      the credentials this account has minted
 POST   /v1/app-passwords      mint one, shown once
@@ -230,6 +236,23 @@ not, so a member demoted to reader keeps the ability to take down what they publ
 listing carries names, sizes and modification times and no identifiers: not the node ids, not the
 account behind the link, and every public response says `Cache-Control: no-store` so that a proxy
 cannot go on serving a link somebody revoked.
+
+A large file over a bad link should not start again from zero. `POST /v1/uploads` opens a session
+for a path and a size, `PATCH` appends at `Upload-Offset`, and a client that lost the connection asks
+`GET /v1/uploads/{id}` where it got to rather than guessing: it knows what it sent, not what arrived.
+A chunk at the wrong offset is refused with the real one in the `Upload-Offset` header, so resyncing
+costs no extra round trip. `POST /v1/uploads/{id}/finish` hashes what arrived and places it.
+
+The digest is taken by rehashing the staged file at the end rather than carrying a hasher between
+requests, because a hasher state persisted across two processes is a second thing that can disagree
+with the bytes. Quota is checked when the session opens as well as charged when it finishes, so a
+client does not spend an hour sending a file there was never room for.
+
+The bytes of a session in flight live on local disk whichever backend owns the blobs. An object
+store has no append, and its multipart parts have a five mebibyte floor that would decide the
+client's chunk size and make an offset below a part boundary unresumable. The cost is scratch space
+under `UPLOAD_ROOT` for uploads in flight, bounded by the twenty-four hour session lifetime, and the
+sweep reconciles that directory against the sessions that still exist.
 
 `GET /v1/search?q=` matches part of a name against the account's own live tree, case-insensitively,
 prefix matches first. A result carries the path it was found at, because a name on its own tells you

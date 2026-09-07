@@ -31,6 +31,11 @@ pub fn spawn(state: AppState, every: Duration, grace: Duration) {
                 Ok(_) => {}
                 Err(error) => error!(%error, "purging expired attempts failed"),
             }
+            match sweep_uploads(&state).await {
+                Ok(cleared) if cleared > 0 => info!(uploads = cleared, "dropped expired uploads"),
+                Ok(_) => {}
+                Err(error) => error!(%error, "dropping expired uploads failed"),
+            }
             match state.blobs.sweep_staged(grace).await {
                 Ok(cleared) if cleared > 0 => info!(staged = cleared, "cleared stale uploads"),
                 Ok(_) => {}
@@ -49,6 +54,16 @@ pub fn spawn(state: AppState, every: Duration, grace: Duration) {
             }
         }
     });
+}
+
+/// Expired sessions go, and then the staging directory is reconciled against the sessions that
+/// remain. Deleting the row and deleting the bytes cannot be made one operation, so the second is
+/// driven by what the first left rather than by a list carried between them.
+async fn sweep_uploads(state: &AppState) -> Result<u64, ApiError> {
+    let expired = crate::uploads::purge_expired(&state.db).await?.len();
+    let live = crate::uploads::live_staged(&state.db).await?;
+    state.staging.sweep(&live).await?;
+    Ok(expired as u64)
 }
 
 pub async fn sweep(state: &AppState, grace: Duration) -> Result<Collected, ApiError> {

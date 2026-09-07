@@ -36,12 +36,24 @@ pub enum ApiError {
     InvalidEmail(#[from] roxycloud_core::user::InvalidEmail),
     #[error("quota exceeded")]
     QuotaExceeded,
+    #[error("this upload is at {expected} bytes")]
+    OffsetMismatch { expected: i64 },
+    #[error("this upload has {received} of {expected} bytes")]
+    Incomplete { received: i64, expected: i64 },
     #[error("expected a {expected}")]
     WrongKind { expected: &'static str },
     #[error("storage failure")]
     Storage(#[from] StorageError),
     #[error("database failure")]
     Database(#[from] sqlx::Error),
+}
+
+/// The staging area an upload in flight writes to is storage, so a disk that refuses is the same
+/// kind of failure as a blob store that refuses.
+impl From<std::io::Error> for ApiError {
+    fn from(err: std::io::Error) -> Self {
+        Self::Storage(StorageError::Io(err))
+    }
 }
 
 impl From<crate::password::HashFailed> for ApiError {
@@ -65,7 +77,10 @@ impl ApiError {
             Self::WeakPassword(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::NotFound | Self::Storage(StorageError::NotFound(_)) => StatusCode::NOT_FOUND,
             Self::Forbidden => StatusCode::FORBIDDEN,
-            Self::Conflict(_) | Self::MoveIntoSelf => StatusCode::CONFLICT,
+            Self::Conflict(_) | Self::MoveIntoSelf | Self::OffsetMismatch { .. } => {
+                StatusCode::CONFLICT
+            }
+            Self::Incomplete { .. } => StatusCode::BAD_REQUEST,
             Self::Locked(_) => StatusCode::LOCKED,
             Self::InvalidPath(_) | Self::InvalidEmail(_) | Self::WrongKind { .. } => {
                 StatusCode::BAD_REQUEST
@@ -91,6 +106,14 @@ impl IntoResponse for ApiError {
             self.to_string()
         };
         let mut response = (status, Json(json!({ "error": body }))).into_response();
+
+        // A client that lost the connection knows what it sent, not what arrived, so the offset to
+        // resume from travels with the refusal rather than needing another round trip.
+        if let Self::OffsetMismatch { expected } = self {
+            response
+                .headers_mut()
+                .insert("upload-offset", HeaderValue::from(expected));
+        }
 
         // A limiter a client cannot cooperate with is one it answers by retrying immediately.
         if let Self::TooManyAttempts { seconds } = self
