@@ -4,6 +4,7 @@ pub mod files;
 pub mod search;
 pub mod shares;
 pub mod trash;
+pub mod uploads;
 pub mod users;
 
 use axum::Json;
@@ -41,6 +42,14 @@ pub fn router(state: AppState) -> Router {
             get(shares::download_at),
         )
         .route("/v1/search", get(search::search))
+        .route("/v1/uploads", get(uploads::mine).post(uploads::begin))
+        .route(
+            "/v1/uploads/{id}",
+            get(uploads::status)
+                .patch(uploads::append)
+                .delete(uploads::abandon),
+        )
+        .route("/v1/uploads/{id}/finish", post(uploads::finish))
         .route("/v1/move", post(files::rename))
         .route("/v1/trash", get(trash::list))
         .route("/v1/trash/{id}", delete(trash::purge))
