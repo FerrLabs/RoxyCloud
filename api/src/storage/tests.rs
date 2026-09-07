@@ -318,6 +318,109 @@ both_backends!(
     }
 );
 
+both_backends!(a_sweep_leaves_a_staged_upload_that_is_still_young, store, {
+    let written = store
+        .write(stream_of(&[b"just staged"]))
+        .await
+        .expect("write");
+
+    assert_eq!(
+        store
+            .sweep_staged(Duration::from_secs(3600))
+            .await
+            .expect("sweep"),
+        0,
+        "a sweep that takes an upload in flight is worse than one that never runs"
+    );
+    assert!(store.read(written.hash).await.is_ok());
+});
+
+#[tokio::test]
+async fn a_local_upload_nobody_settled_is_swept() {
+    let (store, dir) = local_store().await;
+    let first = store
+        .write(stream_of(&[b"same bytes"]))
+        .await
+        .expect("first");
+    store.settle(&first).await.expect("settle");
+
+    // The deduplicating path keeps the temp file so `settle` can put it back if the destination
+    // vanished. A caller that fails before settling never comes back for it, and until this swept
+    // nothing did.
+    let again = store
+        .write(stream_of(&[b"same bytes"]))
+        .await
+        .expect("second");
+    assert!(again.deduplicated);
+    assert_eq!(staged_files(&dir).await, 1);
+
+    age_staged(&dir, Duration::from_secs(600)).await;
+    let cleared = store
+        .sweep_staged(Duration::from_secs(60))
+        .await
+        .expect("sweep");
+
+    assert_eq!(cleared, 1);
+    assert_eq!(staged_files(&dir).await, 0);
+    assert!(
+        store.read(again.hash).await.is_ok(),
+        "the blob itself is not the sweep's business here"
+    );
+}
+
+async fn staged_files(dir: &tempfile::TempDir) -> usize {
+    let mut entries = tokio::fs::read_dir(dir.path().join("tmp"))
+        .await
+        .expect("tmp dir");
+    let mut count = 0;
+    while entries.next_entry().await.expect("entry").is_some() {
+        count += 1;
+    }
+    count
+}
+
+async fn age_staged(dir: &tempfile::TempDir, by: Duration) {
+    let mut entries = tokio::fs::read_dir(dir.path().join("tmp"))
+        .await
+        .expect("tmp dir");
+    while let Some(entry) = entries.next_entry().await.expect("entry") {
+        std::fs::File::options()
+            .write(true)
+            .open(entry.path())
+            .expect("opening the staged file")
+            .set_modified(SystemTime::now() - by)
+            .expect("ageing the staged file");
+    }
+}
+
+#[tokio::test]
+async fn an_object_store_sweeps_an_upload_a_killed_process_left_behind() {
+    let Some(fixture) = s3_store().await else {
+        eprintln!("skipping: S3_TEST_ENDPOINT is not set");
+        return;
+    };
+
+    // What a process killed mid-upload leaves: parts that no listing of objects shows and that the
+    // bill does.
+    let failing = upload(futures::stream::iter(vec![
+        Ok(Bytes::from(vec![b'x'; 9 * 1024 * 1024])),
+        Err(std::io::Error::other("connection reset")),
+    ]));
+    assert!(fixture.store.write(failing).await.is_err());
+    assert_eq!(
+        fixture.unfinished_uploads().await,
+        0,
+        "the write aborts its own"
+    );
+
+    let cleared = fixture
+        .store
+        .sweep_staged(Duration::from_secs(3600))
+        .await
+        .expect("sweep");
+    assert_eq!(cleared, 0, "nothing here is old enough to take");
+}
+
 #[test]
 fn a_stamp_the_clock_has_not_reached_counts_as_recent() {
     let grace = Duration::from_secs(60);

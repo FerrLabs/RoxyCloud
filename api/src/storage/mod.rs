@@ -78,6 +78,13 @@ pub trait BlobStore: Send + Sync {
     /// alone. A delete followed by a re-upload of the same content adopts the existing blob, and
     /// this is what stops the collector removing it in between.
     async fn written_within(&self, hash: BlobHash, grace: Duration) -> bool;
+
+    /// Clears what an upload left staged and nobody came back for. A caller does its own work
+    /// between `write` and `settle` and can fail there, and a process can be killed mid-upload, so
+    /// the staging area needs an owner that is not the request that filled it.
+    ///
+    /// Answers how much it removed.
+    async fn sweep_staged(&self, grace: Duration) -> Result<u64, StorageError>;
 }
 
 /// Whether bytes stamped `at` are young enough that the sweep should leave them alone.

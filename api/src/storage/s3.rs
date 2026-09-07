@@ -403,6 +403,81 @@ impl BlobStore for S3BlobStore {
             .and_then(|at| SystemTime::try_from(*at).ok())
             .is_some_and(|at| is_recent(at, grace))
     }
+
+    /// Two kinds of leftover, and the second is the one that costs money quietly: a staging object
+    /// a killed process never placed, and a multipart upload nobody completed, whose parts are
+    /// kept and charged for without appearing in any listing of objects.
+    async fn sweep_staged(&self, grace: Duration) -> Result<u64, StorageError> {
+        let mut removed = self.sweep_staged_objects(grace).await?;
+        removed += self.sweep_unfinished_uploads(grace).await?;
+        Ok(removed)
+    }
+}
+
+impl S3BlobStore {
+    fn staging_prefix(&self) -> String {
+        format!("{}tmp/", self.prefix)
+    }
+
+    async fn sweep_staged_objects(&self, grace: Duration) -> Result<u64, StorageError> {
+        let listed = self
+            .client
+            .list_objects_v2()
+            .bucket(&self.bucket)
+            .prefix(self.staging_prefix())
+            .send()
+            .await
+            .map_err(|err| remote(&err))?;
+
+        let mut removed = 0;
+        for object in listed.contents() {
+            let stale = object
+                .last_modified()
+                .and_then(|at| SystemTime::try_from(*at).ok())
+                .is_some_and(|at| !is_recent(at, grace));
+
+            if let (true, Some(key)) = (stale, object.key()) {
+                self.discard(key).await;
+                removed += 1;
+            }
+        }
+        Ok(removed)
+    }
+
+    async fn sweep_unfinished_uploads(&self, grace: Duration) -> Result<u64, StorageError> {
+        let listed = self
+            .client
+            .list_multipart_uploads()
+            .bucket(&self.bucket)
+            .send()
+            .await
+            .map_err(|err| remote(&err))?;
+
+        let prefix = self.staging_prefix();
+        let mut removed = 0;
+        for upload in listed.uploads() {
+            let stale = upload
+                .initiated()
+                .and_then(|at| SystemTime::try_from(*at).ok())
+                .is_some_and(|at| !is_recent(at, grace));
+            let mine = upload.key().is_some_and(|key| key.starts_with(&prefix));
+
+            if let (true, true, Some(key), Some(id)) =
+                (stale, mine, upload.key(), upload.upload_id())
+            {
+                let _ = self
+                    .client
+                    .abort_multipart_upload()
+                    .bucket(&self.bucket)
+                    .key(key)
+                    .upload_id(id)
+                    .send()
+                    .await;
+                removed += 1;
+            }
+        }
+        Ok(removed)
+    }
 }
 
 /// A missing object and a missing bucket both arrive as a 404, and neither is a failure worth
