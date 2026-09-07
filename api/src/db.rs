@@ -407,6 +407,15 @@ pub(crate) async fn contains(
     .map_err(Into::into)
 }
 
+/// A reference held by something that is not a node. The thumbnail cache points at bytes no node
+/// points at, and without this the sweep would collect them out from under it.
+pub(crate) async fn acquire_blob_for_cache(
+    tx: &mut Transaction<'_, Postgres>,
+    hash: BlobHash,
+) -> Result<(), ApiError> {
+    acquire_blob(tx, hash).await
+}
+
 async fn acquire_blob(tx: &mut Transaction<'_, Postgres>, hash: BlobHash) -> Result<(), ApiError> {
     sqlx::query(
         "UPDATE blobs SET ref_count = ref_count + 1, unreferenced_since = NULL WHERE hash = $1",
