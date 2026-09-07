@@ -74,6 +74,8 @@ impl Harness {
                 ),
                 sessions: Arc::new(Sessions::new("test-secret", chrono::Duration::hours(1))),
                 decoders: Arc::new(tokio::sync::Semaphore::new(2)),
+                oidc: None,
+                http: reqwest::Client::new(),
                 default_quota_bytes: 1_000_000,
             },
             blob_root,
@@ -394,6 +396,30 @@ impl Harness {
             .fetch_one(&self.state.db)
             .await
             .expect("reading the blob")
+    }
+
+    pub async fn account_by_email(&self, email: &str) -> User {
+        users::by_email(
+            &self.state.db,
+            &email.parse::<Email>().expect("valid email"),
+        )
+        .await
+        .expect("looking the account up")
+        .expect("an account with that address")
+    }
+
+    pub async fn account_count(&self) -> i64 {
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM users")
+            .fetch_one(&self.state.db)
+            .await
+            .expect("counting the accounts")
+    }
+
+    pub async fn expire_oidc_flows(&self) {
+        sqlx::query("UPDATE oidc_flows SET expires_at = now() - INTERVAL '1 second'")
+            .execute(&self.state.db)
+            .await
+            .expect("expiring the flows");
     }
 
     pub async fn thumbnail_rows(&self) -> i64 {

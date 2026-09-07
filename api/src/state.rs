@@ -6,7 +6,7 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 
 use crate::auth::Sessions;
 use crate::config::Config;
-use crate::config::{BlobBackend, S3Config};
+use crate::config::{BlobBackend, OidcConfig, S3Config};
 use crate::storage::{BlobStore, LocalBlobStore, S3BlobStore};
 
 #[derive(Clone)]
@@ -18,6 +18,8 @@ pub struct AppState {
     /// How many thumbnails may be decoded at once. Every other bound in that feature is per
     /// request, so without this they multiply by however many requests are in flight.
     pub decoders: Arc<tokio::sync::Semaphore>,
+    pub oidc: Option<Arc<OidcConfig>>,
+    pub http: reqwest::Client,
     pub default_quota_bytes: i64,
 }
 
@@ -86,6 +88,8 @@ impl AppState {
             decoders: Arc::new(tokio::sync::Semaphore::new(
                 std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get),
             )),
+            oidc: cfg.oidc.clone().map(Arc::new),
+            http: reqwest::Client::new(),
             sessions: Arc::new(Sessions::new(
                 &cfg.jwt_secret,
                 chrono::Duration::seconds(cfg.session_ttl_seconds),

@@ -31,6 +31,11 @@ pub fn spawn(state: AppState, every: Duration, grace: Duration) {
                 Ok(_) => {}
                 Err(error) => error!(%error, "purging expired attempts failed"),
             }
+            match crate::oidc::purge_expired(&state.db).await {
+                Ok(expired) if expired > 0 => info!(flows = expired, "removed expired sign-ins"),
+                Ok(_) => {}
+                Err(error) => error!(%error, "removing expired sign-ins failed"),
+            }
             match crate::thumbnails::forget_orphans(&state.db).await {
                 Ok(dropped) if dropped > 0 => {
                     info!(thumbnails = dropped, "dropped orphaned thumbnails");
