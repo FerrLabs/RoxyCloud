@@ -279,7 +279,9 @@ The staging area has an owner that is not the request that filled it. A caller d
 work between `write` and `settle` and can fail there, and a process can be killed mid-upload, so the
 sweep clears what is older than the grace period: a temp file on local disk, and on the object store
 both a staging object and a multipart upload nobody completed, the second of which appears in no
-listing of objects and is charged for regardless.
+listing of objects and is charged for regardless. Multipart uploads are matched on the store's whole
+prefix rather than on the staging directory, because the copy onto a digest key starts one there
+too; with no prefix configured that is the bucket, which the store already assumes it owns.
 
 The sweep asks the store whether a blob was written recently rather than looking at a file, which is
 a modification time on one backend and a `HEAD` on the other. That is what keeps a delete followed by

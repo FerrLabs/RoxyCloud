@@ -32,9 +32,9 @@ pub(super) async fn local_store() -> (LocalBlobStore, tempfile::TempDir) {
 
 pub(super) struct S3Fixture {
     pub store: S3BlobStore,
-    client: Client,
-    bucket: String,
-    prefix: String,
+    pub client: Client,
+    pub bucket: String,
+    pub prefix: String,
 }
 
 impl S3Fixture {
@@ -413,12 +413,86 @@ async fn an_object_store_sweeps_an_upload_a_killed_process_left_behind() {
         "the write aborts its own"
     );
 
+    // What a killed process leaves instead: parts nobody aborted, which no listing of objects
+    // shows and the bill does. `initiated` is set by the server, so a zero grace is what makes it
+    // stale rather than ageing it.
+    let orphan = format!("{}tmp/{}", fixture.prefix, uuid::Uuid::now_v7());
+    fixture
+        .client
+        .create_multipart_upload()
+        .bucket(&fixture.bucket)
+        .key(&orphan)
+        .send()
+        .await
+        .expect("starting an upload nobody finishes");
+    assert_eq!(fixture.unfinished_uploads().await, 1);
+
     let cleared = fixture
         .store
-        .sweep_staged(Duration::from_secs(3600))
+        .sweep_staged(Duration::ZERO)
         .await
         .expect("sweep");
-    assert_eq!(cleared, 0, "nothing here is old enough to take");
+
+    assert_eq!(cleared, 1);
+    assert_eq!(fixture.unfinished_uploads().await, 0);
+}
+
+#[tokio::test]
+async fn an_object_store_sweeps_a_copy_a_killed_process_left_at_the_digest_key() {
+    let Some(fixture) = s3_store().await else {
+        eprintln!("skipping: S3_TEST_ENDPOINT is not set");
+        return;
+    };
+
+    // `copy_in_parts` starts its multipart at the destination key rather than under the staging
+    // directory, so a sweep that matched on `tmp/` would walk past this one for good.
+    let at_a_digest = format!("{}ab/cd/{}", fixture.prefix, "0".repeat(64));
+    fixture
+        .client
+        .create_multipart_upload()
+        .bucket(&fixture.bucket)
+        .key(&at_a_digest)
+        .send()
+        .await
+        .expect("starting a copy nobody finishes");
+
+    let cleared = fixture
+        .store
+        .sweep_staged(Duration::ZERO)
+        .await
+        .expect("sweep");
+
+    assert_eq!(cleared, 1);
+    assert_eq!(fixture.unfinished_uploads().await, 0);
+}
+
+#[tokio::test]
+async fn an_object_store_sweeps_a_staging_object_nobody_placed() {
+    let Some(fixture) = s3_store().await else {
+        eprintln!("skipping: S3_TEST_ENDPOINT is not set");
+        return;
+    };
+
+    let orphan = format!("{}tmp/{}", fixture.prefix, uuid::Uuid::now_v7());
+    fixture
+        .client
+        .put_object()
+        .bucket(&fixture.bucket)
+        .key(&orphan)
+        .body(aws_sdk_s3::primitives::ByteStream::from_static(b"staged"))
+        .send()
+        .await
+        .expect("staging an object nobody places");
+    assert_eq!(fixture.keys().await, vec![orphan]);
+
+    let cleared = fixture
+        .store
+        .sweep_staged(Duration::ZERO)
+        .await
+        .expect("sweep");
+
+    assert_eq!(cleared, 1);
+    assert!(fixture.keys().await.is_empty());
 }
 
 #[test]
