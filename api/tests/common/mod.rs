@@ -409,6 +409,31 @@ impl Harness {
             .expect("rewinding the upload");
     }
 
+    pub async fn hold_upload(&self, id: &str) {
+        sqlx::query(
+            "UPDATE uploads SET writing_until = now() + INTERVAL '5 minutes' WHERE id = $1::uuid",
+        )
+        .bind(id)
+        .execute(&self.state.db)
+        .await
+        .expect("holding the upload");
+    }
+
+    pub async fn release_upload(&self, id: &str) {
+        sqlx::query("UPDATE uploads SET writing_until = NULL WHERE id = $1::uuid")
+            .bind(id)
+            .execute(&self.state.db)
+            .await
+            .expect("releasing the upload");
+    }
+
+    pub async fn expire_upload_claims(&self) {
+        sqlx::query("UPDATE uploads SET writing_until = now() - INTERVAL '1 second'")
+            .execute(&self.state.db)
+            .await
+            .expect("expiring the claims");
+    }
+
     pub async fn expire_uploads(&self) {
         sqlx::query("UPDATE uploads SET expires_at = now() - INTERVAL '1 second'")
             .execute(&self.state.db)

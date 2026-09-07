@@ -31,7 +31,7 @@ pub fn spawn(state: AppState, every: Duration, grace: Duration) {
                 Ok(_) => {}
                 Err(error) => error!(%error, "purging expired attempts failed"),
             }
-            match sweep_uploads(&state, grace).await {
+            match sweep_uploads(&state).await {
                 Ok(cleared) if cleared > 0 => info!(uploads = cleared, "dropped expired uploads"),
                 Ok(_) => {}
                 Err(error) => error!(%error, "dropping expired uploads failed"),
@@ -59,10 +59,16 @@ pub fn spawn(state: AppState, every: Duration, grace: Duration) {
 /// Expired sessions go, and then the staging directory is reconciled against the sessions that
 /// remain. Deleting the row and deleting the bytes cannot be made one operation, so the second is
 /// driven by what the first left rather than by a list carried between them.
-async fn sweep_uploads(state: &AppState, grace: Duration) -> Result<u64, ApiError> {
+/// The staging reconcile has its own grace rather than the blob one. All it has to cover is the
+/// moment between a session's file being created and its row being inserted, and borrowing the
+/// blob grace would keep a purged session's bytes for another day on the disk this design already
+/// calls the scarce one.
+const STAGING_GRACE: Duration = Duration::from_secs(120);
+
+async fn sweep_uploads(state: &AppState) -> Result<u64, ApiError> {
     let expired = crate::uploads::purge_expired(&state.db).await?.len();
     let live = crate::uploads::live_staged(&state.db).await?;
-    state.staging.sweep(&live, grace).await?;
+    state.staging.sweep(&live, STAGING_GRACE).await?;
     Ok(expired as u64)
 }
 

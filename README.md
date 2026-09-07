@@ -255,6 +255,14 @@ and hold all of it for a day.
 Quota is checked when the session opens as well as charged when it finishes, so a
 client does not spend an hour sending a file there was never room for.
 
+A session is claimed for the length of one write, and a second write while that claim stands is
+refused with a 409. Two writers do not share a file cursor, so without it the second truncating
+under the first would leave a hole of zeros between their write heads, and a length that happened to
+land on the promised size would be stored under an ETag over those zeros. The claim expires by
+itself, so a request that died holding it does not strand the session for the day it has left. A
+lock would serialise them too, but it would hold a database transaction open for as long as the
+client takes to send its body, which is what this endpoint is built to be slow at.
+
 A chunk is written at the offset the session records rather than appended to the end, and the file
 is cut back to that offset first. A request that died mid-body left bytes past that offset, because
 `received` is only recorded once a whole chunk has drained, and appending after them would duplicate

@@ -217,6 +217,49 @@ database_test!(
 );
 
 database_test!(
+    a_session_being_written_to_refuses_a_second_write,
+    harness,
+    {
+        let (_, bearer) = session(&harness, "owner@example.com", Role::Member).await;
+        let whole = payload(1000);
+        let upload = begin(&harness, &bearer, "raced.bin", whole.len())
+            .await
+            .id();
+
+        // Standing in for a request that is still draining its body: two writers do not share a file
+        // cursor, so the second truncating under the first would leave a hole of zeros between their
+        // write heads, and a length landing on `size` would be stored under an ETag over those zeros.
+        // Forcing that interleave in process is not reliable, so what is pinned here is the claim.
+        harness.hold_upload(&upload).await;
+        let refused = send(&harness, &bearer, &upload, 0, &whole[..400]).await;
+
+        harness.release_upload(&upload).await;
+        let allowed = send(&harness, &bearer, &upload, 0, &whole[..400]).await;
+
+        assert_eq!(refused.status, StatusCode::CONFLICT);
+        assert_eq!(allowed.status, StatusCode::OK);
+        assert_eq!(allowed.offset(), 400);
+    }
+);
+
+database_test!(
+    a_claim_nobody_released_does_not_strand_the_session,
+    harness,
+    {
+        let (_, bearer) = session(&harness, "owner@example.com", Role::Member).await;
+        let upload = begin(&harness, &bearer, "abandoned.bin", 1000).await.id();
+
+        // A request that died holding the claim would otherwise hold the session for the day it has
+        // left, so the claim expires rather than needing anybody to come back for it.
+        harness.hold_upload(&upload).await;
+        harness.expire_upload_claims().await;
+        let after = send(&harness, &bearer, &upload, 0, &payload(400)).await;
+
+        assert_eq!(after.status, StatusCode::OK);
+    }
+);
+
+database_test!(
     a_chunk_at_the_wrong_offset_is_told_the_right_one,
     harness,
     {
