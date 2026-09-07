@@ -259,8 +259,11 @@ stream has been read. Each backend resolves that its own way. Local writes to a 
 hashing, then renames into place: a rename is atomic on POSIX and NTFS, so a torn upload leaves a
 temp file and never a corrupt blob, and two writers of identical content collapse onto the same path
 instead of racing. S3 has no rename, so a write streams into a staging object, then copies
-server-side to the digest key and deletes the staging one. The copy costs no egress and the staging
-object is what `settle` clears up.
+server-side to the digest key and deletes the staging one before it returns. The copy costs no
+egress, and clearing the staging object inside the write rather than in `settle` matters: a caller
+does its own database work in between and can fail there, and nothing walks the staging prefix
+looking for orphans. The local store still defers to `settle` on its deduplicating path, which has
+the same hole (#102).
 
 An upload past eight mebibytes switches to a multipart upload, and anything smaller goes as a single
 request rather than the three a multipart needs. Every failure path aborts the multipart upload,

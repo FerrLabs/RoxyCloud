@@ -8,7 +8,7 @@ use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart};
 use bytes::{Bytes, BytesMut};
 use futures::StreamExt;
 
-use super::{BlobStore, Reader, Staged, StorageError, Upload, Written, is_recent, shards};
+use super::{BlobStore, Reader, StorageError, Upload, Written, is_recent, shards};
 use roxycloud_core::blob::BlobHash;
 
 /// S3 refuses a part below five mebibytes unless it is the last one, and ten thousand parts is the
@@ -223,6 +223,17 @@ impl S3BlobStore {
         self.discard(key).await;
     }
 
+    /// Whether the blob was already there. The key is the digest, so one that is already there is
+    /// the same bytes and nothing is overwritten.
+    async fn place(&self, staging: &str, hash: BlobHash, size: u64) -> Result<bool, StorageError> {
+        let destination = self.key_for(hash);
+        if self.exists(&destination).await? {
+            return Ok(true);
+        }
+        self.copy(staging, &destination, size).await?;
+        Ok(false)
+    }
+
     async fn copy(&self, from: &str, to: &str, size: u64) -> Result<(), StorageError> {
         if size > LARGEST_SINGLE_COPY {
             return self.copy_in_parts(from, to, size).await;
@@ -288,26 +299,24 @@ impl BlobStore for S3BlobStore {
     async fn write(&self, chunks: Upload) -> Result<Written, StorageError> {
         let staging = self.staging_key();
         let (hash, size) = self.stage(chunks, &staging).await?;
-        let destination = self.key_for(hash);
 
-        // The key is the digest, so a blob already there is the same bytes. Nothing is overwritten.
-        let deduplicated = self.exists(&destination).await?;
-        if !deduplicated {
-            self.copy(&staging, &destination, size).await?;
-        }
+        let placed = self.place(&staging, hash, size).await;
+        // Both arms clear the staging object. Holding it until `settle` would mean a caller that
+        // fails in between pays for it for good, since nothing walks the staging prefix looking
+        // for orphans, and a copy that failed would leave one nobody can even name.
+        self.discard(&staging).await;
 
         Ok(Written {
             hash,
             size,
-            deduplicated,
-            staged: Some(Staged::Object(staging)),
+            deduplicated: placed?,
+            staged: None,
         })
     }
 
-    async fn settle(&self, written: &Written) -> Result<(), StorageError> {
-        if let Some(Staged::Object(staging)) = &written.staged {
-            self.discard(staging).await;
-        }
+    /// Nothing is outstanding once a write returns, so there is nothing here to settle. The local
+    /// store is the one that leaves a temp file behind.
+    async fn settle(&self, _written: &Written) -> Result<(), StorageError> {
         Ok(())
     }
 

@@ -45,20 +45,14 @@ where
     Box::pin(chunks.map(|chunk| chunk.map_err(|err| StorageError::Upstream(Box::new(err)))))
 }
 
-/// What a finished write left behind that still needs clearing up. A backend reads only its own
-/// variant, and nothing outside the store looks inside.
-#[derive(Debug, Clone)]
-pub(crate) enum Staged {
-    File(PathBuf),
-    Object(String),
-}
-
 #[derive(Debug, Clone)]
 pub struct Written {
     pub hash: BlobHash,
     pub size: u64,
     pub deduplicated: bool,
-    pub(crate) staged: Option<Staged>,
+    /// A temp file the write left for `settle` to deal with. Only the local store uses one: the
+    /// object store has nothing outstanding by the time a write returns.
+    pub(crate) staged: Option<PathBuf>,
 }
 
 /// Content-addressed bytes. The name a blob is stored under is derived from its contents, so a

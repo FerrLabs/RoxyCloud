@@ -346,7 +346,7 @@ async fn a_local_failure_leaves_nothing_staged() {
 }
 
 #[tokio::test]
-async fn an_object_store_keeps_only_the_blob_once_settled() {
+async fn an_object_store_keeps_only_the_blob_once_a_write_returns() {
     let Some(fixture) = s3_store().await else {
         eprintln!("skipping: S3_TEST_ENDPOINT is not set");
         return;
@@ -354,15 +354,45 @@ async fn an_object_store_keeps_only_the_blob_once_settled() {
 
     let written = fixture
         .store
-        .write(stream_of(&[b"staged then settled"]))
+        .write(stream_of(&[b"staged then placed"]))
         .await
         .expect("write");
-    fixture.store.settle(&written).await.expect("settle");
 
+    // Deliberately before `settle`. A caller does its own database work in between and can fail
+    // there, so a staging object that only a later call clears up is one nobody ever clears up.
     assert_eq!(
         fixture.keys().await,
         vec![fixture.store.key_for(written.hash)],
-        "the staging object has to go, or every upload is billed twice over"
+        "the staging object has to go, or every upload that is not followed through is billed for good"
+    );
+
+    fixture.store.settle(&written).await.expect("settle");
+    assert_eq!(fixture.keys().await.len(), 1);
+}
+
+#[tokio::test]
+async fn an_object_store_keeps_nothing_when_a_write_dedupes() {
+    let Some(fixture) = s3_store().await else {
+        eprintln!("skipping: S3_TEST_ENDPOINT is not set");
+        return;
+    };
+
+    let first = fixture
+        .store
+        .write(stream_of(&[b"twice"]))
+        .await
+        .expect("first");
+    let second = fixture
+        .store
+        .write(stream_of(&[b"twice"]))
+        .await
+        .expect("second");
+
+    assert!(second.deduplicated);
+    assert_eq!(
+        fixture.keys().await,
+        vec![fixture.store.key_for(first.hash)],
+        "the second upload staged its own copy and has to clear it up too"
     );
 }
 

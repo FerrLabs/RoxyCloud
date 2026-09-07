@@ -6,7 +6,7 @@ use futures::StreamExt;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
-use super::{BlobStore, Reader, Staged, StorageError, Upload, Written, is_recent, shards};
+use super::{BlobStore, Reader, StorageError, Upload, Written, is_recent, shards};
 use roxycloud_core::blob::BlobHash;
 
 pub struct LocalBlobStore {
@@ -60,7 +60,7 @@ impl BlobStore for LocalBlobStore {
                 hash,
                 size,
                 deduplicated: true,
-                staged: Some(Staged::File(staged)),
+                staged: Some(staged),
             });
         }
 
@@ -78,7 +78,7 @@ impl BlobStore for LocalBlobStore {
     }
 
     async fn settle(&self, written: &Written) -> Result<(), StorageError> {
-        let Some(Staged::File(staged)) = &written.staged else {
+        let Some(staged) = &written.staged else {
             return Ok(());
         };
 
