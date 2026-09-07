@@ -1,6 +1,7 @@
 import { InjectionToken, type Provider } from '@angular/core';
 import type { Account } from './account';
 import type { Node } from './node';
+import type { Minted, NewShare, Share } from './share';
 
 export type PlatformKind = 'browser' | 'desktop';
 
@@ -15,6 +16,9 @@ export interface Platform {
   remove(path: string): Promise<void>;
   rename(from: string, to: string): Promise<Node>;
   upload?(path: string, file: File): Promise<void>;
+  listShares?(): Promise<Share[]>;
+  share?(request: NewShare): Promise<Minted>;
+  revokeShare?(id: string): Promise<void>;
 }
 
 export const PLATFORM = new InjectionToken<Platform>('RoxyCloud platform');
@@ -78,6 +82,16 @@ function browserPlatform(baseUrl: string): Platform {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ from, to }),
       }),
+    listShares: () => json<Share[]>('/v1/shares'),
+    share: (request) =>
+      json<Minted>('/v1/shares', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      }),
+    revokeShare: async (id) => {
+      await call(`/v1/shares/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    },
   };
 }
 

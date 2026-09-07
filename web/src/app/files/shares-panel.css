@@ -1,0 +1,85 @@
+.panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.failure {
+  margin: 0;
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius);
+  background: var(--danger-wash);
+  color: var(--danger-ink);
+  font-size: 0.9rem;
+}
+
+.state {
+  margin: 0;
+  padding: 1.5rem 0;
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.state .detail {
+  font-size: 0.9rem;
+  color: var(--ink-faint);
+}
+
+.listing {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.listing li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 1rem;
+  background: var(--surface);
+}
+
+.listing li + li {
+  border-top: 1px solid var(--rule-soft);
+}
+
+.what {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.detail {
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+}
+
+.danger {
+  color: var(--danger-ink);
+}

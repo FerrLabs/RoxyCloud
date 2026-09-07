@@ -19,11 +19,13 @@ import { Confirm } from '../shared/confirm';
 import { Prompt } from '../shared/prompt';
 import { Breadcrumb } from './breadcrumb';
 import { Preview } from './preview';
+import { ShareDialog } from './share-dialog';
+import { SharesPanel } from './shares-panel';
 import { UploadTarget } from './upload-target';
 
 @Component({
   selector: 'rx-file-browser',
-  imports: [Breadcrumb, Confirm, Preview, Prompt, UploadTarget],
+  imports: [Breadcrumb, Confirm, Preview, Prompt, ShareDialog, SharesPanel, UploadTarget],
   templateUrl: './file-browser.html',
   styleUrl: './file-browser.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -59,6 +61,10 @@ export class FileBrowser {
   protected readonly canUpload = computed(
     () => this.platform.upload !== undefined && this.canWrite(),
   );
+  protected readonly canShare = computed(
+    () => this.platform.share !== undefined && this.canWrite(),
+  );
+  protected readonly canSeeLinks = computed(() => this.platform.listShares !== undefined);
   protected readonly dragging = signal(false);
   protected readonly pending = signal(0);
   protected readonly announcement = signal<string | null>(null);
@@ -66,6 +72,9 @@ export class FileBrowser {
   protected readonly doomed = signal<Node | null>(null);
   protected readonly renaming = signal<Node | null>(null);
   protected readonly opened = signal<Node | null>(null);
+  protected readonly sharing = signal<Node | null>(null);
+  protected readonly showingLinks = signal(false);
+  protected readonly published = signal(0);
 
   protected readonly size = formatSize;
   protected readonly date = formatDate;
@@ -77,6 +86,7 @@ export class FileBrowser {
       this.failure.set(null);
       this.opened.set(null);
       this.renaming.set(null);
+      this.sharing.set(null);
     });
   }
 
@@ -86,6 +96,10 @@ export class FileBrowser {
       return;
     }
     this.opened.set(node);
+  }
+
+  protected notePublished(): void {
+    this.published.update((count) => count + 1);
   }
 
   protected pathOf(node: Node): string {

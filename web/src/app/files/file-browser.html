@@ -16,11 +16,25 @@
       >
         Refresh
       </button>
+      @if (canSeeLinks()) {
+        <button
+          type="button"
+          class="ghost"
+          [attr.aria-expanded]="showingLinks()"
+          (click)="showingLinks.set(!showingLinks())"
+        >
+          Links
+        </button>
+      }
       @if (canUpload()) {
         <rx-upload-target [pending]="pending()" (chosen)="upload($event)" />
       }
     </span>
   </div>
+
+  @if (showingLinks()) {
+    <rx-shares-panel [version]="published()" (closed)="showingLinks.set(false)" />
+  }
 
   @if (failure(); as message) {
     <p class="banner failure" role="alert">{{ message }}</p>
@@ -101,6 +115,28 @@
                     stroke-linecap="round"
                     stroke-linejoin="round"
                   />
+                </svg>
+              </button>
+            }
+            @if (canShare()) {
+              <button
+                type="button"
+                class="icon"
+                [attr.aria-label]="'Share ' + node.name"
+                [title]="'Share ' + node.name"
+                (click)="sharing.set(node)"
+              >
+                <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
+                  <path
+                    d="M7.5 8.5 12.5 5.8M7.5 11.5l5 2.7"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                  />
+                  <circle cx="5.5" cy="10" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5" />
+                  <circle cx="14.5" cy="5" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5" />
+                  <circle cx="14.5" cy="15" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5" />
                 </svg>
               </button>
             }
@@ -190,5 +226,14 @@
     action="Rename"
     (submitted)="rename(node, $event)"
     (dismissed)="renaming.set(null)"
+  />
+}
+
+@if (sharing(); as node) {
+  <rx-share-dialog
+    [node]="node"
+    [path]="pathOf(node)"
+    (created)="notePublished()"
+    (dismissed)="sharing.set(null)"
   />
 }

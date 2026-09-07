@@ -33,7 +33,7 @@ export const fr: SiteContent = {
         'Envoi, téléchargement, listage, corbeille et restauration via REST',
         "Des comptes par mot de passe en Argon2id, des jetons de session, et la connexion depuis l'application web, la fenêtre desktop et la ligne de commande",
         "Les mots de passe applicatifs, et le WebDAV qu'ils authentifient",
-        'Les liens de partage, avec expiration et mot de passe optionnels',
+        "Les liens de partage, avec expiration et mot de passe optionnels, publiés et révoqués depuis l'application web",
         'La recherche par nom, avec le chemin de chaque résultat',
         'Le ramasse-miettes qui récupère les blobs que plus rien ne référence',
         "Le stockage objet compatible S3 en plus du disque local, ce qui permet au chart de faire tourner plusieurs répliques",

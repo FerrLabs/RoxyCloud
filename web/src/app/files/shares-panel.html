@@ -1,0 +1,51 @@
+<section class="panel" aria-labelledby="rx-shares-heading">
+  <div class="bar">
+    <h2 id="rx-shares-heading">Links you have published</h2>
+    <button type="button" class="ghost" (click)="closed.emit()">Close</button>
+  </div>
+
+  @if (failure(); as message) {
+    <p class="failure" role="alert">{{ message }}</p>
+  }
+
+  @if (links.isLoading()) {
+    <p class="state" aria-busy="true">Loading your links</p>
+  } @else if (links.error(); as error) {
+    <div class="state">
+      <p>Your links did not load.</p>
+      <p class="detail">{{ error }}</p>
+      <button type="button" (click)="links.reload()">Try again</button>
+    </div>
+  } @else if ((links.value() ?? []).length === 0) {
+    <p class="state">You have not published any links.</p>
+  } @else {
+    <ul class="listing">
+      @for (link of links.value() ?? []; track link.id) {
+        <li>
+          <span class="what">
+            <span class="name">{{ link.name }}</span>
+            <span class="detail">{{ describe(link) }}</span>
+          </span>
+          <button
+            type="button"
+            class="ghost danger"
+            [attr.aria-label]="'Revoke the link to ' + link.name"
+            (click)="doomed.set(link)"
+          >
+            Revoke
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+@if (doomed(); as link) {
+  <rx-confirm
+    [heading]="'Revoke the link to ' + link.name + '?'"
+    body="Anyone holding it stops being able to open it. The file itself is untouched."
+    action="Revoke"
+    (accepted)="revoke(link)"
+    (dismissed)="doomed.set(null)"
+  />
+}
