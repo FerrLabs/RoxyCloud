@@ -50,6 +50,15 @@ pub async fn get(
         return serve(&state, cached).await;
     }
 
+    // Taken before the source is read, so the bytes of a queued request are not sitting in memory
+    // waiting their turn. The cache hit above never reaches this, which is the point: the cheap
+    // path should not queue behind the expensive one.
+    let _decoding = state
+        .decoders
+        .acquire()
+        .await
+        .map_err(|_| ApiError::Credential)?;
+
     let mut bytes = Vec::new();
     state
         .blobs
@@ -64,7 +73,11 @@ pub async fn get(
     let edge_for_shrink = u32::try_from(edge).unwrap_or(256);
     let shrunk = tokio::task::spawn_blocking(move || thumbnails::shrink(&bytes, edge_for_shrink))
         .await
-        .map_err(|_| ApiError::Credential)?
+        .map_err(|_| {
+            ApiError::Storage(crate::storage::StorageError::Remote(
+                "the decoder did not finish".to_owned(),
+            ))
+        })?
         .map_err(ApiError::NotAnImage)?;
 
     let size = i64::try_from(shrunk.len()).map_err(|_| ApiError::QuotaExceeded)?;
@@ -84,9 +97,13 @@ pub async fn get(
     serve(&state, written.hash).await
 }
 
-/// The same headers every other route that answers with derived user content carries. A thumbnail
-/// is re-encoded rather than passed through, but the invariant is that no route on this origin
-/// serves something a browser will render, and one exception is how that stops being true.
+/// The real type, unlike every other route that answers with bytes.
+///
+/// The reasoning that puts `application/octet-stream` on the rest is that the bytes came from a
+/// person and we will not vouch for them. These came out of our own encoder, and `WebP` carries no
+/// script surface, so that argument does not reach this response. `nosniff` and the attachment
+/// disposition stay, and sending the real type is what lets a client point an `<img>` at this at
+/// all: Chrome refuses to load one when `nosniff` is set and the type is not an image.
 async fn serve(
     state: &AppState,
     hash: roxycloud_core::blob::BlobHash,
@@ -97,7 +114,17 @@ async fn serve(
             header::CACHE_CONTROL,
             HeaderValue::from_static("private, max-age=86400"),
         )],
-        crate::routes::files::never_rendered(),
+        [
+            (header::CONTENT_TYPE, HeaderValue::from_static("image/webp")),
+            (
+                header::CONTENT_DISPOSITION,
+                HeaderValue::from_static("attachment"),
+            ),
+            (
+                header::X_CONTENT_TYPE_OPTIONS,
+                HeaderValue::from_static("nosniff"),
+            ),
+        ],
         Body::from_stream(ReaderStream::new(file)),
     )
         .into_response())

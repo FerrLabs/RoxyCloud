@@ -253,9 +253,16 @@ ceiling in case the header lied. The name is checked first, so bytes that do not
 image are never read at all, and `SVG` is not on the list: it is a document with a script surface
 rather than a raster to shrink.
 
-A thumbnail is served with the same headers as any other route that answers with user content. It is
-re-encoded rather than passed through, but the rule is that nothing on this origin renders, and one
-exception is how that stops being true.
+A thumbnail is served as `image/webp` rather than as the opaque stream every other route uses, with
+`nosniff` and an attachment disposition kept. The reasoning that puts `application/octet-stream` on
+the rest is that the bytes came from a person and the server will not vouch for them; these came out
+of its own encoder and `WebP` carries no script surface. Sending the real type is also what lets a
+client point an `<img>` at it, which a browser refuses when `nosniff` is set and the type is not an
+image.
+
+Decodes are bounded in number as well as in size: a permit per core, taken before the source is
+read, because every other bound here is per request and would otherwise multiply by the requests in
+flight.
 
 A large file over a bad link should not start again from zero. `POST /v1/uploads` opens a session
 for a path and a size, `PATCH` appends at `Upload-Offset`, and a client that lost the connection asks
