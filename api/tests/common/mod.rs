@@ -398,6 +398,17 @@ impl Harness {
         count
     }
 
+    /// Puts a session's recorded offset back, the way a request that died mid-body leaves it: the
+    /// bytes landed, the row never caught up.
+    pub async fn rewind_upload(&self, id: &str, to: i64) {
+        sqlx::query("UPDATE uploads SET received = $2 WHERE id = $1::uuid")
+            .bind(id)
+            .bind(to)
+            .execute(&self.state.db)
+            .await
+            .expect("rewinding the upload");
+    }
+
     pub async fn expire_uploads(&self) {
         sqlx::query("UPDATE uploads SET expires_at = now() - INTERVAL '1 second'")
             .execute(&self.state.db)

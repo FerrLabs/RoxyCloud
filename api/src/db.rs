@@ -442,7 +442,9 @@ pub async fn room_for(
     size: i64,
 ) -> Result<(), ApiError> {
     let fits = sqlx::query_scalar::<_, bool>(
-        "SELECT bytes_used + $2 <= bytes_max FROM quotas WHERE owner_id = $1",
+        // Compared this way round so a declared size near the top of the range does not overflow
+        // the addition and answer 500 where it meant 507.
+        "SELECT $2 <= bytes_max - bytes_used FROM quotas WHERE owner_id = $1",
     )
     .bind(owner_id)
     .bind(size)

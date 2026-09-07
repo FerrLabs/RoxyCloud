@@ -123,7 +123,7 @@ database_test!(an_interrupted_upload_resumes_to_the_same_digest, harness, {
 
     // The client sends a chunk, then dies. It does not know what arrived.
     let first = send(&harness, &bearer, &upload, 0, &whole[..120_000]).await;
-    assert_eq!(first.status, StatusCode::NO_CONTENT);
+    assert_eq!(first.status, StatusCode::OK);
 
     // On coming back it asks where it got to rather than guessing.
     let asked = call(
@@ -166,6 +166,55 @@ database_test!(an_interrupted_upload_resumes_to_the_same_digest, harness, {
         )))
     );
 });
+
+database_test!(
+    a_chunk_that_died_mid_body_does_not_corrupt_the_file,
+    harness,
+    {
+        let (id, bearer) = session(&harness, "owner@example.com", Role::Member).await;
+        let whole = payload(200_000);
+        let upload = begin(&harness, &bearer, "torn.bin", whole.len()).await.id();
+
+        // A PATCH whose body stopped halfway leaves the file longer than the offset the session
+        // recorded, because `received` is only written once a chunk has drained. Rolling the row back
+        // is what that looks like from the next request's side.
+        send(&harness, &bearer, &upload, 0, &whole[..150_000]).await;
+        harness.rewind_upload(&upload, 100_000).await;
+
+        let asked = call(
+            &harness,
+            "GET",
+            &format!("/v1/uploads/{upload}"),
+            &bearer,
+            &[],
+            Vec::new(),
+        )
+        .await;
+        let resume = usize::try_from(asked.offset()).expect("a real offset");
+        assert_eq!(resume, 100_000);
+
+        send(&harness, &bearer, &upload, resume, &whole[resume..]).await;
+        let finished = call(
+            &harness,
+            "POST",
+            &format!("/v1/uploads/{upload}/finish"),
+            &bearer,
+            &[],
+            Vec::new(),
+        )
+        .await;
+
+        assert_eq!(finished.status, StatusCode::CREATED, "{}", finished.body);
+        let node = harness.resolve(id, "torn.bin").await;
+        assert_eq!(
+            node.etag,
+            roxycloud_core::node::etag_for_file(roxycloud_core::blob::BlobHash::from(
+                blake3::hash(&whole)
+            )),
+            "appending after the bytes a dead request left would duplicate a region and lose the tail"
+        );
+    }
+);
 
 database_test!(
     a_chunk_at_the_wrong_offset_is_told_the_right_one,
@@ -313,7 +362,7 @@ database_test!(a_session_nobody_came_back_to_is_swept, harness, {
     let swept = harness
         .state
         .staging
-        .sweep(&live)
+        .sweep(&live, std::time::Duration::ZERO)
         .await
         .expect("sweeping the staging area");
 
