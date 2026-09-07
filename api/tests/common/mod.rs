@@ -73,6 +73,7 @@ impl Harness {
                         .expect("opening the upload staging"),
                 ),
                 sessions: Arc::new(Sessions::new("test-secret", chrono::Duration::hours(1))),
+                decoders: Arc::new(tokio::sync::Semaphore::new(2)),
                 default_quota_bytes: 1_000_000,
             },
             blob_root,
@@ -385,6 +386,28 @@ impl Harness {
             .execute(&self.state.db)
             .await
             .expect("grafting the node");
+    }
+
+    pub async fn blob_references(&self, hash: BlobHash) -> i64 {
+        sqlx::query_scalar::<_, i64>("SELECT ref_count FROM blobs WHERE hash = $1")
+            .bind(hash)
+            .fetch_one(&self.state.db)
+            .await
+            .expect("reading the blob")
+    }
+
+    pub async fn thumbnail_rows(&self) -> i64 {
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM thumbnails")
+            .fetch_one(&self.state.db)
+            .await
+            .expect("counting the thumbnails")
+    }
+
+    pub async fn thumbnail_blob(&self) -> BlobHash {
+        sqlx::query_scalar::<_, BlobHash>("SELECT blob_hash FROM thumbnails LIMIT 1")
+            .fetch_one(&self.state.db)
+            .await
+            .expect("a thumbnail")
     }
 
     pub async fn staged_uploads(&self) -> usize {

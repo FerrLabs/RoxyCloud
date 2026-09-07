@@ -46,6 +46,8 @@ pub enum ApiError {
     AlreadyWriting,
     #[error("expected a {expected}")]
     WrongKind { expected: &'static str },
+    #[error(transparent)]
+    NotAnImage(#[from] crate::thumbnails::NotAnImage),
     #[error("storage failure")]
     Storage(#[from] StorageError),
     #[error("database failure")]
@@ -85,11 +87,12 @@ impl ApiError {
             | Self::MoveIntoSelf
             | Self::AlreadyWriting
             | Self::OffsetMismatch { .. } => StatusCode::CONFLICT,
-            Self::Incomplete { .. } => StatusCode::BAD_REQUEST,
             Self::Locked(_) => StatusCode::LOCKED,
-            Self::InvalidPath(_) | Self::InvalidEmail(_) | Self::WrongKind { .. } => {
-                StatusCode::BAD_REQUEST
-            }
+            Self::Incomplete { .. }
+            | Self::InvalidPath(_)
+            | Self::InvalidEmail(_)
+            | Self::WrongKind { .. }
+            | Self::NotAnImage(_) => StatusCode::BAD_REQUEST,
             Self::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
             Self::TooManySessions { .. } | Self::TooManyAttempts { .. } => {
                 StatusCode::TOO_MANY_REQUESTS
