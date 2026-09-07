@@ -319,6 +319,22 @@ database_test!(
     }
 );
 
+database_test!(one_account_cannot_hold_every_session_open, harness, {
+    let (_, bearer) = session(&harness, "owner@example.com", Role::Member).await;
+
+    for opened in 1..=8 {
+        let answer = begin(&harness, &bearer, &format!("file-{opened}.bin"), 10).await;
+        assert_eq!(answer.status, StatusCode::CREATED, "session {opened}");
+    }
+    let refused = begin(&harness, &bearer, "one-too-many.bin", 10).await;
+
+    assert_eq!(
+        refused.status,
+        StatusCode::TOO_MANY_REQUESTS,
+        "the room check when a session opens is not a reservation, so without a ceiling one          account can stage its whole quota once per session"
+    );
+});
+
 database_test!(a_reader_may_not_start_an_upload, harness, {
     let (_, bearer) = session(&harness, "reader@example.com", Role::Reader).await;
 
