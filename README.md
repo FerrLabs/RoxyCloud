@@ -256,14 +256,22 @@ Quota is checked when the session opens as well as charged when it finishes, so 
 client does not spend an hour sending a file there was never room for.
 
 A session is claimed for the length of one write by a named holder, and a second write while that
-claim stands is refused with a 409. What a request records is what it wrote, counted as it goes,
-rather than the length the file ends up at: a body slower than the claim can have it taken away
-mid-write, and the file then measures somebody else's write head. Two writers do not share a file cursor, so without it the second truncating
-under the first would leave a hole of zeros between their write heads, and a length that happened to
-land on the promised size would be stored under an ETag over those zeros. The claim expires by
-itself, so a request that died holding it does not strand the session for the day it has left. A
-lock would serialise them too, but it would hold a database transaction open for as long as the
-client takes to send its body, which is what this endpoint is built to be slow at.
+claim stands is refused with a 409. Two writers do not share a file cursor, so without it the second
+truncating under the first would leave a hole of zeros between their write heads, and a length that
+happened to land on the promised size would be stored under an ETag over those zeros.
+
+The claim is renewed every half of its life for as long as the body drains, and a renewal that does
+not land ends the write there with a 409. A body slower than the claim would otherwise outlive it,
+and its remaining bytes would land inside the region the next holder goes on to record, which is the
+same corruption by a longer route. Everything a write does after that point is scoped to the holder:
+what it records, what it releases, and the teardown that an over-send triggers, so a writer that
+lost the session cannot take the session away from whoever has it. What a request records is also
+what it wrote, counted as it goes, rather than the length the file ends up at, which would count
+somebody else's write head as arrived.
+
+The claim expires by itself, so a request that died holding it does not strand the session for the
+day it has left. A lock would serialise them too, but it would hold a database transaction open for
+as long as the client takes to send its body, which is what this endpoint is built to be slow at.
 
 A chunk is written at the offset the session records rather than appended to the end, and the file
 is cut back to that offset first. A request that died mid-body left bytes past that offset, because

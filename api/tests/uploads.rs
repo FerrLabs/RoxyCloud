@@ -311,6 +311,148 @@ database_test!(a_writer_whose_claim_lapsed_records_nothing, harness, {
 });
 
 database_test!(
+    a_writer_that_lost_its_claim_takes_nothing_with_it,
+    harness,
+    {
+        let (id, _) = session(&harness, "owner@example.com", Role::Member).await;
+        let opened = roxycloud_api::uploads::begin(
+            &harness.state.db,
+            &harness.state.staging,
+            id,
+            "oversent.bin",
+            8,
+        )
+        .await
+        .expect("a session");
+
+        // The one thing a writer without the claim could still do: over-send, and take the row and the
+        // staged file away from whoever holds the session now, who would meet a 404 on their next chunk
+        // for a rule somebody else broke.
+        let (tell, waiting) = tokio::sync::oneshot::channel::<()>();
+        let (resume, wait) = tokio::sync::oneshot::channel::<()>();
+        let stopped = std::sync::Arc::new(tokio::sync::Mutex::new(Some(tell)));
+        let held = std::sync::Arc::new(tokio::sync::Mutex::new(Some(wait)));
+        let body = futures::stream::unfold(0u8, move |step| {
+            let stopped = stopped.clone();
+            let held = held.clone();
+            async move {
+                match step {
+                    0 => Some((Ok::<_, std::io::Error>(Bytes::from_static(b"first")), 1)),
+                    1 => {
+                        if let Some(tell) = stopped.lock().await.take() {
+                            tell.send(()).ok();
+                        }
+                        if let Some(wait) = held.lock().await.take() {
+                            wait.await.ok();
+                        }
+                        Some((Ok(Bytes::from_static(b"past the size")), 2))
+                    }
+                    _ => None,
+                }
+            }
+        });
+
+        let sending = roxycloud_api::uploads::append(
+            &harness.state.db,
+            &harness.state.staging,
+            &opened,
+            0,
+            Box::pin(body),
+        );
+        let stealing = async {
+            waiting.await.ok();
+            harness.steal_claim(opened.id).await;
+            resume.send(()).ok();
+        };
+
+        let (outcome, ()) = tokio::join!(sending, stealing);
+
+        assert!(
+            matches!(outcome, Err(roxycloud_api::error::ApiError::AlreadyWriting)),
+            "an over-send by a writer without the claim is refused for the claim, not for the size"
+        );
+        assert!(
+            roxycloud_api::uploads::of(&harness.state.db, id, opened.id)
+                .await
+                .is_ok(),
+            "the session belongs to whoever holds it now, not to the writer that lost it"
+        );
+    }
+);
+
+database_test!(a_writer_that_lost_its_claim_stops_reading, harness, {
+    let (id, _) = session(&harness, "owner@example.com", Role::Member).await;
+    let opened = roxycloud_api::uploads::begin(
+        &harness.state.db,
+        &harness.state.staging,
+        id,
+        "stalled.bin",
+        1000,
+    )
+    .await
+    .expect("a session");
+
+    // A body that stalls for longer than the claim, which is the case this feature exists for. The
+    // stream stops after its first chunk and never resumes, so the only thing that can end the
+    // write is the renewal noticing the session went to somebody else.
+    let (tell, waiting) = tokio::sync::oneshot::channel::<()>();
+    let stopped = std::sync::Arc::new(tokio::sync::Mutex::new(Some(tell)));
+    let read = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = read.clone();
+    let body = futures::stream::unfold(0u8, move |step| {
+        let stopped = stopped.clone();
+        let counted = counted.clone();
+        async move {
+            match step {
+                0 => {
+                    counted.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    Some((Ok::<_, std::io::Error>(Bytes::from_static(b"first")), 1))
+                }
+                1 => {
+                    if let Some(tell) = stopped.lock().await.take() {
+                        tell.send(()).ok();
+                    }
+                    std::future::pending::<()>().await;
+                    unreachable!()
+                }
+                _ => None,
+            }
+        }
+    });
+
+    let db = harness.state.db.clone();
+    let staging = harness.state.staging.clone();
+    let session = opened.clone();
+    let sending = tokio::spawn(async move {
+        roxycloud_api::uploads::append(&db, &staging, &session, 0, Box::pin(body)).await
+    });
+
+    waiting.await.ok();
+    harness.steal_claim(opened.id).await;
+
+    // Standing in for the claim running out under a body still draining. The clock only moves for
+    // the renewal timer, and only once the write is already stalled and the session already gone.
+    tokio::time::pause();
+    tokio::time::advance(std::time::Duration::from_secs(310)).await;
+    tokio::time::resume();
+
+    let outcome = tokio::time::timeout(std::time::Duration::from_secs(10), sending)
+        .await
+        .expect("a writer that lost its claim has to stop rather than wait out its body")
+        .expect("the write task");
+
+    assert!(
+        matches!(outcome, Err(roxycloud_api::error::ApiError::AlreadyWriting)),
+        "a writer that lost its claim has to be refused"
+    );
+    assert_eq!(
+        read.load(std::sync::atomic::Ordering::Relaxed),
+        1,
+        "reading on would dribble bytes into the region the new holder is recording"
+    );
+});
+
+database_test!(
     a_claim_nobody_released_does_not_strand_the_session,
     harness,
     {
