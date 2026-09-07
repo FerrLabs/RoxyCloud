@@ -387,6 +387,14 @@ impl Harness {
             .expect("grafting the node");
     }
 
+    pub async fn blob_references(&self, hash: BlobHash) -> i64 {
+        sqlx::query_scalar::<_, i64>("SELECT ref_count FROM blobs WHERE hash = $1")
+            .bind(hash)
+            .fetch_one(&self.state.db)
+            .await
+            .expect("reading the blob")
+    }
+
     pub async fn thumbnail_rows(&self) -> i64 {
         sqlx::query_scalar::<_, i64>("SELECT count(*) FROM thumbnails")
             .fetch_one(&self.state.db)

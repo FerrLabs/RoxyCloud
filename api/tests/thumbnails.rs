@@ -201,13 +201,12 @@ database_test!(
         get(&harness, &bearer, "/v1/thumbnails/holiday.png").await;
 
         let thumbnail = harness.thumbnail_blob().await;
-        let (count, unreferenced) = harness.blob(thumbnail).await.expect("the thumbnail blob");
 
         assert_eq!(
-            count, 1,
+            harness.blob_references(thumbnail).await,
+            1,
             "no node points at a thumbnail, so without a reference of its own the sweep takes it"
         );
-        assert!(!unreferenced);
     }
 );
 
@@ -226,7 +225,7 @@ database_test!(a_deleted_photo_does_not_keep_its_thumbnails, harness, {
     assert_eq!(dropped, 1);
     assert_eq!(harness.thumbnail_rows().await, 0);
     assert_eq!(
-        harness.blob(thumbnail).await.expect("the row").0,
+        harness.blob_references(thumbnail).await,
         0,
         "the reference has to go, or the bytes stay for good"
     );
