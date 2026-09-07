@@ -27,6 +27,10 @@ pub const MOST_SESSIONS: i64 = 8;
 /// it would otherwise have left.
 const CLAIM_MINUTES: i64 = 5;
 
+/// How often a write renews its claim while its body drains. Half the claim, so a writer that is
+/// still there never lets it lapse, and one that lost it stops within a renewal.
+const RENEW_SECONDS: u64 = CLAIM_MINUTES as u64 * 30;
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Session {
     pub id: Uuid,
@@ -75,7 +79,8 @@ impl Staging {
     ///
     /// This is not enough on its own to make two writes at the same offset safe: they do not share
     /// a file cursor, so the second truncating under the first leaves a hole of zeros between
-    /// them. What keeps them apart is the claim `append` takes on the session.
+    /// them. What keeps them apart is the claim `append` takes on the session and renews for as
+    /// long as this runs.
     async fn write_at<S, E>(
         &self,
         staged: &str,
@@ -250,7 +255,18 @@ where
     })?;
 
     let writer = claim(pool, session.id).await?;
-    let written = staging.write_at(&session.staged, at, chunks).await;
+
+    // The write and the renewal of its claim, whichever ends first. A body that outlives its claim
+    // would otherwise be writing through a file handle the session has since handed to somebody
+    // else, and its bytes would land inside the region that writer goes on to record.
+    let writing = staging.write_at(&session.staged, at, chunks);
+    let renewing = renew(pool, session.id, writer);
+    tokio::pin!(writing, renewing);
+
+    let written = tokio::select! {
+        written = &mut writing => written,
+        () = &mut renewing => return Err(ApiError::AlreadyWriting),
+    };
     let received = match written {
         Ok(received) => i64::try_from(received).map_err(|_| ApiError::QuotaExceeded)?,
         Err(err) => {
@@ -260,16 +276,25 @@ where
     };
 
     if received > session.size {
+        // Scoped like the recording UPDATE below rather than an unconditional delete: an
+        // over-sending writer that no longer holds the session would otherwise take the row and
+        // the file away from whoever does, and leave them a 404 on their next chunk.
+        let ours = sqlx::query("DELETE FROM uploads WHERE id = $1 AND writer = $2")
+            .bind(session.id)
+            .bind(writer)
+            .execute(pool)
+            .await?;
+        if ours.rows_affected() == 0 {
+            return Err(ApiError::AlreadyWriting);
+        }
         staging.discard(&session.staged).await;
-        drop_session(pool, session.id).await?;
         return Err(ApiError::WrongKind {
             expected: "no more than the size the session was opened with",
         });
     }
 
-    // Scoped to the holder: a writer whose claim lapsed while its body drained records nothing and
-    // does not clear the claim of whoever holds it now. The stray tail it left is cut by the next
-    // `set_len(offset)`, so the staged file stays a correct prefix of `received`.
+    // Scoped to the holder, behind the renewal above: a writer that lost the claim records nothing
+    // and does not clear the claim of whoever holds it now.
     sqlx::query_as::<_, Session>(
         "UPDATE uploads SET received = $2, writing_until = NULL, writer = NULL
          WHERE id = $1 AND writer = $3
@@ -281,6 +306,34 @@ where
     .fetch_optional(pool)
     .await?
     .ok_or(ApiError::AlreadyWriting)
+}
+
+/// Renews the claim for as long as the body takes, and returns once it is no longer ours.
+///
+/// A write that finishes returns first and this is dropped. What this exists for is the write that
+/// does not: without it a stalled body outlives its claim, another writer takes the session, and
+/// the first one's remaining bytes land inside the region the second is recording. Returning here
+/// stops the write instead.
+async fn renew(pool: &PgPool, id: Uuid, writer: Uuid) {
+    loop {
+        tokio::time::sleep(Duration::from_secs(RENEW_SECONDS)).await;
+
+        let renewed = sqlx::query(
+            "UPDATE uploads SET writing_until = now() + make_interval(mins => $3)
+             WHERE id = $1 AND writer = $2",
+        )
+        .bind(id)
+        .bind(writer)
+        .bind(i32::try_from(CLAIM_MINUTES).unwrap_or(5))
+        .execute(pool)
+        .await;
+
+        // A renewal that did not land is treated as lost either way. Whether the row moved on or
+        // the database is unreachable, carrying on writing is the half that corrupts.
+        if !renewed.is_ok_and(|renewed| renewed.rows_affected() == 1) {
+            return;
+        }
+    }
 }
 
 /// Takes the session for the length of one write, or refuses.
