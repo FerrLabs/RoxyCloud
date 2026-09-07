@@ -62,7 +62,7 @@ Migrations run on boot. Configuration is environment only:
 | `JWT_SECRET` | required | HS256 secret used to sign session tokens |
 | `PORT` | `3001` | Listen port |
 | `BLOB_BACKEND` | `local` | `local` or `s3` |
-| `UPLOAD_ROOT` | `./data/uploads` | Scratch space for resumable uploads in flight |
+| `UPLOAD_ROOT` | beside `BLOB_ROOT` | Scratch space for resumable uploads in flight; required when the backend is `s3` |
 | `BLOB_ROOT` | `./data` | Local blob store root, when the backend is `local` |
 | `S3_BUCKET` | | Required when the backend is `s3` |
 | `S3_ENDPOINT` | | MinIO or Garage URL; leave unset for AWS |
