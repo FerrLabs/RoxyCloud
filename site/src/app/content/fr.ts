@@ -36,6 +36,7 @@ export const fr: SiteContent = {
         "Les liens de partage, avec expiration et mot de passe optionnels, publiés et révoqués depuis l'application web",
         'La recherche par nom, avec le chemin de chaque résultat',
         "Les envois reprenables, pour qu'un gros fichier sur une mauvaise ligne ne reparte pas de zéro",
+        'Les miniatures, générées à la demande et mises en cache sur le digest de la source',
         'Le ramasse-miettes qui récupère les blobs que plus rien ne référence',
         "Le stockage objet compatible S3 en plus du disque local, ce qui permet au chart de faire tourner plusieurs répliques",
       ],
@@ -234,6 +235,7 @@ pnpm --filter @roxycloud/web build \\
         ['POST', '/v1/uploads/{id}/finish', 'Hacher ce qui est arrivé et le placer'],
         ['DELETE', '/v1/uploads/{id}', 'Abandonner, en reprenant les octets en attente'],
         ['GET', '/v1/search?q=', 'Trouver un nœud par une partie de son nom'],
+        ['GET', '/v1/thumbnails/{*path}', "Une miniature d'image, générée à la demande"],
         ['GET', '/v1/app-passwords', 'Les identifiants créés par ce compte'],
         ['POST', '/v1/app-passwords', "En créer un, affiché une seule fois"],
         ['DELETE', '/v1/app-passwords/{id}', 'En révoquer un, avec effet immédiat'],
@@ -292,7 +294,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'Ce qui manque',
-      body: "La connexion OIDC et les miniatures sont suivies en issues, et aucune n'est implémentée. Un chemin absent du tableau ci-dessus répond 404.",
+      body: "La connexion OIDC est suivie en issue et n'est pas implémentée. Un chemin absent du tableau ci-dessus répond 404.",
     },
   },
 };

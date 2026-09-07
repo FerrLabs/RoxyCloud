@@ -36,6 +36,7 @@ export const en: SiteContent = {
         'Share links, with an optional expiry and an optional password, published and revoked from the web app',
         'Search by name, with the path each match was found at',
         'Resumable uploads, so a large file over a bad link does not start again from zero',
+        'Thumbnails, made on demand and cached against the source digest',
         'The sweep that collects blobs nothing points at any more',
         'S3-compatible object storage as well as local disk, which is what lets the chart run more than one replica',
       ],
@@ -234,6 +235,7 @@ pnpm --filter @roxycloud/web build \\
         ['POST', '/v1/uploads/{id}/finish', 'Hash what arrived and place it'],
         ['DELETE', '/v1/uploads/{id}', 'Abandon it, taking the staged bytes'],
         ['GET', '/v1/search?q=', 'Find a node by part of its name'],
+        ['GET', '/v1/thumbnails/{*path}', 'A thumbnail of an image, made on demand'],
         ['GET', '/v1/app-passwords', 'The credentials this account has minted'],
         ['POST', '/v1/app-passwords', 'Mint one, shown once'],
         ['DELETE', '/v1/app-passwords/{id}', 'Revoke one, taking effect immediately'],
@@ -292,7 +294,7 @@ curl -O http://localhost:3001/v1/files/notes/todo.md \\
     },
     gaps: {
       heading: 'What is missing',
-      body: 'OIDC login and thumbnails are tracked as issues, and neither is implemented. A path that is not in the table above answers 404.',
+      body: 'OIDC login is tracked as an issue and is not implemented. A path that is not in the table above answers 404.',
     },
   },
 };

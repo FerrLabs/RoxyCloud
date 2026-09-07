@@ -387,6 +387,20 @@ impl Harness {
             .expect("grafting the node");
     }
 
+    pub async fn thumbnail_rows(&self) -> i64 {
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM thumbnails")
+            .fetch_one(&self.state.db)
+            .await
+            .expect("counting the thumbnails")
+    }
+
+    pub async fn thumbnail_blob(&self) -> BlobHash {
+        sqlx::query_scalar::<_, BlobHash>("SELECT blob_hash FROM thumbnails LIMIT 1")
+            .fetch_one(&self.state.db)
+            .await
+            .expect("a thumbnail")
+    }
+
     pub async fn staged_uploads(&self) -> usize {
         let mut entries = tokio::fs::read_dir(&self.upload_root)
             .await
