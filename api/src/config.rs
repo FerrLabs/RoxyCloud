@@ -61,9 +61,7 @@ impl Config {
             port: parse_or("PORT", 3001)?,
             database_url: required("DATABASE_URL")?,
             blobs: blobs()?,
-            upload_root: PathBuf::from(
-                optional("UPLOAD_ROOT").unwrap_or_else(|| "./data/uploads".to_owned()),
-            ),
+            upload_root: upload_root(&blobs()?),
             web_root: optional("WEB_ROOT").map(PathBuf::from),
             jwt_secret: required("JWT_SECRET")?,
             cors_allowed_origins: optional("CORS_ALLOWED_ORIGINS")
@@ -85,6 +83,18 @@ impl Config {
             )?,
             bootstrap_admin: bootstrap_admin(),
         })
+    }
+}
+
+/// Beside the blobs by default, because that is the one directory a deployment has already had to
+/// make writable. An object store deployment has no such directory, so it has to say where.
+fn upload_root(blobs: &BlobBackend) -> PathBuf {
+    if let Some(configured) = optional("UPLOAD_ROOT") {
+        return PathBuf::from(configured);
+    }
+    match blobs {
+        BlobBackend::Local { root } => root.join("uploads"),
+        BlobBackend::S3(_) => PathBuf::from("./data/uploads"),
     }
 }
 
