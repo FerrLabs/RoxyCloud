@@ -531,6 +531,14 @@ Not implemented: shared locks, and the `If` header's `ETag` conditions and `Not`
 one of those is answered as though it carried no token, which refuses a write rather than allowing
 one nobody asked for.
 
+## A sync-only mode
+
+Not built, and not decided. `docs/sync-only-mode.md` answers the RFC in #34 now that the sync engine
+has landed: the reconciler already takes a `Transport` rather than speaking REST, so a peer would be
+a second implementation of four methods rather than a second product. What does not carry over is
+the state file, which keeps one base because there is one remote, and device identity, which has no
+seam here yet and is the part worth prototyping before anything else.
+
 ## Why not fork OxiCloud
 
 This decision was made on a premise that no longer holds, and the honest version is worth recording.
