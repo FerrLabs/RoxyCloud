@@ -67,7 +67,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    uses: FerrLabs/.github/.github/workflows/reusable-sonarqube-scan.yml@84f44470a9ff640ea8bb32efc74d45f912660d71 # main
+    uses: FerrLabs/.github/.github/workflows/reusable-sonarqube-scan.yml@5ff54383dc6676f79163dab1dc4cb7c29f7cd8de # main
     with:
       runner: ubuntu-latest
       project-key: RoxyCloud
