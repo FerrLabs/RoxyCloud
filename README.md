@@ -135,6 +135,7 @@ PATCH  /v1/uploads/{id}       append at Upload-Offset
 POST   /v1/uploads/{id}/finish  hash what arrived and place it
 DELETE /v1/uploads/{id}       abandon it, taking the staged bytes
 GET    /v1/search?q=          find a node by part of its name
+GET    /v1/thumbnails/{*path} a thumbnail of an image, made on demand
 GET    /v1/app-passwords      the credentials this account has minted
 POST   /v1/app-passwords      mint one, shown once
 DELETE /v1/app-passwords/{id} revoke one, taking effect immediately
@@ -237,6 +238,31 @@ not, so a member demoted to reader keeps the ability to take down what they publ
 listing carries names, sizes and modification times and no identifiers: not the node ids, not the
 account behind the link, and every public response says `Cache-Control: no-store` so that a proxy
 cannot go on serving a link somebody revoked.
+
+`GET /v1/thumbnails/{*path}?edge=256` answers a `WebP` thumbnail, made when it is asked for rather
+than when the file arrives, and cached against the source digest so the same photo uploaded by two
+people costs one thumbnail. The offered edges are 128, 256 and 512: an open integer would let one
+request make the server decode and re-encode at any dimension it liked.
+
+Decoding runs in this process, which is a decision rather than a default. The failure mode that
+makes image handling notorious is a memory-safety bug in a C decoder reached by a crafted file, and
+there is no C decoder here: the `image` crate is built with its pure Rust codecs and nothing else.
+What is left is resource exhaustion, so a file is refused on its size before any decoder sees it, on
+its declared pixel count before anything is allocated, and the decoder is given an allocation
+ceiling in case the header lied. The name is checked first, so bytes that do not claim to be an
+image are never read at all, and `SVG` is not on the list: it is a document with a script surface
+rather than a raster to shrink.
+
+A thumbnail is served as `image/webp` rather than as the opaque stream every other route uses, with
+`nosniff` and an attachment disposition kept. The reasoning that puts `application/octet-stream` on
+the rest is that the bytes came from a person and the server will not vouch for them; these came out
+of its own encoder and `WebP` carries no script surface. Sending the real type is also what lets a
+client point an `<img>` at it, which a browser refuses when `nosniff` is set and the type is not an
+image.
+
+Decodes are bounded in number as well as in size: a permit per core, taken before the source is
+read, because every other bound here is per request and would otherwise multiply by the requests in
+flight.
 
 A large file over a bad link should not start again from zero. `POST /v1/uploads` opens a session
 for a path and a size, `PATCH` appends at `Upload-Offset`, and a client that lost the connection asks

@@ -3,6 +3,7 @@ pub mod auth;
 pub mod files;
 pub mod search;
 pub mod shares;
+pub mod thumbnails;
 pub mod trash;
 pub mod uploads;
 pub mod users;
@@ -42,6 +43,7 @@ pub fn router(state: AppState) -> Router {
             get(shares::download_at),
         )
         .route("/v1/search", get(search::search))
+        .route("/v1/thumbnails/{*path}", get(thumbnails::get))
         .route("/v1/uploads", get(uploads::mine).post(uploads::begin))
         .route(
             "/v1/uploads/{id}",

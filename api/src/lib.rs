@@ -12,6 +12,7 @@ pub mod shares;
 pub mod state;
 pub mod storage;
 pub mod sweeper;
+pub mod thumbnails;
 pub mod trash;
 pub mod uploads;
 pub mod users;
