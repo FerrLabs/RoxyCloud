@@ -1,0 +1,407 @@
+use std::path::PathBuf;
+
+use bytes::Bytes;
+use std::time::Duration;
+
+use chrono::{DateTime, Utc};
+use futures::{Stream, StreamExt};
+use serde::Serialize;
+use sqlx::PgPool;
+use tokio::fs;
+use tokio::io::AsyncWriteExt;
+use uuid::Uuid;
+
+use crate::error::ApiError;
+
+/// How long a session nobody touches survives. Long enough to outlast a laptop lid and a train
+/// tunnel, short enough that the scratch space is not a place things accumulate.
+pub const LIFETIME_HOURS: i64 = 24;
+
+/// How many sessions one account may hold open. The quota check when a session opens is not a
+/// reservation, so without a ceiling one account can stage close to its whole quota once per
+/// session and hold all of it for a day.
+pub const MOST_SESSIONS: i64 = 8;
+
+/// How long one write may hold a session before another may take it. Long enough for a slow body,
+/// short enough that a request that died holding the claim does not strand the session for the day
+/// it would otherwise have left.
+const CLAIM_MINUTES: i64 = 5;
+
+/// How often a write renews its claim while its body drains. Half the claim, so a writer that is
+/// still there never lets it lapse, and one that lost it stops within a renewal.
+const RENEW_SECONDS: u64 = CLAIM_MINUTES as u64 * 30;
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct Session {
+    pub id: Uuid,
+    #[serde(skip)]
+    pub owner_id: Uuid,
+    pub path: String,
+    pub size: i64,
+    pub received: i64,
+    #[serde(skip)]
+    pub staged: String,
+    pub expires_at: DateTime<Utc>,
+}
+
+/// Where the bytes of a session in flight live, which is local disk whichever backend owns the
+/// blobs. An object store has no append, and its multipart parts have a five mebibyte floor that
+/// would decide the client's chunk size and make an offset below a part boundary unresumable. The
+/// cost is scratch space for uploads in flight, bounded by the session lifetime.
+pub struct Staging {
+    root: PathBuf,
+}
+
+impl Staging {
+    pub async fn open(root: impl Into<PathBuf>) -> Result<Self, ApiError> {
+        let root = root.into();
+        fs::create_dir_all(&root).await?;
+        Ok(Self { root })
+    }
+
+    #[must_use]
+    pub fn path_for(&self, staged: &str) -> PathBuf {
+        self.root.join(staged)
+    }
+
+    async fn create(&self, staged: &str) -> Result<(), ApiError> {
+        fs::File::create(self.path_for(staged)).await?;
+        Ok(())
+    }
+
+    /// Writes at `offset` and answers how many bytes the file holds afterwards.
+    ///
+    /// The file is cut back to the offset first rather than appended to. `received` is only
+    /// recorded once a whole chunk has drained, so a request that died mid-body left bytes past
+    /// the offset the session remembers, and appending after them would duplicate a region and
+    /// lose the tail. A connection lost mid-chunk is the case this feature exists for, so it is
+    /// the case the write has to be correct under.
+    ///
+    /// This is not enough on its own to make two writes at the same offset safe: they do not share
+    /// a file cursor, so the second truncating under the first leaves a hole of zeros between
+    /// them. What keeps them apart is the claim `append` takes on the session and renews for as
+    /// long as this runs.
+    async fn write_at<S, E>(
+        &self,
+        staged: &str,
+        offset: u64,
+        mut chunks: S,
+    ) -> Result<u64, ApiError>
+    where
+        S: Stream<Item = Result<Bytes, E>> + Unpin,
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        use tokio::io::AsyncSeekExt;
+
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .open(self.path_for(staged))
+            .await?;
+        file.set_len(offset).await?;
+        file.seek(std::io::SeekFrom::Start(offset)).await?;
+
+        let mut written = 0u64;
+        while let Some(chunk) = chunks.next().await {
+            let chunk = chunk.map_err(|err| {
+                ApiError::Storage(crate::storage::StorageError::Upstream(Box::new(err)))
+            })?;
+            file.write_all(&chunk).await?;
+            written += chunk.len() as u64;
+        }
+        file.sync_all().await?;
+
+        // What this request wrote, not what the file measures. A writer whose claim lapsed
+        // mid-body leaves its own head further along, and the length would count the zeros
+        // between the two heads as arrived.
+        Ok(offset + written)
+    }
+
+    async fn discard(&self, staged: &str) {
+        let _ = fs::remove_file(self.path_for(staged)).await;
+    }
+
+    /// Clears staged files no session names any more, which is what a crash between deleting the
+    /// row and deleting the file would otherwise leave for good.
+    ///
+    /// A file younger than the grace is left alone whatever the list says: `begin` creates the file
+    /// before it inserts the row, so a sweep landing between the two would otherwise take a file
+    /// the session about to exist is going to need. The blob store answers the same shape the same
+    /// way rather than inventing a second rule.
+    pub async fn sweep(&self, live: &[String], grace: Duration) -> Result<u64, ApiError> {
+        let mut entries = fs::read_dir(&self.root).await?;
+        let mut removed = 0;
+
+        while let Some(entry) = entries.next_entry().await? {
+            let named = entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| live.iter().any(|staged| staged == name));
+            let young = entry
+                .metadata()
+                .await
+                .and_then(|meta| meta.modified())
+                .is_ok_and(|at| crate::storage::is_recent(at, grace));
+
+            if !named && !young && fs::remove_file(entry.path()).await.is_ok() {
+                removed += 1;
+            }
+        }
+        Ok(removed)
+    }
+}
+
+pub async fn begin(
+    pool: &PgPool,
+    staging: &Staging,
+    owner_id: Uuid,
+    path: &str,
+    size: i64,
+) -> Result<Session, ApiError> {
+    if size < 0 {
+        return Err(ApiError::WrongKind {
+            expected: "size in bytes",
+        });
+    }
+
+    // Counted and inserted under the same lock, or concurrent requests all read a count below the
+    // ceiling and all insert. It is the lock the tree already takes to serialise one owner's
+    // writes rather than a second mechanism.
+    let mut tx = pool.begin().await?;
+    crate::db::lock_owner(&mut tx, owner_id).await?;
+
+    let open = sqlx::query_scalar::<_, i64>(
+        "SELECT count(*) FROM uploads WHERE owner_id = $1 AND expires_at > now()",
+    )
+    .bind(owner_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if open >= MOST_SESSIONS {
+        return Err(ApiError::TooManySessions {
+            most: MOST_SESSIONS,
+        });
+    }
+
+    let staged = Uuid::now_v7().to_string();
+    staging.create(&staged).await?;
+
+    let session = sqlx::query_as::<_, Session>(
+        "INSERT INTO uploads (id, owner_id, path, size, staged, expires_at)
+         VALUES ($1, $2, $3, $4, $5, now() + make_interval(hours => $6))
+         RETURNING id, owner_id, path, size, received, staged, expires_at",
+    )
+    .bind(Uuid::now_v7())
+    .bind(owner_id)
+    .bind(path)
+    .bind(size)
+    .bind(&staged)
+    .bind(i32::try_from(LIFETIME_HOURS).unwrap_or(24))
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    Ok(session)
+}
+
+/// What the account is holding open, so hitting the ceiling is something a client can see and act
+/// on rather than something it waits out.
+pub async fn of_owner(pool: &PgPool, owner_id: Uuid) -> Result<Vec<Session>, ApiError> {
+    sqlx::query_as::<_, Session>(
+        "SELECT id, owner_id, path, size, received, staged, expires_at
+         FROM uploads
+         WHERE owner_id = $1 AND expires_at > now()
+         ORDER BY expires_at",
+    )
+    .bind(owner_id)
+    .fetch_all(pool)
+    .await
+    .map_err(Into::into)
+}
+
+pub async fn of(pool: &PgPool, owner_id: Uuid, id: Uuid) -> Result<Session, ApiError> {
+    sqlx::query_as::<_, Session>(
+        "SELECT id, owner_id, path, size, received, staged, expires_at
+         FROM uploads
+         WHERE id = $1 AND owner_id = $2 AND expires_at > now()",
+    )
+    .bind(id)
+    .bind(owner_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or(ApiError::NotFound)
+}
+
+/// Appends at `offset`, which has to be the offset the session is actually at. A client that lost
+/// the connection mid-chunk knows what it sent, not what arrived, so the mismatch is reported with
+/// the real offset rather than refused blindly.
+pub async fn append<S, E>(
+    pool: &PgPool,
+    staging: &Staging,
+    session: &Session,
+    offset: i64,
+    chunks: S,
+) -> Result<Session, ApiError>
+where
+    S: Stream<Item = Result<Bytes, E>> + Unpin,
+    E: std::error::Error + Send + Sync + 'static,
+{
+    if offset != session.received {
+        return Err(ApiError::OffsetMismatch {
+            expected: session.received,
+        });
+    }
+
+    let at = u64::try_from(offset).map_err(|_| ApiError::WrongKind {
+        expected: "offset that is not negative",
+    })?;
+
+    let writer = claim(pool, session.id).await?;
+
+    // The write and the renewal of its claim, whichever ends first. A body that outlives its claim
+    // would otherwise be writing through a file handle the session has since handed to somebody
+    // else, and its bytes would land inside the region that writer goes on to record.
+    let writing = staging.write_at(&session.staged, at, chunks);
+    let renewing = renew(pool, session.id, writer);
+    tokio::pin!(writing, renewing);
+
+    let written = tokio::select! {
+        written = &mut writing => written,
+        () = &mut renewing => return Err(ApiError::AlreadyWriting),
+    };
+    let received = match written {
+        Ok(received) => i64::try_from(received).map_err(|_| ApiError::QuotaExceeded)?,
+        Err(err) => {
+            release(pool, session.id, writer).await;
+            return Err(err);
+        }
+    };
+
+    if received > session.size {
+        // Scoped like the recording UPDATE below rather than an unconditional delete: an
+        // over-sending writer that no longer holds the session would otherwise take the row and
+        // the file away from whoever does, and leave them a 404 on their next chunk.
+        let ours = sqlx::query("DELETE FROM uploads WHERE id = $1 AND writer = $2")
+            .bind(session.id)
+            .bind(writer)
+            .execute(pool)
+            .await?;
+        if ours.rows_affected() == 0 {
+            return Err(ApiError::AlreadyWriting);
+        }
+        staging.discard(&session.staged).await;
+        return Err(ApiError::WrongKind {
+            expected: "no more than the size the session was opened with",
+        });
+    }
+
+    // Scoped to the holder, behind the renewal above: a writer that lost the claim records nothing
+    // and does not clear the claim of whoever holds it now.
+    sqlx::query_as::<_, Session>(
+        "UPDATE uploads SET received = $2, writing_until = NULL, writer = NULL
+         WHERE id = $1 AND writer = $3
+         RETURNING id, owner_id, path, size, received, staged, expires_at",
+    )
+    .bind(session.id)
+    .bind(received)
+    .bind(writer)
+    .fetch_optional(pool)
+    .await?
+    .ok_or(ApiError::AlreadyWriting)
+}
+
+/// Renews the claim for as long as the body takes, and returns once it is no longer ours.
+///
+/// A write that finishes returns first and this is dropped. What this exists for is the write that
+/// does not: without it a stalled body outlives its claim, another writer takes the session, and
+/// the first one's remaining bytes land inside the region the second is recording. Returning here
+/// stops the write instead.
+async fn renew(pool: &PgPool, id: Uuid, writer: Uuid) {
+    loop {
+        tokio::time::sleep(Duration::from_secs(RENEW_SECONDS)).await;
+
+        let renewed = sqlx::query(
+            "UPDATE uploads SET writing_until = now() + make_interval(mins => $3)
+             WHERE id = $1 AND writer = $2",
+        )
+        .bind(id)
+        .bind(writer)
+        .bind(i32::try_from(CLAIM_MINUTES).unwrap_or(5))
+        .execute(pool)
+        .await;
+
+        // A renewal that did not land is treated as lost either way. Whether the row moved on or
+        // the database is unreachable, carrying on writing is the half that corrupts.
+        if !renewed.is_ok_and(|renewed| renewed.rows_affected() == 1) {
+            return;
+        }
+    }
+}
+
+/// Takes the session for the length of one write, or refuses.
+///
+/// A lock or a `SELECT ... FOR UPDATE` would serialise them too, but it would hold a Postgres
+/// transaction open for as long as the client takes to send its body, which is exactly what this
+/// endpoint is built to be slow at. The claim expires instead, so a request that dies holding it
+/// does not strand the session.
+async fn claim(pool: &PgPool, id: Uuid) -> Result<Uuid, ApiError> {
+    let writer = Uuid::now_v7();
+    let taken = sqlx::query(
+        "UPDATE uploads
+         SET writing_until = now() + make_interval(mins => $2), writer = $3
+         WHERE id = $1 AND (writing_until IS NULL OR writing_until < now())",
+    )
+    .bind(id)
+    .bind(i32::try_from(CLAIM_MINUTES).unwrap_or(5))
+    .bind(writer)
+    .execute(pool)
+    .await?;
+
+    if taken.rows_affected() == 0 {
+        return Err(ApiError::AlreadyWriting);
+    }
+    Ok(writer)
+}
+
+async fn release(pool: &PgPool, id: Uuid, writer: Uuid) {
+    let _ = sqlx::query(
+        "UPDATE uploads SET writing_until = NULL, writer = NULL WHERE id = $1 AND writer = $2",
+    )
+    .bind(id)
+    .bind(writer)
+    .execute(pool)
+    .await;
+}
+
+pub async fn abandon(pool: &PgPool, staging: &Staging, session: &Session) -> Result<(), ApiError> {
+    drop_session(pool, session.id).await?;
+    staging.discard(&session.staged).await;
+    Ok(())
+}
+
+pub async fn drop_session(pool: &PgPool, id: Uuid) -> Result<(), ApiError> {
+    sqlx::query("DELETE FROM uploads WHERE id = $1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn purge_expired(pool: &PgPool) -> Result<Vec<String>, ApiError> {
+    sqlx::query_scalar::<_, String>(
+        "DELETE FROM uploads WHERE expires_at <= now() RETURNING staged",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(Into::into)
+}
+
+pub async fn live_staged(pool: &PgPool) -> Result<Vec<String>, ApiError> {
+    sqlx::query_scalar::<_, String>("SELECT staged FROM uploads")
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+}
+
+#[must_use]
+pub fn staged_path(staging: &Staging, session: &Session) -> PathBuf {
+    staging.path_for(&session.staged)
+}

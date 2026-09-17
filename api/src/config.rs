@@ -22,6 +22,7 @@ pub struct Config {
     pub port: u16,
     pub database_url: String,
     pub blobs: BlobBackend,
+    pub upload_root: PathBuf,
     pub web_root: Option<PathBuf>,
     pub jwt_secret: String,
     pub cors_allowed_origins: Vec<String>,
@@ -29,7 +30,19 @@ pub struct Config {
     pub session_ttl_seconds: i64,
     pub blob_sweep_interval_seconds: u64,
     pub blob_grace_period_seconds: u64,
+    pub oidc: Option<OidcConfig>,
     pub bootstrap_admin: Option<BootstrapAdmin>,
+}
+
+#[derive(Debug, Clone)]
+pub struct OidcConfig {
+    pub issuer: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub redirect_url: String,
+    /// Whether a verified address nobody has an account for becomes one. A deployment that invites
+    /// people through its provider wants this; one with a fixed roster does not.
+    pub create_accounts: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -56,10 +69,12 @@ const DEFAULT_BLOB_GRACE_PERIOD_SECONDS: u64 = 24 * 60 * 60;
 
 impl Config {
     pub fn from_env() -> Result<Self, ConfigError> {
+        let backend = blobs()?;
         Ok(Self {
             port: parse_or("PORT", 3001)?,
             database_url: required("DATABASE_URL")?,
-            blobs: blobs()?,
+            blobs: backend.clone(),
+            upload_root: upload_root(&backend)?,
             web_root: optional("WEB_ROOT").map(PathBuf::from),
             jwt_secret: required("JWT_SECRET")?,
             cors_allowed_origins: optional("CORS_ALLOWED_ORIGINS")
@@ -79,8 +94,24 @@ impl Config {
                 "BLOB_GRACE_PERIOD_SECONDS",
                 DEFAULT_BLOB_GRACE_PERIOD_SECONDS,
             )?,
+            oidc: oidc(),
             bootstrap_admin: bootstrap_admin(),
         })
+    }
+}
+
+/// Beside the blobs by default, because that is the one directory a deployment has already had to
+/// make writable. An object store deployment has no such directory, so it has to say where.
+fn upload_root(blobs: &BlobBackend) -> Result<PathBuf, ConfigError> {
+    if let Some(configured) = optional("UPLOAD_ROOT") {
+        return Ok(PathBuf::from(configured));
+    }
+    match blobs {
+        BlobBackend::Local { root } => Ok(root.join("uploads")),
+        // Falling back to a relative path would stage uploads on the container's ephemeral disk,
+        // which is the one place this design says the bytes must not live, and the deployment
+        // would find out when the disk filled rather than at startup.
+        BlobBackend::S3(_) => Err(ConfigError::Missing("UPLOAD_ROOT")),
     }
 }
 
@@ -105,6 +136,17 @@ fn blobs() -> Result<BlobBackend, ConfigError> {
             reason: "expected local or s3",
         }),
     }
+}
+
+fn oidc() -> Option<OidcConfig> {
+    Some(OidcConfig {
+        issuer: optional("OIDC_ISSUER")?,
+        client_id: optional("OIDC_CLIENT_ID")?,
+        client_secret: optional("OIDC_CLIENT_SECRET")?,
+        redirect_url: optional("OIDC_REDIRECT_URL")?,
+        create_accounts: optional("OIDC_CREATE_ACCOUNTS")
+            .is_some_and(|value| matches!(value.as_str(), "1" | "true" | "yes")),
+    })
 }
 
 fn bootstrap_admin() -> Option<BootstrapAdmin> {

@@ -1,9 +1,12 @@
 pub mod app_passwords;
 pub mod auth;
 pub mod files;
+pub mod oidc;
 pub mod search;
 pub mod shares;
+pub mod thumbnails;
 pub mod trash;
+pub mod uploads;
 pub mod users;
 
 use axum::Json;
@@ -18,6 +21,12 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/v1/auth/login", post(auth::login))
         .route("/v1/auth/me", get(auth::me))
+        .route(
+            "/v1/auth/methods",
+            get(oidc::methods).put(oidc::set_methods),
+        )
+        .route("/v1/auth/oidc/start", post(oidc::begin))
+        .route("/v1/auth/oidc/callback", post(oidc::callback))
         .route(
             "/v1/app-passwords",
             get(app_passwords::list).post(app_passwords::mint),
@@ -41,6 +50,15 @@ pub fn router(state: AppState) -> Router {
             get(shares::download_at),
         )
         .route("/v1/search", get(search::search))
+        .route("/v1/thumbnails/{*path}", get(thumbnails::get))
+        .route("/v1/uploads", get(uploads::mine).post(uploads::begin))
+        .route(
+            "/v1/uploads/{id}",
+            get(uploads::status)
+                .patch(uploads::append)
+                .delete(uploads::abandon),
+        )
+        .route("/v1/uploads/{id}/finish", post(uploads::finish))
         .route("/v1/move", post(files::rename))
         .route("/v1/trash", get(trash::list))
         .route("/v1/trash/{id}", delete(trash::purge))

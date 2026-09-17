@@ -6,7 +6,7 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 
 use crate::auth::Sessions;
 use crate::config::Config;
-use crate::config::{BlobBackend, S3Config};
+use crate::config::{BlobBackend, OidcConfig, S3Config};
 use crate::storage::{BlobStore, LocalBlobStore, S3BlobStore};
 
 #[derive(Clone)]
@@ -14,6 +14,12 @@ pub struct AppState {
     pub db: PgPool,
     pub blobs: Arc<dyn BlobStore>,
     pub sessions: Arc<Sessions>,
+    pub staging: Arc<crate::uploads::Staging>,
+    /// How many thumbnails may be decoded at once. Every other bound in that feature is per
+    /// request, so without this they multiply by however many requests are in flight.
+    pub decoders: Arc<tokio::sync::Semaphore>,
+    pub oidc: Option<Arc<OidcConfig>>,
+    pub http: reqwest::Client,
     pub default_quota_bytes: i64,
 }
 
@@ -66,10 +72,29 @@ impl AppState {
             .context("connecting to Postgres")?;
 
         let blobs = open_blobs(&cfg.blobs).await?;
+        let staging = crate::uploads::Staging::open(&cfg.upload_root)
+            .await
+            .with_context(|| {
+                format!(
+                    "opening the upload staging at {}",
+                    cfg.upload_root.display()
+                )
+            })?;
 
         Ok(Self {
             db,
             blobs,
+            staging: Arc::new(staging),
+            decoders: Arc::new(tokio::sync::Semaphore::new(
+                std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get),
+            )),
+            oidc: cfg.oidc.clone().map(Arc::new),
+            // A provider that accepts the connection and then says nothing would otherwise hold
+            // the four calls on the sign-in path open indefinitely.
+            http: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build()
+                .context("building the HTTP client")?,
             sessions: Arc::new(Sessions::new(
                 &cfg.jwt_secret,
                 chrono::Duration::seconds(cfg.session_ttl_seconds),

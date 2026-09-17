@@ -92,7 +92,8 @@ pub trait BlobStore: Send + Sync {
 /// A stamp the clock has not reached yet counts as recent. The object store and the API are two
 /// machines that rarely agree to the second, and a collector that reads a small disagreement as
 /// "old enough to delete" deletes something somebody has just uploaded.
-pub(crate) fn is_recent(at: SystemTime, grace: Duration) -> bool {
+#[must_use]
+pub fn is_recent(at: SystemTime, grace: Duration) -> bool {
     match at.elapsed() {
         Ok(since) => since < grace,
         Err(_) => true,
