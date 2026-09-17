@@ -209,12 +209,12 @@ fn holder(body: &[u8]) -> Option<String> {
     let mut text = String::new();
     loop {
         match reader.read_resolved_event() {
-            Ok((_, Event::Start(element))) if element.local_name().into_inner() == b"owner" => {
+            Ok((_, Event::Start(element))) if element.local_name().into_inner() == "owner" => {
                 inside = true;
             }
-            Ok((_, Event::End(element))) if element.local_name().into_inner() == b"owner" => break,
+            Ok((_, Event::End(element))) if element.local_name().into_inner() == "owner" => break,
             Ok((_, Event::Text(raw))) if inside => {
-                text.push_str(&String::from_utf8_lossy(&raw));
+                text.push_str(&raw);
             }
             Ok((_, Event::Eof)) => break,
             Ok(_) => {}
