@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.1] - 2026-09-17
+
+### Bug Fixes
+
+- fix(deps): update rustls to 0.23.45 (#127)
+
 ## [0.24.0] - 2026-09-17
 
 ### Features
