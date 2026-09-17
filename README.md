@@ -61,6 +61,11 @@ Migrations run on boot. Configuration is environment only:
 | `DATABASE_URL` | required | Postgres connection string |
 | `JWT_SECRET` | required | HS256 secret used to sign session tokens |
 | `PORT` | `3001` | Listen port |
+| `OIDC_ISSUER` | | Provider to discover; all four `OIDC_*` are needed together |
+| `OIDC_CLIENT_ID` | | |
+| `OIDC_CLIENT_SECRET` | | |
+| `OIDC_REDIRECT_URL` | | Where the provider sends the browser back |
+| `OIDC_CREATE_ACCOUNTS` | `false` | Whether a verified address with no account becomes one |
 | `BLOB_BACKEND` | `local` | `local` or `s3` |
 | `UPLOAD_ROOT` | beside `BLOB_ROOT` | Scratch space for resumable uploads in flight; refused at startup if unset when the backend is `s3` |
 | `BLOB_ROOT` | `./data` | Local blob store root, when the backend is `local` |
@@ -122,6 +127,10 @@ workflow, so the chart's default needs no override.
 GET    /health
 POST   /v1/auth/login       exchange email and password for a session token
 GET    /v1/auth/me          the authenticated account
+GET    /v1/auth/methods     what this installation offers to sign in with
+PUT    /v1/auth/methods     turn password login off or on            (admin)
+POST   /v1/auth/oidc/start  begin an authorization code flow
+POST   /v1/auth/oidc/callback  finish one, answering a session token
 GET    /v1/folders            list the root
 GET    /v1/folders/{*path}    list a directory
 PUT    /v1/files/{*path}      upload, creating parent directories
@@ -320,6 +329,29 @@ searched, and `limit` and `offset` page through the results, capped at 200 at a 
 
 This is names only. Searching inside documents needs text extraction per format, and that is a
 different feature rather than a bigger version of this one.
+
+A provider signs people in alongside passwords rather than instead of them, because a self-hoster
+with no identity provider still needs a way in. `POST /v1/auth/oidc/start` answers an authorization
+URL, and the PKCE verifier behind it never leaves the server, so a code intercepted on the way back
+is not enough to finish the flow. A state is spendable once: one that could be spent twice is a code
+that could be replayed.
+
+The flow is tied to the browser that started it by an `HttpOnly` cookie carrying the state, because
+a live code and state pair alone would otherwise be enough to sign somebody else's browser in as the
+attacker. The issuer in the token is compared, not merely required: a multi-tenant provider signs
+every tenant with the same keys.
+
+An address the provider has not vouched for never reaches an account, whether that account exists or
+not. Asserting somebody else's address at a provider that never checked it is the classic way one of
+these integrations is broken, so the decision lives in one function and is tested from both
+directions: it neither takes over an existing account nor creates a new one. A missing
+`email_verified` claim is not a verified address; a provider that says nothing has vouched for
+nothing.
+
+`PUT /v1/auth/methods` turns password login off once the provider is known to work. It is a setting
+rather than an environment variable so that an administrator can do it from the running system, and
+it is refused when no provider is configured, because turning off the only way in is not a change
+anybody meant to make.
 
 Guessing is limited wherever somebody who is not logged in gets to try an answer, which means
 `POST /v1/auth/login` and the password on a share link. Ten attempts cost nothing, the tenth buys a
