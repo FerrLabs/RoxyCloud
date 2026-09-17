@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.0] - 2026-09-17
+
+### Features
+
+- feat(api): resumable uploads (#107)
+
 ## [0.23.0] - 2026-09-07
 
 ### Features
