@@ -31,7 +31,7 @@ jobs:
       - name: The postBump hook runs cargo update to keep Cargo.lock in step
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
 
-      - uses: FerrLabs/FerrFlow@a03d30b10abc968fc366cd3eb6495b49fbb481b9 # v7
+      - uses: FerrLabs/FerrFlow@1764701dc81abb34dc146618a6daab25af8fb858 # v7
         with:
           bot: true
           dry_run: ${{ inputs.dry_run || false }}
