@@ -55,11 +55,9 @@ pub fn parse(body: &[u8]) -> Requested {
     loop {
         match reader.read_resolved_event() {
             Ok((resolved, Event::Start(element) | Event::Empty(element))) => {
-                let name = String::from_utf8_lossy(element.local_name().into_inner()).into_owned();
+                let name = element.local_name().into_inner().to_owned();
                 let namespace = match resolved {
-                    ResolveResult::Bound(namespace) => {
-                        String::from_utf8_lossy(namespace.into_inner()).into_owned()
-                    }
+                    ResolveResult::Bound(namespace) => namespace.into_inner().to_owned(),
                     _ => String::new(),
                 };
 
@@ -82,7 +80,7 @@ pub fn parse(body: &[u8]) -> Requested {
                     _ => {}
                 }
             }
-            Ok((_, Event::End(element))) if element.local_name().into_inner() == b"prop" => {
+            Ok((_, Event::End(element))) if element.local_name().into_inner() == "prop" => {
                 inside_prop = false;
             }
             Ok((_, Event::Eof)) => break,
