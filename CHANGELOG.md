@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.2] - 2026-09-18
+
+### Bug Fixes
+
+- fix(deps): update rust crate sha2 to 0.11 (#131)
+
 ## [0.24.1] - 2026-09-17
 
 ### Bug Fixes
