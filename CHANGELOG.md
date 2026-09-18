@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.4] - 2026-09-18
+
+### Bug Fixes
+
+- fix(deps): update quick-xml to 0.42, whose names are str rather than bytes (#128)
+
 ## [0.24.3] - 2026-09-18
 
 ### Bug Fixes
