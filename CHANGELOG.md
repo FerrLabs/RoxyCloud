@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.3] - 2026-09-18
+
+### Bug Fixes
+
+- fix(deps): update rust crate base64 to 0.23 (#130)
+
 ## [0.24.2] - 2026-09-18
 
 ### Bug Fixes
