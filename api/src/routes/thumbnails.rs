@@ -6,6 +6,7 @@ use serde::Deserialize;
 use tokio::io::AsyncReadExt;
 use tokio_util::io::ReaderStream;
 
+use crate::access;
 use crate::auth::Caller;
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -35,8 +36,9 @@ pub async fn get(
 
     let segments = parse_path(&path)?;
     let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
-    let node = db::resolve(&mut tx, &root, &segments).await?;
+    let node = access::locate(&mut tx, &caller.user, &segments, state.default_quota_bytes)
+        .await?
+        .into_node()?;
     tx.commit().await?;
 
     let (NodeKind::File, Some(source)) = (node.kind, node.blob_hash) else {

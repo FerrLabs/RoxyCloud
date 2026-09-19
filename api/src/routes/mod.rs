@@ -1,6 +1,7 @@
 pub mod app_passwords;
 pub mod auth;
 pub mod files;
+pub mod grants;
 pub mod oidc;
 pub mod search;
 pub mod shares;
@@ -40,6 +41,9 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/users/{id}/role", put(users::set_role))
         .route("/v1/users/{id}/quota", put(users::set_quota))
         .route("/v1/users/{id}/password", put(users::reset_password))
+        .route("/v1/grants", get(grants::list).post(grants::create))
+        .route("/v1/grants/received", get(grants::received))
+        .route("/v1/grants/{id}", delete(grants::withdraw))
         .route("/v1/shares", get(shares::list).post(shares::create))
         .route("/v1/shares/{id}", delete(shares::revoke))
         .route("/v1/public/{token}", get(shares::open))

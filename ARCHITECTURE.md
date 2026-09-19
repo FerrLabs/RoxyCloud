@@ -369,7 +369,9 @@ means "in up to twelve hours".
 
 Every path enters through the same authorization layer in the API. There is no code path that
 reaches the blob store without first resolving a node the caller is allowed to read, share links
-included: a share token resolves to a node id, never to a backend key. `routes::files::bytes_of` is
+included: a share token resolves to a node id, never to a backend key. An authenticated path is
+resolved by `access::locate` and nothing else, which is also the only place one account reaches
+another's nodes, through a grant (below). `routes::files::bytes_of` is
 the single place that turns a node into bytes, so the authenticated download and the anonymous one
 cannot drift apart in what they attach or what they check.
 
@@ -435,6 +437,73 @@ guessed online, against the limiter described below; an account password has to 
 attack on a database somebody walked off with, where no limiter reaches.
 
 Not implemented: upload into a shared folder.
+
+## Grants
+
+A grant shares one node with another account on the instance, read or write. It is a row in
+`grants`, separate from `shares`: a link answers "who holds this token", a grant answers "which
+account may act here", and the two have nothing in their rows in common beyond the node.
+
+```mermaid
+flowchart TD
+    P[path from an authenticated caller] --> F{first segment}
+    F -->|anything else| O[walk down from the caller's root]
+    F -->|Shared with me| S{second segment}
+    S -->|none| L[virtual listing of the caller's mounts]
+    S -->|a mount name| G[grant for this caller's address and that name]
+    G -->|none, or its node is in the trash| N[404]
+    G -->|found| W[walk down from the granted node]
+    O --> R[Place::Own]
+    W --> T["Place::Shared, carrying the grant's access"]
+```
+
+`Shared with me` is not a node. Materialising it would put rows in the recipient's tree pointing into
+somebody else's, and every walk that assumes one owner per subtree would have to learn the
+exception. It is answered by listing and resolution, with an id derived from the account so a client
+sees the same directory from one request to the next, and an etag over the mounts it holds. The name
+is reserved at the top of every tree, and the migration that introduced it renamed any folder that
+already had it.
+
+A grant names an address, not an account id, and is matched to the caller's address when a path is
+resolved. That is what lets `POST /v1/grants` answer identically whether an account exists for the
+address, and it makes a grant to somebody without an account an invitation: the account created
+later for that address receives it. The cost is that a grant follows the address, so an account
+deleted and created again for the same address receives it again.
+
+Containment is the same property a link has. The granted node is where the walk starts, children are
+followed downward, and `NodeName` refuses `..`, so no path reaches the owner's other nodes. What
+changes is ownership on write. The node belongs to the owner, so everything a write touches is keyed
+on the node's owner rather than the caller: the rows it creates, the quota it charges, the trash a
+delete lands in, and the advisory lock tree mutations take. A recipient racing the owner in the same
+folder therefore serialises on the owner's lock, which is the race that lock exists for.
+
+The effective right is the smaller of two things. The grant limits the node and the account's role
+limits the account, so a reader with a write grant reads. On top of that the recipient may not
+touch the mount itself: it cannot move, rename or delete the shared folder, only what is inside it.
+A move from a shared folder into the recipient's own tree, or back, is refused rather than
+implemented as a copy and a delete across two quotas; the caller can copy. A recipient cannot grant
+or publish a link on a node it does not own, so access never travels further than the owner sent it.
+
+Nesting is refused at the point of granting: a second grant to the same address on an ancestor or a
+descendant of a node that address already reaches answers 409, so the right on any path comes from
+exactly one grant. An owner can still create nesting later by moving one granted folder into
+another; each path then carries the right of the mount it went through, which is deterministic even
+if it is two answers for one node.
+
+Revocation is a row going away, and a grant is read on every request, so it takes effect on the next
+one from every session and app password alike. The owner revokes; the recipient may withdraw too,
+which leaves the share without touching the folder. A shared node going to the trash hides the mount,
+a restore brings it back, and a purge removes the grant with the node. The owner's own list keeps
+showing a grant on a trashed node, marked as such, because a restore would hand the access straight
+back and the owner should be able to see and revoke that first.
+
+Search reaches shared folders by walking down from each mount the caller holds and matching names
+along the way, so it costs the size of what is shared rather than the size of the owner's tree, and
+nothing outside a mount is ever read. A node reachable through two mounts is found through the
+nearer one. The path is built by climbing back to that mount and no further, so the names of the
+owner's folders above the shared one never reach a page.
+
+Not implemented: WebDAV access to shared folders.
 
 ## Guessing
 

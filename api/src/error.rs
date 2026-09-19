@@ -28,6 +28,10 @@ pub enum ApiError {
     Conflict(String),
     #[error("a directory cannot be moved inside itself")]
     MoveIntoSelf,
+    #[error("this address already reaches this through another share")]
+    AlreadyGranted,
+    #[error("a move cannot cross from one account's files into another's, copy it instead")]
+    AcrossAccounts,
     #[error("{0} is locked")]
     Locked(String),
     #[error("invalid path: {0}")]
@@ -82,9 +86,10 @@ impl ApiError {
             }
             Self::WeakPassword(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::NotFound | Self::Storage(StorageError::NotFound(_)) => StatusCode::NOT_FOUND,
-            Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::Forbidden | Self::AcrossAccounts => StatusCode::FORBIDDEN,
             Self::Conflict(_)
             | Self::MoveIntoSelf
+            | Self::AlreadyGranted
             | Self::AlreadyWriting
             | Self::OffsetMismatch { .. } => StatusCode::CONFLICT,
             Self::Locked(_) => StatusCode::LOCKED,

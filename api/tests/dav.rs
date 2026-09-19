@@ -1053,3 +1053,32 @@ database_test!(
         assert_eq!(allowed.status, StatusCode::NO_CONTENT);
     }
 );
+
+database_test!(
+    the_shelf_name_cannot_be_taken_at_the_root_over_webdav,
+    harness,
+    {
+        let (owner, auth) = credential(&harness, "shelf@example.com", Role::Member).await;
+        harness.write(owner, "notes.txt", b"bytes").await;
+
+        let made = dav(&harness, "MKCOL", "/dav/Shared%20with%20me", &auth, &[], "").await;
+        let put = dav(&harness, "PUT", "/dav/Shared%20with%20me", &auth, &[], "x").await;
+        let moved = dav(
+            &harness,
+            "MOVE",
+            "/dav/notes.txt",
+            &auth,
+            &[("destination", "/dav/Shared%20with%20me")],
+            "",
+        )
+        .await;
+
+        assert_eq!(made.status, StatusCode::CONFLICT);
+        assert_eq!(put.status, StatusCode::CONFLICT);
+        assert_eq!(moved.status, StatusCode::CONFLICT);
+        assert_eq!(
+            harness.children(&harness.root(owner).await).await,
+            ["notes.txt"]
+        );
+    }
+);

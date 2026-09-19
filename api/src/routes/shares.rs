@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::access::{self, Place};
 use crate::auth::{Caller, Writer};
 use crate::db;
 use crate::error::ApiError;
@@ -65,8 +66,11 @@ pub async fn create(
     }
 
     let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
-    let node = db::resolve(&mut tx, &root, &segments).await?;
+    let Place::Own(node) =
+        access::locate(&mut tx, &caller.user, &segments, state.default_quota_bytes).await?
+    else {
+        return Err(ApiError::Forbidden);
+    };
     let minted = shares::mint(
         &mut tx,
         caller.user_id(),

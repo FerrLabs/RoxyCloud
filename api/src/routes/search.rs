@@ -22,7 +22,7 @@ pub async fn search(
     Ok(Json(
         search::by_name(
             &state.db,
-            caller.user_id(),
+            &caller.user,
             &request.q,
             request.limit.unwrap_or(DEFAULT_LIMIT),
             request.offset.unwrap_or(0),

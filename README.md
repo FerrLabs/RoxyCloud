@@ -158,6 +158,10 @@ PUT    /v1/users/{id}/role    admin, member or reader                  (admin)
 PUT    /v1/users/{id}/quota   how many bytes it may hold               (admin)
 PUT    /v1/users/{id}/password reset it without knowing the old one    (admin)
 POST   /v1/users/{id}/unlock  let a locked out account try again       (admin)
+GET    /v1/grants             what this account shares with other accounts
+POST   /v1/grants             share a folder or a file with one, read or write
+GET    /v1/grants/received    what other accounts share with this one
+DELETE /v1/grants/{id}        take a share back, or leave one shared with you
 GET    /v1/shares             the links this account has published
 POST   /v1/shares             publish one, its token shown once
 DELETE /v1/shares/{id}        revoke one, taking effect immediately
@@ -249,6 +253,36 @@ listing carries names, sizes and modification times and no identifiers: not the 
 account behind the link, and every public response says `Cache-Control: no-store` so that a proxy
 cannot go on serving a link somebody revoked.
 
+An account can also share a folder or a file with another account on the same instance, which a
+link is the wrong tool for. `POST /v1/grants` takes a path, an address and `read` or `write`. What
+was shared appears for the other account under `Shared with me/` at the top of their tree, named
+after the folder, and it is reachable there through the same routes as their own files: listing,
+download, upload, search and thumbnails. Nothing above the shared node resolves, because the path is
+walked down from it, the same containment a link has.
+
+The bytes stay the owner's. A write by the other account lands in the owner's tree, counts against
+the owner's quota, and a delete goes to the owner's trash, so giving somebody write access is
+trusting them with that much of your quota. A move from a shared folder into the recipient's own
+files, or the other way, answers 403, because it would carry bytes from one account's quota into
+another's; copying is how to take a file. The recipient cannot move or delete the shared folder
+itself, and cannot pass anything in it on, by a grant or by a link.
+
+An account's role caps what a grant gives it: a reader with write access still only reads. A grant
+names an address rather than an account, and it is answered the same way whether an account exists
+for that address or not, so the form cannot be used to find out who has one. An account created
+later for the address receives what was shared with it. A second grant to the same address inside a
+folder it already reaches is refused, so what a path allows comes from one grant, and two shares
+with the same name are told apart as `Photos` and `Photos (2)`.
+
+`DELETE /v1/grants/{id}` takes a share back when the owner sends it and leaves it when the
+recipient does. Either way it is gone on the next request, from sessions already open too, and so
+is a shared folder its owner sends to the trash, until it is restored. The owner's `GET /v1/grants`
+keeps listing that share with `in_trash`, so it can be revoked before a restore hands it back.
+`Shared with me` is reserved
+at the top of every tree, and upgrading renames a folder that already had that name.
+
+Over WebDAV, shared folders do not appear yet.
+
 `GET /v1/thumbnails/{*path}?edge=256` answers a `WebP` thumbnail, made when it is asked for rather
 than when the file arrives, and cached against the source digest so the same photo uploaded by two
 people costs one thumbnail. The offered edges are 128, 256 and 512: an open integer would let one
@@ -321,8 +355,10 @@ client's chunk size and make an offset below a part boundary unresumable. The co
 under `UPLOAD_ROOT` for uploads in flight, bounded by the twenty-four hour session lifetime, and the
 sweep reconciles that directory against the sessions that still exist.
 
-`GET /v1/search?q=` matches part of a name against the account's own live tree, case-insensitively,
-prefix matches first. A result carries the path it was found at, because a name on its own tells you
+`GET /v1/search?q=` matches part of a name against the account's live tree and what other accounts
+share with it, case-insensitively, prefix matches first. A match in a shared folder comes back under
+`Shared with me/`, and its path stops at the shared folder rather than naming the owner's folders
+above it. A result carries the path it was found at, because a name on its own tells you
 that you have a file called `notes.md` without telling you which of the four it is. What was typed is
 a literal: `%` and `_` are escaped rather than passed to the pattern matcher, so searching for `%`
 finds files with a percent sign in the name instead of returning everything. The trash is not

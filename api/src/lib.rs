@@ -1,3 +1,4 @@
+pub mod access;
 pub mod app_passwords;
 pub mod attempts;
 pub mod auth;
@@ -5,6 +6,7 @@ pub mod config;
 pub mod dav;
 pub mod db;
 pub mod error;
+pub mod grants;
 pub mod oidc;
 pub mod password;
 pub mod routes;

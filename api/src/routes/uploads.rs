@@ -7,6 +7,7 @@ use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
+use crate::access;
 use crate::auth::{Caller, Writer};
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -38,8 +39,9 @@ pub async fn begin(
     // Refused here rather than at the end, so a client does not send a file for an hour to be told
     // there was never room for it.
     let mut tx = state.db.begin().await?;
-    db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
-    db::room_for(&mut tx, caller.user_id(), request.size).await?;
+    let holder =
+        access::quota_holder(&mut tx, &caller.user, &segments, state.default_quota_bytes).await?;
+    db::room_for(&mut tx, holder, request.size).await?;
     tx.commit().await?;
 
     let session = uploads::begin(
@@ -122,10 +124,7 @@ pub async fn finish(
         });
     }
 
-    let mut segments = parse_path(&session.path)?;
-    let name = segments.pop().ok_or(ApiError::WrongKind {
-        expected: "path below the root",
-    })?;
+    let segments = parse_path(&session.path)?;
 
     let staged = uploads::staged_path(&state.staging, &session);
     let file = tokio::fs::File::open(&staged).await?;
@@ -137,17 +136,9 @@ pub async fn finish(
     db::register_blob(&state.db, written.hash, size).await?;
 
     let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
-    let parent = db::create_directories(&mut tx, caller.user_id(), &root, &segments).await?;
-    let node = db::put_file(
-        &mut tx,
-        caller.user_id(),
-        &parent,
-        &name,
-        written.hash,
-        size,
-    )
-    .await?;
+    let (parent, name) =
+        access::file_target(&mut tx, &caller.user, &segments, state.default_quota_bytes).await?;
+    let node = db::put_file(&mut tx, parent.owner_id, &parent, &name, written.hash, size).await?;
     tx.commit().await?;
     state.blobs.settle(&written).await?;
 
