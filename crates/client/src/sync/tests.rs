@@ -431,3 +431,59 @@ async fn an_edit_in_a_read_only_share_is_held_back_rather_than_retried() {
         Some(&b"mine, locally"[..])
     );
 }
+
+#[tokio::test]
+async fn a_conflict_in_a_read_only_share_still_brings_the_owners_version_down() {
+    let pair = Pair::new("read-only-conflict");
+    pair.write_server("Shared with me/archive/old.txt", b"theirs");
+    let held = Held::from_mounts([("archive".to_owned(), roxycloud_core::grant::Access::Read)]);
+    pair.engine_holding(held.clone())
+        .sync_once()
+        .await
+        .expect("the first sync");
+
+    pair.write_local("Shared with me/archive/old.txt", b"mine, locally");
+    pair.write_server("Shared with me/archive/old.txt", b"theirs, edited");
+    let report = pair
+        .engine_holding(held.clone())
+        .sync_once()
+        .await
+        .expect("the conflicting sync");
+
+    assert!(report.failures.is_empty(), "{:?}", report.failures);
+    assert_eq!(report.uploaded, 0);
+    assert_eq!(
+        pair.read_local("Shared with me/archive/old.txt").as_deref(),
+        Some(&b"theirs, edited"[..])
+    );
+    let copies: Vec<String> = pair
+        .local_names()
+        .into_iter()
+        .filter(|name| name.contains("conflict"))
+        .collect();
+    assert_eq!(copies.len(), 1, "{copies:?}");
+    assert_eq!(
+        pair.read_local(&copies[0]).as_deref(),
+        Some(&b"mine, locally"[..])
+    );
+    assert!(pair.read_server(&copies[0]).is_none());
+    assert_eq!(
+        report.held.iter().map(RelPath::as_str).collect::<Vec<_>>(),
+        [copies[0].as_str()]
+    );
+
+    pair.write_server("Shared with me/archive/old.txt", b"theirs, again");
+    let later = pair
+        .engine_holding(held)
+        .sync_once()
+        .await
+        .expect("a later sync");
+
+    assert!(later.failures.is_empty(), "{:?}", later.failures);
+    assert_eq!(later.uploaded, 0);
+    assert_eq!(
+        pair.read_local("Shared with me/archive/old.txt").as_deref(),
+        Some(&b"theirs, again"[..])
+    );
+    assert!(pair.read_server(&copies[0]).is_none());
+}
