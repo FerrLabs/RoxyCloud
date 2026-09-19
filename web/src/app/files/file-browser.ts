@@ -63,8 +63,7 @@ export class FileBrowser {
 
   private readonly left = signal(0);
   protected readonly received = resource({
-    params: () =>
-      this.where().kind === 'own' ? undefined : { version: this.left(), path: this.path() },
+    params: () => (this.where().kind === 'own' ? undefined : { version: this.left() }),
     loader: () => this.platform.receivedGrants?.() ?? Promise.resolve([]),
   });
 

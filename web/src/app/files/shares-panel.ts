@@ -33,7 +33,13 @@ export class SharesPanel {
   protected readonly failure = signal<string | null>(null);
 
   protected readonly describe = describeLink;
-  protected readonly access = describeAccess;
+  protected describeGiven(given: Given): string {
+    const parts = [given.email, describeAccess(given.access)];
+    if (given.in_trash) {
+      parts.push('in the trash');
+    }
+    return parts.join(', ');
+  }
 
   protected async revoke(share: Share): Promise<void> {
     this.doomed.set(null);

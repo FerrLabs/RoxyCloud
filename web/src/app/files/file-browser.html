@@ -36,6 +36,13 @@
     <rx-shares-panel [version]="published()" (closed)="showingLinks.set(false)" />
   }
 
+  @if (received.error()) {
+    <p class="banner failure" role="alert">
+      Who shared this with you, and how, did not load, so nothing here can be changed for now.
+      <button type="button" class="ghost" (click)="received.reload()">Try again</button>
+    </p>
+  }
+
   @if (mount(); as shared) {
     <p class="banner origin">
       {{ shared.owner_name || shared.owner_email }} shares this with you.

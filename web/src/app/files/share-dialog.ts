@@ -11,6 +11,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { describeAccess, type Access, type Given } from '../grant';
+import { Confirm } from '../shared/confirm';
 import type { Node } from '../node';
 import { PLATFORM } from '../platform';
 import { endOfDay, linkFor, today, type Minted } from '../share';
@@ -19,6 +20,7 @@ type Mode = 'link' | 'account';
 
 @Component({
   selector: 'rx-share-dialog',
+  imports: [Confirm],
   templateUrl: './share-dialog.html',
   styleUrl: './share-dialog.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -47,6 +49,7 @@ export class ShareDialog {
   protected readonly email = signal('');
   protected readonly access = signal<Access>('read');
   protected readonly announcement = signal<string | null>(null);
+  protected readonly removing = signal<Given | null>(null);
   private readonly granted = signal(0);
 
   protected readonly grants = resource({
@@ -126,12 +129,14 @@ export class ShareDialog {
   }
 
   protected async take(given: Given): Promise<void> {
+    this.removing.set(null);
     const withdraw = this.platform.withdrawGrant;
-    if (withdraw === undefined) {
+    if (withdraw === undefined || this.busy()) {
       return;
     }
 
     this.failure.set(null);
+    this.busy.set(true);
     try {
       await withdraw(given.id);
       this.announcement.set(`${given.email} no longer has access`);
@@ -139,6 +144,8 @@ export class ShareDialog {
       this.created.emit();
     } catch (cause: unknown) {
       this.failure.set(reasonFor(cause));
+    } finally {
+      this.busy.set(false);
     }
   }
 

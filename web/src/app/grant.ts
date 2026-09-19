@@ -10,6 +10,7 @@ export type Given = {
   kind: NodeKind;
   email: string;
   access: Access;
+  in_trash: boolean;
   created_at: string;
 };
 

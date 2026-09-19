@@ -135,8 +135,9 @@
                 <button
                   type="button"
                   class="ghost danger"
+                  [disabled]="busy()"
                   [attr.aria-label]="'Stop sharing with ' + given.email"
-                  (click)="take(given)"
+                  (click)="removing.set(given)"
                 >
                   Remove
                 </button>
@@ -155,3 +156,13 @@
     }
   }
 </dialog>
+
+@if (removing(); as given) {
+  <rx-confirm
+    [heading]="'Stop sharing ' + node().name + ' with ' + given.email + '?'"
+    body="It disappears from their Shared with me on their next request. Your files are untouched."
+    action="Stop sharing"
+    (accepted)="take(given)"
+    (dismissed)="removing.set(null)"
+  />
+}
