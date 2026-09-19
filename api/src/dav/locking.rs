@@ -10,7 +10,7 @@ use super::auth::DavCaller;
 use super::locks::{self, Lock};
 use super::xml::escape;
 use super::{href, path_of};
-use crate::access::{self, Place};
+use crate::access;
 use crate::db;
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -103,10 +103,9 @@ pub(super) async fn unlock(
     };
 
     let mut tx = state.db.begin().await?;
-    let node = match access::locate(&mut tx, &caller.0, &path, state.default_quota_bytes).await? {
-        Place::SharedWithMe => return Ok(StatusCode::CONFLICT.into_response()),
-        place => place.into_node()?,
-    };
+    let node = access::locate_writable(&mut tx, &caller.0, &path, state.default_quota_bytes)
+        .await?
+        .into_node()?;
     tx.commit().await?;
 
     if locks::release(&state.db, &node, &token).await? {

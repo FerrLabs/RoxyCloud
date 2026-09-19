@@ -505,7 +505,10 @@ owner's folders above the shared one never reach a page.
 
 WebDAV resolves through the same `access::locate`, so a share behaves the same there as over the
 REST API, locks included: a lock on a shared file is taken by the recipient and held against the
-owner too, which is what an exclusive lock means. `current-user-privilege-set` is answered per
+owner's WebDAV clients too, which is what an exclusive lock means. The REST routes do not consult
+WebDAV locks, so the owner's web app can still write through one. Releasing a lock needs write
+access, like taking one: a lock token is visible to anyone who can read the resource, so a
+recipient who may only read cannot use it to free the owner's lock. `current-user-privilege-set` is answered per
 resource, with `write` only where both the role and the grant allow it, and is not part of `allprop`
 because RFC 3744 leaves computed privileges out of it. Quota properties on a read-only share read as
 zero, because the owner's usage is not something a grant to read files discloses.

@@ -1431,3 +1431,51 @@ database_test!(
         );
     }
 );
+
+database_test!(a_read_share_cannot_release_the_owners_lock, harness, {
+    let (owner_id, owner_auth) = credential(&harness, "owner@example.com", Role::Member).await;
+    let owner = harness.account_by_email("owner@example.com").await;
+    let (_, guest_auth) = credential(&harness, "guest@example.com", Role::Member).await;
+    harness.write(owner_id, "photos/beach.jpg", b"sand").await;
+    harness
+        .grant(&owner, "photos", "guest@example.com", Access::Read)
+        .await;
+
+    let locked = dav(
+        &harness,
+        "LOCK",
+        "/dav/photos/beach.jpg",
+        &owner_auth,
+        &[],
+        LOCKINFO,
+    )
+    .await;
+    let token = locked
+        .headers
+        .get("lock-token")
+        .and_then(|value| value.to_str().ok())
+        .expect("a lock token")
+        .to_owned();
+
+    let released = dav(
+        &harness,
+        "UNLOCK",
+        &format!("{SHELF}/photos/beach.jpg"),
+        &guest_auth,
+        &[("lock-token", &token)],
+        "",
+    )
+    .await;
+    let overwritten = dav(
+        &harness,
+        "PUT",
+        "/dav/photos/beach.jpg",
+        &owner_auth,
+        &[],
+        "x",
+    )
+    .await;
+
+    assert_eq!(released.status, StatusCode::FORBIDDEN);
+    assert_eq!(overwritten.status, StatusCode::LOCKED);
+});
