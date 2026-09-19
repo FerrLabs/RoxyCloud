@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.25.1] - 2026-09-19
+
+### Bug Fixes
+
+- fix(client): set a read-only conflict aside and still bring the owner's version down (#147)
+
 ## [0.25.0] - 2026-09-19
 
 ### Features
