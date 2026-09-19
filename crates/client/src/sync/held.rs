@@ -39,6 +39,16 @@ impl Held {
         let mut held = plan.held;
         let mut actions = Vec::with_capacity(plan.actions.len());
         for action in plan.actions {
+            if let Action::KeepBoth { path, local_copy } = &action
+                && self.refuses_upload(local_copy)
+            {
+                held.push(local_copy.clone());
+                actions.push(Action::SetAside {
+                    path: path.clone(),
+                    local_copy: local_copy.clone(),
+                });
+                continue;
+            }
             match self.holding(&action, &uprooted) {
                 Some(path) => held.push(path.clone()),
                 None => actions.push(action),
@@ -53,11 +63,7 @@ impl Held {
 
     fn holding<'a>(&self, action: &'a Action, uprooted: &[RelPath]) -> Option<&'a RelPath> {
         match action {
-            Action::Upload(path) | Action::KeepBoth { path, .. }
-                if self.read_only(path) || self.loose_on_the_shelf(path) =>
-            {
-                Some(path)
-            }
+            Action::Upload(path) if self.refuses_upload(path) => Some(path),
             Action::DeleteRemote(path) | Action::RemoveRemoteDirectory(path)
                 if self.read_only(path)
                     || self.fixed(path)
@@ -67,6 +73,10 @@ impl Held {
             }
             _ => None,
         }
+    }
+
+    fn refuses_upload(&self, path: &RelPath) -> bool {
+        self.read_only(path) || self.loose_on_the_shelf(path)
     }
 
     fn read_only(&self, path: &RelPath) -> bool {
@@ -129,10 +139,6 @@ mod tests {
         assert!(is_held(Action::RemoveRemoteDirectory(at(
             "Shared with me/archive/2019"
         ))));
-        assert!(is_held(Action::KeepBoth {
-            path: at("Shared with me/archive/old.jpg"),
-            local_copy: at("Shared with me/archive/old (conflict).jpg"),
-        }));
     }
 
     #[test]
@@ -192,6 +198,43 @@ mod tests {
             plan.actions,
             [Action::DeleteRemote(at("Shared with me/inbox/a.txt"))]
         );
+    }
+
+    #[test]
+    fn a_conflict_in_a_read_only_share_still_brings_the_owners_version_down() {
+        let plan = outcome(Action::KeepBoth {
+            path: at("Shared with me/archive/old.jpg"),
+            local_copy: at("Shared with me/archive/old (conflict).jpg"),
+        });
+        assert_eq!(
+            plan.actions,
+            [Action::SetAside {
+                path: at("Shared with me/archive/old.jpg"),
+                local_copy: at("Shared with me/archive/old (conflict).jpg"),
+            }]
+        );
+        assert_eq!(plan.held, [at("Shared with me/archive/old (conflict).jpg")]);
+    }
+
+    #[test]
+    fn a_conflict_on_a_shared_file_keeps_its_copy_off_the_shelf() {
+        let plan = outcome(Action::KeepBoth {
+            path: at("Shared with me/report.pdf"),
+            local_copy: at("Shared with me/report (conflict).pdf"),
+        });
+        assert!(matches!(plan.actions.as_slice(), [Action::SetAside { .. }]));
+        assert_eq!(plan.held, [at("Shared with me/report (conflict).pdf")]);
+    }
+
+    #[test]
+    fn a_conflict_in_a_write_share_keeps_both_as_anywhere_else() {
+        let conflict = Action::KeepBoth {
+            path: at("Shared with me/inbox/todo.txt"),
+            local_copy: at("Shared with me/inbox/todo (conflict).txt"),
+        };
+        let plan = outcome(conflict.clone());
+        assert_eq!(plan.actions, [conflict]);
+        assert!(plan.held.is_empty());
     }
 
     #[test]

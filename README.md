@@ -478,7 +478,10 @@ it to be refused on every pass: an edit to a file in a read-only share, a file d
 `Shared with me/` itself, and removing a shared folder or `Shared with me` locally, which holds back
 everything inside it too rather than emptying the owner's folder. Those are listed
 as held in what the sync prints, the local copy is left as it is, and the server's is untouched.
-Inside a write share, edits and deletions go through, landing in the owner's files. Against a server
+When a file in a read-only share changed on both sides, your version is set aside as the usual
+conflict copy and kept locally, held, and the owner's version comes down under the name, so the file
+goes on following the owner's edits. The same happens to a conflict on a file shared on its own,
+since its copy would otherwise land loose in `Shared with me/`. Inside a write share, edits and deletions go through, landing in the owner's files. Against a server
 too old to have shares, nothing is held back.
 
 ## Development

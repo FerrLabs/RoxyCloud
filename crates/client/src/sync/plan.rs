@@ -15,6 +15,7 @@ pub enum Action {
     RemoveRemoteDirectory(RelPath),
     Forget(RelPath),
     KeepBoth { path: RelPath, local_copy: RelPath },
+    SetAside { path: RelPath, local_copy: RelPath },
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

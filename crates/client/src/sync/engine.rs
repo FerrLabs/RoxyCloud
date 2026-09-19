@@ -237,6 +237,17 @@ impl<T: Transport> Engine<T> {
                 report.downloaded += 1;
                 report.uploaded += 1;
             }
+            Action::SetAside { path, local_copy } => {
+                let from = path.to_path(&self.root);
+                let to = local_copy.to_path(&self.root);
+                fs::rename(&from, &to)
+                    .map_err(|source| format!("renaming {}: {source}", from.display()))?;
+                self.state.forget(path);
+
+                self.download(path, remote).await?;
+                report.conflicts.push(path.clone());
+                report.downloaded += 1;
+            }
         }
         Ok(())
     }
@@ -314,7 +325,8 @@ fn subject(action: &Action) -> &RelPath {
         | Action::Upload(path)
         | Action::DeleteLocal(path)
         | Action::DeleteRemote(path)
-        | Action::KeepBoth { path, .. } => path,
+        | Action::KeepBoth { path, .. }
+        | Action::SetAside { path, .. } => path,
     }
 }
 
