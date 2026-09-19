@@ -21,12 +21,13 @@ pub enum Action {
 pub struct Plan {
     pub actions: Vec<Action>,
     pub blocked: Vec<RelPath>,
+    pub held: Vec<RelPath>,
 }
 
 impl Plan {
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.actions.is_empty() && self.blocked.is_empty()
+        self.actions.is_empty() && self.blocked.is_empty() && self.held.is_empty()
     }
 }
 
@@ -91,7 +92,11 @@ pub fn reconcile(local: &Snapshot, remote: &Snapshot, base: &Snapshot, now: Date
     actions.extend(removed);
     actions.extend(forgotten);
 
-    Plan { actions, blocked }
+    Plan {
+        actions,
+        blocked,
+        held: Vec::new(),
+    }
 }
 
 fn holds_only_what_was_synced(remote: &Snapshot, base: &Snapshot, directory: &RelPath) -> bool {

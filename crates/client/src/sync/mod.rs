@@ -1,5 +1,6 @@
 pub mod debounce;
 pub mod engine;
+pub mod held;
 pub mod local;
 pub mod path;
 pub mod plan;
@@ -13,6 +14,7 @@ mod tests;
 
 pub use debounce::Debounce;
 pub use engine::{Engine, Failure, Report, SyncError};
+pub use held::Held;
 pub use local::{LocalScan, ScanError, scan};
 pub use path::{InvalidRelPath, RelPath};
 pub use plan::{Action, Plan, reconcile};

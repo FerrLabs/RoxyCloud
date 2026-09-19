@@ -2,16 +2,25 @@ use std::path::Path;
 
 use futures::StreamExt;
 use reqwest::Body;
+use serde::Deserialize;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
 
 use crate::remote::{Remote, RemoteError, check};
+use crate::sync::held::Held;
 use crate::sync::path::RelPath;
 use crate::sync::snapshot::{Entry, Snapshot};
 use crate::sync::transport::Transport;
+use roxycloud_core::grant::Access;
 use roxycloud_core::node::{Node, NodeKind};
 use roxycloud_core::user::User;
+
+#[derive(Debug, Deserialize)]
+pub struct Received {
+    pub name: String,
+    pub access: Access,
+}
 
 impl Remote {
     pub async fn upload(&self, path: &str, source: &Path) -> Result<Node, RemoteError> {
@@ -79,6 +88,18 @@ impl Remote {
             .map_err(|source| RemoteError::io(destination, source))
     }
 
+    pub async fn received(&self) -> Result<Vec<Received>, RemoteError> {
+        let url = format!("{}/v1/grants/received", self.base());
+        let response = self
+            .http()
+            .get(&url)
+            .bearer_auth(self.token())
+            .send()
+            .await?;
+        check(response.status(), "the shares received")?;
+        Ok(response.json().await?)
+    }
+
     pub async fn walk(&self) -> Result<Snapshot, RemoteError> {
         let mut snapshot = Snapshot::new();
         let mut pending = vec![None];
@@ -142,5 +163,49 @@ impl Transport for Remote {
 
     async fn remove(&self, path: &RelPath) -> Result<(), Self::Error> {
         self.delete(path.as_str()).await
+    }
+
+    async fn held(&self) -> Result<Held, Self::Error> {
+        held_from(self.received().await)
+    }
+}
+
+fn held_from(received: Result<Vec<Received>, RemoteError>) -> Result<Held, RemoteError> {
+    match received {
+        Ok(mounts) => Ok(Held::from_mounts(
+            mounts.into_iter().map(|mount| (mount.name, mount.access)),
+        )),
+        Err(RemoteError::NotFound(_)) => Ok(Held::default()),
+        Err(other) => Err(other),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_server_older_than_shares_holds_nothing_back() {
+        let held = held_from(Err(RemoteError::NotFound("the shares received".to_owned())))
+            .expect("an older server is not an error");
+        assert_eq!(held, Held::default());
+    }
+
+    #[test]
+    fn any_other_failure_still_stops_the_sync() {
+        assert!(held_from(Err(RemoteError::Unauthenticated)).is_err());
+    }
+
+    #[test]
+    fn received_shares_become_what_is_held() {
+        let held = held_from(Ok(vec![Received {
+            name: "archive".to_owned(),
+            access: Access::Read,
+        }]))
+        .expect("held");
+        assert_eq!(
+            held,
+            Held::from_mounts([("archive".to_owned(), Access::Read)])
+        );
     }
 }

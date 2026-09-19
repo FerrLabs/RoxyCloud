@@ -54,6 +54,9 @@ fn print(report: &Report) {
     for path in &report.blocked {
         println!("blocked: {path} is a file on one side and a directory on the other");
     }
+    for path in &report.held {
+        println!("held: {path} is shared with this account in a way it may not change");
+    }
     for path in &report.skipped {
         println!("skipped: {path}");
     }

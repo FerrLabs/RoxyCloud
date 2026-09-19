@@ -7,6 +7,7 @@ use tokio::sync::broadcast;
 
 use super::debounce::Debounce;
 use super::engine::{Engine, Report};
+use super::held::Held;
 use super::local;
 use super::path::RelPath;
 use super::snapshot::Snapshot;
@@ -16,6 +17,7 @@ use super::watch::{Command, Status, watch};
 
 struct FakeServer {
     root: PathBuf,
+    held: Held,
 }
 
 #[expect(
@@ -50,6 +52,10 @@ impl Transport for FakeServer {
         }
         fs::remove_file(target)
     }
+
+    async fn held(&self) -> Result<Held, Self::Error> {
+        Ok(self.held.clone())
+    }
 }
 
 struct Pair {
@@ -71,10 +77,15 @@ impl Pair {
     }
 
     fn engine(&self) -> Engine<FakeServer> {
+        self.engine_holding(Held::default())
+    }
+
+    fn engine_holding(&self, held: Held) -> Engine<FakeServer> {
         Engine::open(
             self.local.clone(),
             FakeServer {
                 root: self.server.clone(),
+                held,
             },
         )
         .expect("the engine opens")
@@ -383,5 +394,40 @@ async fn a_folder_that_came_back_on_the_server_is_not_removed_again() {
     assert!(
         pair.local.join("photos").is_dir(),
         "it arrives here instead, like any other folder made elsewhere"
+    );
+}
+
+#[tokio::test]
+async fn an_edit_in_a_read_only_share_is_held_back_rather_than_retried() {
+    let pair = Pair::new("read-only-share");
+    pair.write_server("Shared with me/archive/old.txt", b"theirs");
+    let held = Held::from_mounts([("archive".to_owned(), roxycloud_core::grant::Access::Read)]);
+    pair.engine_holding(held.clone())
+        .sync_once()
+        .await
+        .expect("the first sync");
+
+    pair.write_local("Shared with me/archive/old.txt", b"mine, locally");
+    let report = pair
+        .engine_holding(held)
+        .sync_once()
+        .await
+        .expect("the second sync");
+
+    assert!(report.failures.is_empty(), "{:?}", report.failures);
+    assert!(report.blocked.is_empty(), "{:?}", report.blocked);
+    assert_eq!(report.uploaded, 0);
+    assert_eq!(
+        report.held.iter().map(RelPath::as_str).collect::<Vec<_>>(),
+        ["Shared with me/archive/old.txt"]
+    );
+    assert_eq!(
+        pair.read_server("Shared with me/archive/old.txt")
+            .as_deref(),
+        Some(&b"theirs"[..])
+    );
+    assert_eq!(
+        pair.read_local("Shared with me/archive/old.txt").as_deref(),
+        Some(&b"mine, locally"[..])
     );
 }
