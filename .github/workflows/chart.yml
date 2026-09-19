@@ -1,0 +1,61 @@
+name: Chart
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Released version to package and push, without the leading v'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Released version to package and push, without the leading v'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: oci://ghcr.io/ferrlabs/charts
+  CHART: ghcr.io/ferrlabs/charts/roxycloud
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: v${{ inputs.version }}
+          persist-credentials: false
+
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Package, push and sign the chart under the release version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          helm registry login ghcr.io -u "$REGISTRY_USER" --password-stdin <<< "$GITHUB_TOKEN"
+          cosign login ghcr.io -u "$REGISTRY_USER" --password-stdin <<< "$GITHUB_TOKEN"
+          helm package deploy/helm/roxycloud --version "$VERSION" --app-version "$VERSION"
+          helm push "roxycloud-${VERSION}.tgz" "$REGISTRY" 2>&1 | tee push.log
+
+          DIGEST=$(grep -oE 'sha256:[0-9a-f]{64}' push.log | head -1)
+          if [ -z "$DIGEST" ]; then
+            echo "::error::helm push printed no digest, so there is nothing to sign"
+            exit 1
+          fi
+
+          cosign sign --yes "${CHART}@${DIGEST}"
+
+          echo "Pushed and signed \`${REGISTRY}/roxycloud:${VERSION}\` at \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"

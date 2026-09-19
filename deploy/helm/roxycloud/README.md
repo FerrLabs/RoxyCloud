@@ -29,6 +29,18 @@ docker push your.registry/roxycloud-api:0.13.0
 
 ## Installing
 
+Each release publishes this chart to `oci://ghcr.io/ferrlabs/charts/roxycloud` under the release
+version, signed with cosign by the release workflow. Add `--version` to pin one instead of taking the
+latest:
+
+```bash
+helm install roxycloud oci://ghcr.io/ferrlabs/charts/roxycloud \
+  --set database.url='postgres://roxycloud:password@postgres/roxycloud' \
+  --set jwt.secret="$(openssl rand -hex 32)"
+```
+
+From a checkout, with an image you built yourself:
+
 ```bash
 helm install roxycloud deploy/helm/roxycloud \
   --set image.repository=your.registry/roxycloud-api \

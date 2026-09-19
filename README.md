@@ -115,11 +115,12 @@ volume for the blobs and an optional ingress. It does not bundle Postgres. It se
 since the image carries it. `deploy/helm/roxycloud/README.md` has the values and the reasoning.
 
 ```bash
-helm install roxycloud deploy/helm/roxycloud   --set database.url='postgres://roxycloud:password@postgres/roxycloud'   --set jwt.secret="$(openssl rand -hex 32)"
+helm install roxycloud oci://ghcr.io/ferrlabs/charts/roxycloud   --set database.url='postgres://roxycloud:password@postgres/roxycloud'   --set jwt.secret="$(openssl rand -hex 32)"
 ```
 
-The image is `ghcr.io/ferrlabs/roxycloud-api`, published for amd64 and arm64 by the release
-workflow, so the chart's default needs no override.
+The release workflow publishes the chart to `oci://ghcr.io/ferrlabs/charts/roxycloud` and the image
+to `ghcr.io/ferrlabs/roxycloud-api`, for amd64 and arm64, both under the release version, so the
+chart's default image needs no override.
 
 ## Endpoints
 
