@@ -4,7 +4,7 @@ use uuid::Uuid;
 use crate::db;
 use crate::error::ApiError;
 use crate::grants::{self, Mount};
-use roxycloud_core::grant::SHARED_WITH_ME;
+use roxycloud_core::grant::{Access, SHARED_WITH_ME};
 use roxycloud_core::name::NodeName;
 use roxycloud_core::node::{Node, NodeKind};
 use roxycloud_core::user::User;
@@ -27,6 +27,18 @@ impl Place {
             Self::Own(_) => true,
             Self::SharedWithMe => false,
             Self::Shared { mount, .. } => mount.access.may_write(),
+        }
+    }
+
+    pub fn into_movable(self) -> Result<Node, ApiError> {
+        match self {
+            Self::Own(node)
+            | Self::Shared {
+                node,
+                at_mount: false,
+                ..
+            } => Ok(node),
+            Self::Shared { .. } | Self::SharedWithMe => Err(ApiError::Forbidden),
         }
     }
 
@@ -135,6 +147,7 @@ pub async fn file_target(
     tx: &mut Transaction<'_, Postgres>,
     caller: &User,
     segments: &[NodeName],
+    create: bool,
     quota: i64,
 ) -> Result<(Node, NodeName), ApiError> {
     if let [first, mount_name] = segments
@@ -157,7 +170,7 @@ pub async fn file_target(
     let (name, parents) = segments.split_last().ok_or(ApiError::WrongKind {
         expected: "file path",
     })?;
-    let parent = directory_for_write(tx, caller, parents, true, quota).await?;
+    let parent = directory_for_write(tx, caller, parents, create, quota).await?;
     refuse_reserved(&parent, name)?;
     Ok((parent, name.clone()))
 }
@@ -188,7 +201,7 @@ pub async fn shelf(
     tx: &mut Transaction<'_, Postgres>,
     caller: &User,
     root: &Node,
-) -> Result<Option<(Node, Vec<Node>)>, ApiError> {
+) -> Result<Option<(Node, Vec<(Node, Access)>)>, ApiError> {
     let mounts = grants::mounts(tx, &caller.email).await?;
     if mounts.is_empty() {
         return Ok(None);
@@ -205,7 +218,7 @@ pub async fn shelf(
         updated_at = updated_at.max(node.updated_at);
         node.name = mount.mount_name;
         node.parent_id = Some(id);
-        entries.push(node);
+        entries.push((node, mount.access));
     }
 
     let directory = Node {

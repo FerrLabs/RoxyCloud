@@ -9,14 +9,15 @@ use uuid::Uuid;
 
 use super::auth::DavCaller;
 use super::locks;
-use super::xml::{self, MULTISTATUS_CLOSE, MULTISTATUS_OPEN, Quota};
-use super::{href, locking, path_of, propfind, root_of, transfer};
+use super::xml::{self, MULTISTATUS_CLOSE, MULTISTATUS_OPEN, Quota, Viewer};
+use super::{href, locking, path_of, propfind, transfer};
+use crate::access::{self, Place};
 use crate::db;
 use crate::error::ApiError;
 use crate::routes::files::never_rendered;
 use crate::state::AppState;
 use crate::trash;
-use roxycloud_core::node::NodeKind;
+use roxycloud_core::node::{Node, NodeKind};
 
 pub(super) const ALLOWED: &str =
     "OPTIONS, PROPFIND, PROPPATCH, MKCOL, GET, HEAD, PUT, DELETE, COPY, MOVE, LOCK, UNLOCK";
@@ -115,24 +116,56 @@ async fn propfind(
             .into_response());
     }
 
-    let owner = caller.0.id;
-    let root = root_of(&state, owner).await?;
+    let deep = depth == "1";
+    let may_write = caller.0.may_write();
+    let quota = state.default_quota_bytes;
     let mut tx = state.db.begin().await?;
-    let node = db::resolve(&mut tx, &root, &path).await?;
-
-    let listed = if depth == "1" && node.kind == NodeKind::Directory {
-        db::list_children(&state.db, node.id).await?
-    } else {
-        Vec::new()
+    let ((node, writable), listed) = match access::locate(&mut tx, &caller.0, &path, quota).await? {
+        Place::SharedWithMe => {
+            let root = db::ensure_root(&mut tx, caller.0.id, quota).await?;
+            let (directory, mounts) = access::shelf(&mut tx, &caller.0, &root)
+                .await?
+                .ok_or(ApiError::NotFound)?;
+            let listed = if deep {
+                mounts
+                    .into_iter()
+                    .map(|(node, access)| (node, may_write && access.may_write()))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            ((directory, false), listed)
+        }
+        place => {
+            let writable = may_write && place.writable();
+            let at_root = matches!(&place, Place::Own(node) if node.parent_id.is_none());
+            let node = place.into_node()?;
+            let mut listed = Vec::new();
+            if deep
+                && at_root
+                && let Some((directory, _)) = access::shelf(&mut tx, &caller.0, &node).await?
+            {
+                listed.push((directory, false));
+            }
+            if deep && node.kind == NodeKind::Directory {
+                listed.extend(
+                    db::list_children(&state.db, node.id)
+                        .await?
+                        .into_iter()
+                        .map(|child| (child, writable)),
+                );
+            }
+            ((node, writable), listed)
+        }
     };
 
     let mut ids = vec![node.id];
-    ids.extend(listed.iter().map(|below| below.id));
+    ids.extend(listed.iter().map(|(below, _)| below.id));
     let held = locks::for_nodes(&mut tx, &ids).await?;
     tx.commit().await?;
 
     let requested = propfind::parse(&body);
-    let quota = quota_of(&state, owner).await?;
+    let mut quotas = Quotas::new(&state, caller.0.id);
     let lock_on = |id: Uuid, path: &[roxycloud_core::name::NodeName], kind: NodeKind| {
         held.iter()
             .find(|lock| lock.node_id == id)
@@ -143,18 +176,18 @@ async fn propfind(
     document.push_str(&xml::response(
         &href(&path, node.kind == NodeKind::Directory),
         &node,
-        &quota,
+        &quotas.viewer(&node, writable).await?,
         &requested,
         lock_on(node.id, &path, node.kind).as_deref(),
     ));
 
-    for below in listed {
+    for (below, writable) in listed {
         let mut path = path.clone();
         path.push(below.name.parse()?);
         document.push_str(&xml::response(
             &href(&path, below.kind == NodeKind::Directory),
             &below,
-            &quota,
+            &quotas.viewer(&below, writable).await?,
             &requested,
             lock_on(below.id, &path, below.kind).as_deref(),
         ));
@@ -162,6 +195,47 @@ async fn propfind(
     document.push_str(MULTISTATUS_CLOSE);
 
     Ok(multistatus(document))
+}
+
+struct Quotas<'a> {
+    state: &'a AppState,
+    caller: Uuid,
+    known: Vec<(Uuid, Quota)>,
+}
+
+impl<'a> Quotas<'a> {
+    fn new(state: &'a AppState, caller: Uuid) -> Self {
+        Self {
+            state,
+            caller,
+            known: Vec::new(),
+        }
+    }
+
+    async fn viewer(&mut self, node: &Node, writable: bool) -> Result<Viewer, ApiError> {
+        if node.owner_id != self.caller && !writable {
+            return Ok(Viewer {
+                quota: Quota {
+                    used: 0,
+                    available: 0,
+                },
+                writable,
+            });
+        }
+        let known = self
+            .known
+            .iter()
+            .find(|(owner, _)| *owner == node.owner_id)
+            .map(|(_, quota)| *quota);
+        let quota = if let Some(quota) = known {
+            quota
+        } else {
+            let quota = quota_of(self.state, node.owner_id).await?;
+            self.known.push((node.owner_id, quota));
+            quota
+        };
+        Ok(Viewer { quota, writable })
+    }
 }
 
 /// Nothing here stores dead properties. Answering 403 for each one is what the specification asks
@@ -179,9 +253,11 @@ async fn proppatch(
     let submitted = locks::submitted_tokens(header_text(request.headers(), "if"));
     let body = body_of(request).await?;
 
-    let root = root_of(&state, caller.0.id).await?;
     let mut tx = state.db.begin().await?;
-    let node = db::resolve(&mut tx, &root, &path).await?;
+    let node = match access::locate(&mut tx, &caller.0, &path, state.default_quota_bytes).await? {
+        Place::SharedWithMe => return Err(ApiError::Forbidden),
+        place => place.into_node()?,
+    };
     locks::allows(&mut tx, &node, &submitted).await?;
     tx.commit().await?;
 
@@ -222,20 +298,32 @@ async fn mkcol(state: AppState, caller: DavCaller, request: Request) -> Result<R
         return Ok(refused());
     };
 
-    let owner = caller.0.id;
-    let root = root_of(&state, owner).await?;
     let mut tx = state.db.begin().await?;
-    let parent = match db::resolve(&mut tx, &root, parents).await {
+    let parent = match access::directory_for_write(
+        &mut tx,
+        &caller.0,
+        parents,
+        false,
+        state.default_quota_bytes,
+    )
+    .await
+    {
         Ok(parent) => parent,
         Err(ApiError::NotFound) => return Ok(StatusCode::CONFLICT.into_response()),
         Err(other) => return Err(other),
     };
-    crate::access::refuse_reserved(&parent, name)?;
+    access::refuse_reserved(&parent, name)?;
     if db::child(&mut tx, parent.id, name).await?.is_some() {
         return Ok(refused());
     }
     locks::allows(&mut tx, &parent, &submitted).await?;
-    db::create_directories(&mut tx, owner, &parent, std::slice::from_ref(name)).await?;
+    db::create_directories(
+        &mut tx,
+        parent.owner_id,
+        &parent,
+        std::slice::from_ref(name),
+    )
+    .await?;
     tx.commit().await?;
 
     Ok(StatusCode::CREATED.into_response())
@@ -248,10 +336,13 @@ async fn read(
     head_only: bool,
 ) -> Result<Response, ApiError> {
     let path = path_of(request.uri())?;
-    let root = root_of(&state, caller.0.id).await?;
     let mut tx = state.db.begin().await?;
-    let node = db::resolve(&mut tx, &root, &path).await?;
+    let place = access::locate(&mut tx, &caller.0, &path, state.default_quota_bytes).await?;
     tx.commit().await?;
+    let node = match place {
+        Place::SharedWithMe => return Ok(refused()),
+        place => place.into_node()?,
+    };
 
     let (NodeKind::File, Some(hash)) = (node.kind, node.blob_hash) else {
         return Ok(refused());
@@ -290,12 +381,10 @@ async fn put(state: AppState, caller: DavCaller, request: Request) -> Result<Res
 
     let path = path_of(request.uri())?;
     let submitted = locks::submitted_tokens(header_text(request.headers(), "if"));
-    let Some((name, parents)) = path.split_last() else {
+    if path.is_empty() {
         return Ok(refused());
-    };
+    }
 
-    let owner = caller.0.id;
-    let root = root_of(&state, owner).await?;
     let written = state
         .blobs
         .write(crate::storage::upload(
@@ -307,19 +396,26 @@ async fn put(state: AppState, caller: DavCaller, request: Request) -> Result<Res
 
     let mut tx = state.db.begin().await?;
     // Unlike the REST upload, WebDAV does not invent the directories above a file.
-    let parent = match db::resolve(&mut tx, &root, parents).await {
-        Ok(parent) => parent,
+    let (parent, name) = match access::file_target(
+        &mut tx,
+        &caller.0,
+        &path,
+        false,
+        state.default_quota_bytes,
+    )
+    .await
+    {
+        Ok(target) => target,
         Err(ApiError::NotFound) => return Ok(StatusCode::CONFLICT.into_response()),
         Err(other) => return Err(other),
     };
-    crate::access::refuse_reserved(&parent, name)?;
-    let existing = db::child(&mut tx, parent.id, name).await?;
+    let existing = db::child(&mut tx, parent.id, &name).await?;
     let existed = existing.is_some();
     match &existing {
         Some(node) => locks::allows(&mut tx, node, &submitted).await?,
         None => locks::allows(&mut tx, &parent, &submitted).await?,
     }
-    let node = db::put_file(&mut tx, owner, &parent, name, written.hash, size).await?;
+    let node = db::put_file(&mut tx, parent.owner_id, &parent, &name, written.hash, size).await?;
     tx.commit().await?;
     state.blobs.settle(&written).await?;
 
@@ -355,15 +451,19 @@ async fn delete(
     }
 
     let submitted = locks::submitted_tokens(header_text(request.headers(), "if"));
-    let root = root_of(&state, caller.0.id).await?;
+    let quota = state.default_quota_bytes;
     let mut tx = state.db.begin().await?;
-    let node = db::resolve(&mut tx, &root, &path).await?;
+    let node = access::locate_writable(&mut tx, &caller.0, &path, quota)
+        .await?
+        .into_movable()?;
     locks::allows(&mut tx, &node, &submitted).await?;
     locks::none_below(&mut tx, &node, &submitted).await?;
     if let Some((_, parents)) = path.split_last() {
         // Taking a member out of a collection is a change to the collection, which its own lock
         // governs even when that lock was taken with Depth 0.
-        let parent = db::resolve(&mut tx, &root, parents).await?;
+        let parent = access::locate(&mut tx, &caller.0, parents, quota)
+            .await?
+            .into_node()?;
         locks::allows(&mut tx, &parent, &submitted).await?;
     }
     trash::send(&mut tx, &node).await?;

@@ -9,12 +9,14 @@ use quick_xml::events::Event;
 use super::auth::DavCaller;
 use super::locks::{self, Lock};
 use super::xml::escape;
-use super::{href, path_of, root_of};
+use super::{href, path_of};
+use crate::access::{self, Place};
 use crate::db;
 use crate::error::ApiError;
 use crate::state::AppState;
 use roxycloud_core::name::NodeName;
 use roxycloud_core::node::{Node, NodeKind};
+use roxycloud_core::user::User;
 
 pub(super) async fn lock(
     state: AppState,
@@ -32,12 +34,14 @@ pub(super) async fn lock(
     let deep = !matches!(text(&headers, "depth"), Some("0"));
 
     let owner = caller.0.id;
-    let root = root_of(&state, owner).await?;
+    let quota = state.default_quota_bytes;
     let mut tx = state.db.begin().await?;
 
     // An empty body is a refresh of a lock the client already holds, named in the If header.
     if body.iter().all(u8::is_ascii_whitespace) {
-        let node = db::resolve(&mut tx, &root, &path).await?;
+        let node = access::locate_writable(&mut tx, &caller.0, &path, quota)
+            .await?
+            .into_node()?;
         for token in locks::submitted_tokens(text(&headers, "if")) {
             if let Some(refreshed) = locks::refresh(&mut tx, &token, &node, seconds).await? {
                 tx.commit().await?;
@@ -50,12 +54,9 @@ pub(super) async fn lock(
     }
 
     // A client locks the file it is about to create, so LOCK on nothing creates an empty one.
-    let (node, created) = match db::resolve(&mut tx, &root, &path).await {
-        Ok(node) => (node, false),
-        Err(ApiError::NotFound) => (
-            empty_file(&state, &mut tx, owner, &root, &path).await?,
-            true,
-        ),
+    let (node, created) = match access::locate_writable(&mut tx, &caller.0, &path, quota).await {
+        Ok(place) => (place.into_node()?, false),
+        Err(ApiError::NotFound) => (empty_file(&state, &mut tx, &caller.0, &path).await?, true),
         Err(other) => return Err(other),
     };
 
@@ -101,9 +102,11 @@ pub(super) async fn unlock(
         });
     };
 
-    let root = root_of(&state, caller.0.id).await?;
     let mut tx = state.db.begin().await?;
-    let node = db::resolve(&mut tx, &root, &path).await?;
+    let node = match access::locate(&mut tx, &caller.0, &path, state.default_quota_bytes).await? {
+        Place::SharedWithMe => return Ok(StatusCode::CONFLICT.into_response()),
+        place => place.into_node()?,
+    };
     tx.commit().await?;
 
     if locks::release(&state.db, &node, &token).await? {
@@ -117,21 +120,21 @@ pub(super) async fn unlock(
 async fn empty_file(
     state: &AppState,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    owner: uuid::Uuid,
-    root: &Node,
+    caller: &User,
     path: &[NodeName],
 ) -> Result<Node, ApiError> {
-    let Some((name, parents)) = path.split_last() else {
+    let Some((wanted, _)) = path.split_last() else {
         return Err(ApiError::WrongKind {
             expected: "path below the root",
         });
     };
 
-    let parent = match db::resolve(tx, root, parents).await {
-        Ok(parent) => parent,
-        Err(ApiError::NotFound) => return Err(ApiError::Conflict(name.to_string())),
-        Err(other) => return Err(other),
-    };
+    let (parent, name) =
+        match access::file_target(tx, caller, path, false, state.default_quota_bytes).await {
+            Ok(target) => target,
+            Err(ApiError::NotFound) => return Err(ApiError::Conflict(wanted.to_string())),
+            Err(other) => return Err(other),
+        };
 
     let written = state
         .blobs
@@ -143,7 +146,7 @@ async fn empty_file(
         )])))
         .await?;
     db::register_blob(&state.db, written.hash, 0).await?;
-    let node = db::put_file(tx, owner, &parent, name, written.hash, 0).await?;
+    let node = db::put_file(tx, parent.owner_id, &parent, &name, written.hash, 0).await?;
     state.blobs.settle(&written).await?;
 
     Ok(node)
