@@ -37,8 +37,14 @@ pub async fn put(
     db::register_blob(&state.db, written.hash, size).await?;
 
     let mut tx = state.db.begin().await?;
-    let (parent, name) =
-        access::file_target(&mut tx, &caller.user, &segments, state.default_quota_bytes).await?;
+    let (parent, name) = access::file_target(
+        &mut tx,
+        &caller.user,
+        &segments,
+        true,
+        state.default_quota_bytes,
+    )
+    .await?;
     let node = db::put_file(&mut tx, parent.owner_id, &parent, &name, written.hash, size).await?;
     tx.commit().await?;
     state.blobs.settle(&written).await?;
@@ -131,7 +137,9 @@ pub async fn rename(
 
     let quota = state.default_quota_bytes;
     let mut tx = state.db.begin().await?;
-    let node = movable(access::locate_writable(&mut tx, &caller.user, &source, quota).await?)?;
+    let node = access::locate_writable(&mut tx, &caller.user, &source, quota)
+        .await?
+        .into_movable()?;
     let parent =
         access::directory_for_write(&mut tx, &caller.user, &destination, false, quota).await?;
     access::refuse_reserved(&parent, &name)?;
@@ -158,26 +166,13 @@ pub async fn delete(
     }
 
     let mut tx = state.db.begin().await?;
-    let node = movable(
-        access::locate_writable(&mut tx, &caller.user, &segments, state.default_quota_bytes)
-            .await?,
-    )?;
+    let node = access::locate_writable(&mut tx, &caller.user, &segments, state.default_quota_bytes)
+        .await?
+        .into_movable()?;
     trash::send(&mut tx, &node).await?;
     tx.commit().await?;
 
     Ok(StatusCode::NO_CONTENT)
-}
-
-fn movable(place: Place) -> Result<Node, ApiError> {
-    match place {
-        Place::Own(node)
-        | Place::Shared {
-            node,
-            at_mount: false,
-            ..
-        } => Ok(node),
-        Place::Shared { .. } | Place::SharedWithMe => Err(ApiError::Forbidden),
-    }
 }
 
 pub async fn list(
@@ -195,7 +190,9 @@ pub async fn list(
         let mounted = access::shelf(&mut tx, &caller.user, &root).await?;
         tx.commit().await?;
         return Ok(Json(
-            mounted.map(|(_, entries)| entries).unwrap_or_default(),
+            mounted
+                .map(|(_, entries)| entries.into_iter().map(|(node, _)| node).collect())
+                .unwrap_or_default(),
         ));
     }
     tx.commit().await?;

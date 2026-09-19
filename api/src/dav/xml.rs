@@ -30,6 +30,7 @@ pub enum Property {
     QuotaUsed,
     LockDiscovery,
     SupportedLock,
+    CurrentUserPrivilegeSet,
 }
 
 impl Property {
@@ -45,6 +46,7 @@ impl Property {
             "quota-used-bytes" => Some(Self::QuotaUsed),
             "lockdiscovery" => Some(Self::LockDiscovery),
             "supportedlock" => Some(Self::SupportedLock),
+            "current-user-privilege-set" => Some(Self::CurrentUserPrivilegeSet),
             _ => None,
         }
     }
@@ -61,6 +63,7 @@ impl Property {
             Self::QuotaUsed => "quota-used-bytes",
             Self::LockDiscovery => "lockdiscovery",
             Self::SupportedLock => "supportedlock",
+            Self::CurrentUserPrivilegeSet => "current-user-privilege-set",
         }
     }
 
@@ -78,15 +81,21 @@ impl Property {
     ];
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Quota {
     pub used: i64,
     pub available: i64,
 }
 
+pub struct Viewer {
+    pub quota: Quota,
+    pub writable: bool,
+}
+
 pub fn response(
     href: &str,
     node: &Node,
-    quota: &Quota,
+    viewer: &Viewer,
     requested: &Requested,
     lock: Option<&str>,
 ) -> String {
@@ -98,7 +107,7 @@ pub fn response(
             let _ = write!(found, "<D:{}/>", property.name());
             continue;
         }
-        match value(*property, node, quota, lock) {
+        match value(*property, node, viewer, lock) {
             Some(rendered) => found.push_str(&rendered),
             None => {
                 let _ = write!(missing, "<D:{}/>", property.name());
@@ -124,7 +133,7 @@ pub fn response(
     out
 }
 
-fn value(property: Property, node: &Node, quota: &Quota, lock: Option<&str>) -> Option<String> {
+fn value(property: Property, node: &Node, viewer: &Viewer, lock: Option<&str>) -> Option<String> {
     let rendered = match property {
         Property::ResourceType => match node.kind {
             NodeKind::Directory => "<D:resourcetype><D:collection/></D:resourcetype>".to_owned(),
@@ -148,7 +157,10 @@ fn value(property: Property, node: &Node, quota: &Quota, lock: Option<&str>) -> 
                 "<D:getcontenttype>httpd/unix-directory</D:getcontenttype>".to_owned()
             }
         },
-        Property::QuotaUsed => format!("<D:quota-used-bytes>{}</D:quota-used-bytes>", quota.used),
+        Property::QuotaUsed => format!(
+            "<D:quota-used-bytes>{}</D:quota-used-bytes>",
+            viewer.quota.used
+        ),
         Property::LockDiscovery => format!(
             "<D:lockdiscovery>{}</D:lockdiscovery>",
             lock.unwrap_or_default()
@@ -156,10 +168,22 @@ fn value(property: Property, node: &Node, quota: &Quota, lock: Option<&str>) -> 
         Property::SupportedLock => SUPPORTED_LOCK.to_owned(),
         Property::QuotaAvailable => format!(
             "<D:quota-available-bytes>{}</D:quota-available-bytes>",
-            quota.available
+            viewer.quota.available
         ),
+        Property::CurrentUserPrivilegeSet => privileges(viewer.writable),
     };
     Some(rendered)
+}
+
+fn privileges(writable: bool) -> String {
+    let write = if writable {
+        "<D:privilege><D:write/></D:privilege>"
+    } else {
+        ""
+    };
+    format!(
+        "<D:current-user-privilege-set><D:privilege><D:read/></D:privilege>{write}</D:current-user-privilege-set>"
+    )
 }
 
 /// RFC 1123, which is what `getlastmodified` is defined as and what clients parse.
@@ -212,6 +236,22 @@ mod tests {
         for property in Property::ALL {
             assert_eq!(Property::parse(property.name()), Some(property));
         }
+    }
+
+    #[test]
+    fn privileges_are_asked_for_by_name_rather_than_sent_with_everything() {
+        assert_eq!(
+            Property::parse("current-user-privilege-set"),
+            Some(Property::CurrentUserPrivilegeSet)
+        );
+        assert!(!Property::ALL.contains(&Property::CurrentUserPrivilegeSet));
+    }
+
+    #[test]
+    fn write_is_only_offered_where_it_is_allowed() {
+        assert!(privileges(true).contains("<D:write/>"));
+        assert!(!privileges(false).contains("<D:write/>"));
+        assert!(privileges(false).contains("<D:read/>"));
     }
 
     #[test]

@@ -8,7 +8,7 @@ use super::auth::DavCaller;
 use super::locks;
 use super::methods::header_text;
 use super::path_of;
-use super::root_of;
+use crate::access::{self, Place};
 use crate::db;
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -37,17 +37,31 @@ pub(super) async fn run(
     let overwrite = overwrite(request.headers());
     let submitted = locks::submitted_tokens(header_text(request.headers(), "if"));
 
-    let owner = caller.0.id;
-    let root = root_of(&state, owner).await?;
+    let quota = state.default_quota_bytes;
     let mut tx = state.db.begin().await?;
 
-    let source = db::resolve(&mut tx, &root, &from).await?;
-    let parent = match db::resolve(&mut tx, &root, parents).await {
+    let found = access::locate(&mut tx, &caller.0, &from, quota).await?;
+    let source = if moving {
+        if !found.writable() {
+            return Err(ApiError::Forbidden);
+        }
+        found.into_movable()?
+    } else {
+        match found {
+            Place::SharedWithMe => return Err(ApiError::Forbidden),
+            place => place.into_node()?,
+        }
+    };
+    let parent = match access::directory_for_write(&mut tx, &caller.0, parents, false, quota).await
+    {
         Ok(parent) => parent,
         Err(ApiError::NotFound) => return Ok(StatusCode::CONFLICT.into_response()),
         Err(other) => return Err(other),
     };
-    crate::access::refuse_reserved(&parent, name)?;
+    access::refuse_reserved(&parent, name)?;
+    if moving && parent.owner_id != source.owner_id {
+        return Err(ApiError::AcrossAccounts);
+    }
 
     // A MOVE takes the source away, so its lock and any beneath it stand in the way. A COPY only
     // reads it, and the destination is what has to be free.
@@ -56,7 +70,9 @@ pub(super) async fn run(
         locks::none_below(&mut tx, &source, &submitted).await?;
         if let Some((_, above)) = from.split_last() {
             // Moving away takes a member out of the collection it was in.
-            let leaving = db::resolve(&mut tx, &root, above).await?;
+            let leaving = access::locate(&mut tx, &caller.0, above, quota)
+                .await?
+                .into_node()?;
             locks::allows(&mut tx, &leaving, &submitted).await?;
         }
     }
@@ -81,7 +97,7 @@ pub(super) async fn run(
     if moving {
         db::rename(&mut tx, &source, &parent, name).await?;
     } else {
-        db::copy_tree(&mut tx, owner, &source, &parent, name).await?;
+        db::copy_tree(&mut tx, parent.owner_id, &source, &parent, name).await?;
     }
     tx.commit().await?;
 

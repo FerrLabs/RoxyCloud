@@ -136,8 +136,14 @@ pub async fn finish(
     db::register_blob(&state.db, written.hash, size).await?;
 
     let mut tx = state.db.begin().await?;
-    let (parent, name) =
-        access::file_target(&mut tx, &caller.user, &segments, state.default_quota_bytes).await?;
+    let (parent, name) = access::file_target(
+        &mut tx,
+        &caller.user,
+        &segments,
+        true,
+        state.default_quota_bytes,
+    )
+    .await?;
     let node = db::put_file(&mut tx, parent.owner_id, &parent, &name, written.hash, size).await?;
     tx.commit().await?;
     state.blobs.settle(&written).await?;

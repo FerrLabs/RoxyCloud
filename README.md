@@ -281,7 +281,11 @@ keeps listing that share with `in_trash`, so it can be revoked before a restore 
 `Shared with me` is reserved
 at the top of every tree, and upgrading renames a folder that already had that name.
 
-Over WebDAV, shared folders do not appear yet.
+Over WebDAV the same folders appear under `/dav/Shared with me/`, with the same rules. A read-only
+share answers `current-user-privilege-set` without `write`, so a client that asks greys out what it
+would only be refused, and it reports a quota of zero rather than the owner's usage, which is not
+the recipient's to see. A write share reports the owner's quota, since that is where the bytes
+land.
 
 `GET /v1/thumbnails/{*path}?edge=256` answers a `WebP` thumbnail, made when it is asked for rather
 than when the file arrives, and cached against the source digest so the same photo uploaded by two

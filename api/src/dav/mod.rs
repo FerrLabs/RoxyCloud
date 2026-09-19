@@ -9,13 +9,10 @@ mod xml;
 use axum::Router;
 use axum::routing::any;
 use percent_encoding::{AsciiSet, CONTROLS, percent_decode_str, utf8_percent_encode};
-use uuid::Uuid;
 
-use crate::db;
 use crate::error::ApiError;
 use crate::state::AppState;
 use roxycloud_core::name::{NodeName, parse_path};
-use roxycloud_core::node::Node;
 
 const PATH_SEGMENT: &AsciiSet = &CONTROLS
     .add(b' ')
@@ -48,13 +45,6 @@ fn path_of(uri: &axum::http::Uri) -> Result<Vec<NodeName>, ApiError> {
             expected: "path in valid UTF-8",
         })?;
     parse_path(&decoded).map_err(Into::into)
-}
-
-async fn root_of(state: &AppState, owner: Uuid) -> Result<Node, ApiError> {
-    let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, owner, state.default_quota_bytes).await?;
-    tx.commit().await?;
-    Ok(root)
 }
 
 /// The href in a multistatus has to match the request path a client sent, encoded the same way.

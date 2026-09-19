@@ -4,6 +4,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
 use roxycloud_api::build_router;
+use roxycloud_core::grant::Access;
 use roxycloud_core::role::Role;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -1082,3 +1083,399 @@ database_test!(
         );
     }
 );
+
+const SHELF: &str = "/dav/Shared%20with%20me";
+
+const PRIVILEGES: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<D:propfind xmlns:D="DAV:"><D:prop><D:current-user-privilege-set/></D:prop></D:propfind>"#;
+
+const USED: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<D:propfind xmlns:D="DAV:"><D:prop><D:quota-used-bytes/></D:prop></D:propfind>"#;
+
+database_test!(a_share_appears_over_webdav_under_shared_with_me, harness, {
+    let owner = harness.account("owner@example.com", Role::Member).await;
+    let (_, auth) = credential(&harness, "guest@example.com", Role::Member).await;
+    harness
+        .write(owner.id, "family/photos/beach.jpg", b"sand")
+        .await;
+    harness
+        .grant(&owner, "family/photos", "guest@example.com", Access::Read)
+        .await;
+
+    let root = dav(&harness, "PROPFIND", "/dav/", &auth, &[("depth", "1")], "").await;
+    let shelf = dav(
+        &harness,
+        "PROPFIND",
+        &format!("{SHELF}/"),
+        &auth,
+        &[("depth", "1")],
+        "",
+    )
+    .await;
+    let read = dav(
+        &harness,
+        "GET",
+        &format!("{SHELF}/photos/beach.jpg"),
+        &auth,
+        &[],
+        "",
+    )
+    .await;
+
+    assert!(
+        root.body
+            .contains("<D:href>/dav/Shared%20with%20me/</D:href>"),
+        "{}",
+        root.body
+    );
+    assert!(
+        shelf
+            .body
+            .contains("<D:href>/dav/Shared%20with%20me/photos/</D:href>"),
+        "{}",
+        shelf.body
+    );
+    assert!(!shelf.body.contains("family"), "{}", shelf.body);
+    assert_eq!(read.status, StatusCode::OK);
+    assert_eq!(read.body, "sand");
+});
+
+database_test!(
+    a_read_share_is_advertised_and_held_read_only_over_webdav,
+    harness,
+    {
+        let owner = harness.account("owner@example.com", Role::Member).await;
+        let (_, auth) = credential(&harness, "guest@example.com", Role::Member).await;
+        harness.write(owner.id, "photos/beach.jpg", b"sand").await;
+        harness
+            .grant(&owner, "photos", "guest@example.com", Access::Read)
+            .await;
+        let shared = format!("{SHELF}/photos/beach.jpg");
+
+        let advertised = dav(
+            &harness,
+            "PROPFIND",
+            &shared,
+            &auth,
+            &[("depth", "0")],
+            PRIVILEGES,
+        )
+        .await;
+        let own = dav(
+            &harness,
+            "PROPFIND",
+            "/dav/",
+            &auth,
+            &[("depth", "0")],
+            PRIVILEGES,
+        )
+        .await;
+        let put = dav(
+            &harness,
+            "PUT",
+            &format!("{SHELF}/photos/new.txt"),
+            &auth,
+            &[],
+            "x",
+        )
+        .await;
+        let made = dav(
+            &harness,
+            "MKCOL",
+            &format!("{SHELF}/photos/new"),
+            &auth,
+            &[],
+            "",
+        )
+        .await;
+        let deleted = dav(&harness, "DELETE", &shared, &auth, &[], "").await;
+        let locked = dav(&harness, "LOCK", &shared, &auth, &[], LOCKINFO).await;
+
+        assert!(advertised.body.contains("<D:read/>"), "{}", advertised.body);
+        assert!(
+            !advertised.body.contains("<D:write/>"),
+            "{}",
+            advertised.body
+        );
+        assert!(own.body.contains("<D:write/>"), "{}", own.body);
+        assert_eq!(put.status, StatusCode::FORBIDDEN);
+        assert_eq!(made.status, StatusCode::FORBIDDEN);
+        assert_eq!(deleted.status, StatusCode::FORBIDDEN);
+        assert_eq!(locked.status, StatusCode::FORBIDDEN);
+        assert_eq!(
+            harness
+                .children(&harness.resolve(owner.id, "photos").await)
+                .await,
+            ["beach.jpg"]
+        );
+    }
+);
+
+database_test!(a_read_share_does_not_show_the_owners_quota, harness, {
+    let owner = harness.account("owner@example.com", Role::Member).await;
+    let (_, auth) = credential(&harness, "guest@example.com", Role::Member).await;
+    harness.write(owner.id, "photos/beach.jpg", b"sand").await;
+    harness
+        .grant(&owner, "photos", "guest@example.com", Access::Read)
+        .await;
+
+    let answer = dav(
+        &harness,
+        "PROPFIND",
+        &format!("{SHELF}/photos/"),
+        &auth,
+        &[("depth", "0")],
+        USED,
+    )
+    .await;
+
+    assert!(
+        answer
+            .body
+            .contains("<D:quota-used-bytes>0</D:quota-used-bytes>"),
+        "{}",
+        answer.body
+    );
+});
+
+database_test!(
+    a_write_share_takes_webdav_writes_into_the_owners_tree,
+    harness,
+    {
+        let owner = harness.account("owner@example.com", Role::Member).await;
+        let (guest, auth) = credential(&harness, "guest@example.com", Role::Member).await;
+        harness.write(owner.id, "photos/beach.jpg", b"sand").await;
+        harness.root(guest).await;
+        harness
+            .grant(&owner, "photos", "guest@example.com", Access::Write)
+            .await;
+        let before = harness.used_bytes(owner.id).await;
+
+        let made = dav(
+            &harness,
+            "MKCOL",
+            &format!("{SHELF}/photos/trip"),
+            &auth,
+            &[],
+            "",
+        )
+        .await;
+        let put = dav(
+            &harness,
+            "PUT",
+            &format!("{SHELF}/photos/trip/note.txt"),
+            &auth,
+            &[],
+            "twelve bytes",
+        )
+        .await;
+        let moved = dav(
+            &harness,
+            "MOVE",
+            &format!("{SHELF}/photos/beach.jpg"),
+            &auth,
+            &[(
+                "destination",
+                "/dav/Shared%20with%20me/photos/trip/dune.jpg",
+            )],
+            "",
+        )
+        .await;
+
+        assert_eq!(made.status, StatusCode::CREATED);
+        assert_eq!(put.status, StatusCode::CREATED);
+        assert_eq!(moved.status, StatusCode::CREATED);
+        assert_eq!(
+            harness
+                .resolve(owner.id, "photos/trip/note.txt")
+                .await
+                .owner_id,
+            owner.id
+        );
+        assert_eq!(
+            harness
+                .resolve(owner.id, "photos/trip/dune.jpg")
+                .await
+                .owner_id,
+            owner.id
+        );
+        assert_eq!(harness.used_bytes(owner.id).await, before + 12);
+        assert_eq!(harness.used_bytes(guest).await, 0);
+    }
+);
+
+database_test!(
+    a_webdav_move_out_of_a_share_is_refused_and_a_copy_is_the_callers,
+    harness,
+    {
+        let owner = harness.account("owner@example.com", Role::Member).await;
+        let (guest, auth) = credential(&harness, "guest@example.com", Role::Member).await;
+        harness.write(owner.id, "photos/beach.jpg", b"sand").await;
+        harness.root(guest).await;
+        harness
+            .grant(&owner, "photos", "guest@example.com", Access::Write)
+            .await;
+        let source = format!("{SHELF}/photos/beach.jpg");
+
+        let moved = dav(
+            &harness,
+            "MOVE",
+            &source,
+            &auth,
+            &[("destination", "/dav/beach.jpg")],
+            "",
+        )
+        .await;
+        let copied = dav(
+            &harness,
+            "COPY",
+            &source,
+            &auth,
+            &[("destination", "/dav/beach.jpg")],
+            "",
+        )
+        .await;
+
+        assert_eq!(moved.status, StatusCode::FORBIDDEN);
+        assert_eq!(copied.status, StatusCode::CREATED);
+        assert_eq!(harness.resolve(guest, "beach.jpg").await.owner_id, guest);
+        assert_eq!(harness.used_bytes(guest).await, 4);
+        assert_eq!(
+            harness.resolve(owner.id, "photos/beach.jpg").await.owner_id,
+            owner.id
+        );
+    }
+);
+
+database_test!(
+    the_mount_itself_cannot_be_deleted_or_moved_over_webdav,
+    harness,
+    {
+        let owner = harness.account("owner@example.com", Role::Member).await;
+        let (_, auth) = credential(&harness, "guest@example.com", Role::Member).await;
+        harness.write(owner.id, "photos/beach.jpg", b"sand").await;
+        harness
+            .grant(&owner, "photos", "guest@example.com", Access::Write)
+            .await;
+        let mount = format!("{SHELF}/photos");
+
+        let deleted = dav(&harness, "DELETE", &mount, &auth, &[], "").await;
+        let moved = dav(
+            &harness,
+            "MOVE",
+            &mount,
+            &auth,
+            &[("destination", "/dav/Shared%20with%20me/pics")],
+            "",
+        )
+        .await;
+
+        assert_eq!(deleted.status, StatusCode::FORBIDDEN);
+        assert_eq!(moved.status, StatusCode::FORBIDDEN);
+        assert_eq!(harness.resolve(owner.id, "photos").await.owner_id, owner.id);
+    }
+);
+
+database_test!(a_revoked_share_is_gone_for_an_app_password, harness, {
+    let owner = harness.account("owner@example.com", Role::Member).await;
+    let (_, auth) = credential(&harness, "guest@example.com", Role::Member).await;
+    harness.write(owner.id, "photos/beach.jpg", b"sand").await;
+    let id = harness
+        .grant(&owner, "photos", "guest@example.com", Access::Read)
+        .await;
+    let path = format!("{SHELF}/photos/beach.jpg");
+    assert_eq!(
+        dav(&harness, "GET", &path, &auth, &[], "").await.status,
+        StatusCode::OK
+    );
+
+    harness.withdraw(&owner, id).await;
+
+    assert_eq!(
+        dav(&harness, "GET", &path, &auth, &[], "").await.status,
+        StatusCode::NOT_FOUND
+    );
+    let root = dav(&harness, "PROPFIND", "/dav/", &auth, &[("depth", "1")], "").await;
+    assert!(!root.body.contains("Shared%20with%20me"), "{}", root.body);
+});
+
+database_test!(
+    a_node_in_a_read_share_is_not_moved_into_a_write_share,
+    harness,
+    {
+        let owner = harness.account("owner@example.com", Role::Member).await;
+        let (_, auth) = credential(&harness, "guest@example.com", Role::Member).await;
+        harness.write(owner.id, "archive/old.jpg", b"kept").await;
+        harness.write(owner.id, "inbox/new.jpg", b"fresh").await;
+        harness
+            .grant(&owner, "archive", "guest@example.com", Access::Read)
+            .await;
+        harness
+            .grant(&owner, "inbox", "guest@example.com", Access::Write)
+            .await;
+
+        let moved = dav(
+            &harness,
+            "MOVE",
+            &format!("{SHELF}/archive/old.jpg"),
+            &auth,
+            &[("destination", "/dav/Shared%20with%20me/inbox/old.jpg")],
+            "",
+        )
+        .await;
+
+        assert_eq!(moved.status, StatusCode::FORBIDDEN);
+        assert_eq!(
+            harness.resolve(owner.id, "archive/old.jpg").await.owner_id,
+            owner.id
+        );
+    }
+);
+
+database_test!(a_read_share_cannot_release_the_owners_lock, harness, {
+    let (owner_id, owner_auth) = credential(&harness, "owner@example.com", Role::Member).await;
+    let owner = harness.account_by_email("owner@example.com").await;
+    let (_, guest_auth) = credential(&harness, "guest@example.com", Role::Member).await;
+    harness.write(owner_id, "photos/beach.jpg", b"sand").await;
+    harness
+        .grant(&owner, "photos", "guest@example.com", Access::Read)
+        .await;
+
+    let locked = dav(
+        &harness,
+        "LOCK",
+        "/dav/photos/beach.jpg",
+        &owner_auth,
+        &[],
+        LOCKINFO,
+    )
+    .await;
+    let token = locked
+        .headers
+        .get("lock-token")
+        .and_then(|value| value.to_str().ok())
+        .expect("a lock token")
+        .to_owned();
+
+    let released = dav(
+        &harness,
+        "UNLOCK",
+        &format!("{SHELF}/photos/beach.jpg"),
+        &guest_auth,
+        &[("lock-token", &token)],
+        "",
+    )
+    .await;
+    let overwritten = dav(
+        &harness,
+        "PUT",
+        "/dav/photos/beach.jpg",
+        &owner_auth,
+        &[],
+        "x",
+    )
+    .await;
+
+    assert_eq!(released.status, StatusCode::FORBIDDEN);
+    assert_eq!(overwritten.status, StatusCode::LOCKED);
+});

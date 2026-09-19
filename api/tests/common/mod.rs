@@ -343,6 +343,34 @@ impl Harness {
         .expect("counting the live nodes")
     }
 
+    pub async fn grant(
+        &self,
+        owner: &User,
+        path: &str,
+        email: &str,
+        access: roxycloud_core::grant::Access,
+    ) -> Uuid {
+        let node = self.resolve(owner.id, path).await;
+        let mut tx = self.state.db.begin().await.expect("begin");
+        let given = roxycloud_api::grants::give(
+            &mut tx,
+            owner,
+            &node,
+            &email.parse::<Email>().expect("valid email"),
+            access,
+        )
+        .await
+        .expect("granting");
+        tx.commit().await.expect("commit");
+        given.id
+    }
+
+    pub async fn withdraw(&self, owner: &User, id: Uuid) {
+        roxycloud_api::grants::withdraw(&self.state.db, owner, id)
+            .await
+            .expect("withdrawing the grant");
+    }
+
     pub async fn hold_account_lock(
         &self,
         owner: Uuid,
