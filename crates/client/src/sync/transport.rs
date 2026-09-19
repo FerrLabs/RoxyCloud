@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::path::Path;
 
+use super::held::Held;
 use super::path::RelPath;
 use super::snapshot::Snapshot;
 
@@ -22,4 +23,6 @@ pub trait Transport {
     ) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
     fn remove(&self, path: &RelPath) -> impl Future<Output = Result<(), Self::Error>> + Send;
+
+    fn held(&self) -> impl Future<Output = Result<Held, Self::Error>> + Send;
 }

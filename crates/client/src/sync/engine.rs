@@ -50,6 +50,7 @@ pub struct Report {
     pub directories_removed_remotely: usize,
     pub conflicts: Vec<RelPath>,
     pub blocked: Vec<RelPath>,
+    pub held: Vec<RelPath>,
     pub skipped: Vec<String>,
     pub failures: Vec<Failure>,
 }
@@ -103,10 +104,21 @@ impl<T: Transport> Engine<T> {
             .await
             .map_err(|source| SyncError::Transport(Box::new(source)))?;
 
-        let plan = reconcile(&scan.snapshot(), &remote, &self.state.base(), Utc::now());
+        let held = self
+            .transport
+            .held()
+            .await
+            .map_err(|source| SyncError::Transport(Box::new(source)))?;
+        let plan = held.apply(reconcile(
+            &scan.snapshot(),
+            &remote,
+            &self.state.base(),
+            Utc::now(),
+        ));
 
         let mut report = Report {
             blocked: plan.blocked,
+            held: plan.held,
             skipped: scan
                 .skipped
                 .iter()
