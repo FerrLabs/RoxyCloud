@@ -469,7 +469,8 @@ sides in front of them.
 Folders other accounts share with you sync like your own, under `Shared with me/`. The client asks
 which of them it may only read, and holds back anything that would write there rather than sending
 it to be refused on every pass: an edit to a file in a read-only share, a file dropped loose in
-`Shared with me/` itself, and removing a shared folder or `Shared with me` locally. Those are listed
+`Shared with me/` itself, and removing a shared folder or `Shared with me` locally, which holds back
+everything inside it too rather than emptying the owner's folder. Those are listed
 as held in what the sync prints, the local copy is left as it is, and the server's is untouched.
 Inside a write share, edits and deletions go through, landing in the owner's files. Against a server
 too old to have shares, nothing is held back.

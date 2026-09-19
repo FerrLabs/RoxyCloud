@@ -27,10 +27,19 @@ impl Held {
 
     #[must_use]
     pub fn apply(&self, plan: Plan) -> Plan {
+        let uprooted: Vec<RelPath> = plan
+            .actions
+            .iter()
+            .filter_map(|action| match action {
+                Action::RemoveRemoteDirectory(path) if self.fixed(path) => Some(path.clone()),
+                _ => None,
+            })
+            .collect();
+
         let mut held = plan.held;
         let mut actions = Vec::with_capacity(plan.actions.len());
         for action in plan.actions {
-            match self.holding(&action) {
+            match self.holding(&action, &uprooted) {
                 Some(path) => held.push(path.clone()),
                 None => actions.push(action),
             }
@@ -42,7 +51,7 @@ impl Held {
         }
     }
 
-    fn holding<'a>(&self, action: &'a Action) -> Option<&'a RelPath> {
+    fn holding<'a>(&self, action: &'a Action, uprooted: &[RelPath]) -> Option<&'a RelPath> {
         match action {
             Action::Upload(path) | Action::KeepBoth { path, .. }
                 if self.read_only(path) || self.loose_on_the_shelf(path) =>
@@ -50,7 +59,9 @@ impl Held {
                 Some(path)
             }
             Action::DeleteRemote(path) | Action::RemoveRemoteDirectory(path)
-                if self.read_only(path) || self.fixed(path) =>
+                if self.read_only(path)
+                    || self.fixed(path)
+                    || uprooted.iter().any(|root| path.is_inside(root)) =>
             {
                 Some(path)
             }
@@ -142,6 +153,45 @@ mod tests {
         assert!(is_held(Action::DeleteRemote(at(
             "Shared with me/report.pdf"
         ))));
+    }
+
+    #[test]
+    fn removing_a_write_share_takes_nothing_of_the_owners_with_it() {
+        let plan = held().apply(Plan {
+            actions: vec![
+                Action::DeleteRemote(at("Shared with me/inbox/a.txt")),
+                Action::RemoveRemoteDirectory(at("Shared with me/inbox/drafts")),
+                Action::RemoveRemoteDirectory(at("Shared with me/inbox")),
+            ],
+            ..Plan::default()
+        });
+        assert!(plan.actions.is_empty(), "{:?}", plan.actions);
+        assert_eq!(plan.held.len(), 3);
+    }
+
+    #[test]
+    fn removing_the_shelf_takes_nothing_from_any_share() {
+        let plan = held().apply(Plan {
+            actions: vec![
+                Action::DeleteRemote(at("Shared with me/inbox/a.txt")),
+                Action::RemoveRemoteDirectory(at("Shared with me/inbox")),
+                Action::RemoveRemoteDirectory(at("Shared with me")),
+            ],
+            ..Plan::default()
+        });
+        assert!(plan.actions.is_empty(), "{:?}", plan.actions);
+    }
+
+    #[test]
+    fn deleting_files_inside_a_write_share_still_goes_through() {
+        let plan = held().apply(Plan {
+            actions: vec![Action::DeleteRemote(at("Shared with me/inbox/a.txt"))],
+            ..Plan::default()
+        });
+        assert_eq!(
+            plan.actions,
+            [Action::DeleteRemote(at("Shared with me/inbox/a.txt"))]
+        );
     }
 
     #[test]
