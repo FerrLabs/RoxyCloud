@@ -6,6 +6,7 @@ use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 
+use crate::access::{self, Place};
 use crate::auth::{Caller, Writer};
 use crate::db;
 use crate::error::ApiError;
@@ -21,10 +22,12 @@ pub async fn put(
     Path(path): Path<String>,
     body: Body,
 ) -> Result<Response, ApiError> {
-    let mut segments = parse_path(&path)?;
-    let name = segments.pop().ok_or(ApiError::WrongKind {
-        expected: "file path",
-    })?;
+    let segments = parse_path(&path)?;
+    if segments.is_empty() {
+        return Err(ApiError::WrongKind {
+            expected: "file path",
+        });
+    }
 
     let written = state
         .blobs
@@ -34,17 +37,9 @@ pub async fn put(
     db::register_blob(&state.db, written.hash, size).await?;
 
     let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
-    let parent = db::create_directories(&mut tx, caller.user_id(), &root, &segments).await?;
-    let node = db::put_file(
-        &mut tx,
-        caller.user_id(),
-        &parent,
-        &name,
-        written.hash,
-        size,
-    )
-    .await?;
+    let (parent, name) =
+        access::file_target(&mut tx, &caller.user, &segments, state.default_quota_bytes).await?;
+    let node = db::put_file(&mut tx, parent.owner_id, &parent, &name, written.hash, size).await?;
     tx.commit().await?;
     state.blobs.settle(&written).await?;
 
@@ -57,7 +52,7 @@ pub async fn get(
     caller: Caller,
     Path(path): Path<String>,
 ) -> Result<Response, ApiError> {
-    let node = resolve_owned(&state, caller, &path).await?;
+    let node = located(&state, &caller, &path).await?.into_node()?;
     bytes_of(&state, &node).await
 }
 
@@ -134,10 +129,15 @@ pub async fn rename(
         });
     }
 
+    let quota = state.default_quota_bytes;
     let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
-    let node = db::resolve(&mut tx, &root, &source).await?;
-    let parent = db::resolve(&mut tx, &root, &destination).await?;
+    let node = movable(access::locate_writable(&mut tx, &caller.user, &source, quota).await?)?;
+    let parent =
+        access::directory_for_write(&mut tx, &caller.user, &destination, false, quota).await?;
+    access::refuse_reserved(&parent, &name)?;
+    if parent.owner_id != node.owner_id {
+        return Err(ApiError::AcrossAccounts);
+    }
     let moved = db::rename(&mut tx, &node, &parent, &name).await?;
     tx.commit().await?;
 
@@ -158,12 +158,26 @@ pub async fn delete(
     }
 
     let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
-    let node = db::resolve(&mut tx, &root, &segments).await?;
+    let node = movable(
+        access::locate_writable(&mut tx, &caller.user, &segments, state.default_quota_bytes)
+            .await?,
+    )?;
     trash::send(&mut tx, &node).await?;
     tx.commit().await?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+fn movable(place: Place) -> Result<Node, ApiError> {
+    match place {
+        Place::Own(node)
+        | Place::Shared {
+            node,
+            at_mount: false,
+            ..
+        } => Ok(node),
+        Place::Shared { .. } | Place::SharedWithMe => Err(ApiError::Forbidden),
+    }
 }
 
 pub async fn list(
@@ -171,7 +185,22 @@ pub async fn list(
     caller: Caller,
     Path(path): Path<String>,
 ) -> Result<Json<Vec<Node>>, ApiError> {
-    let node = resolve_owned(&state, caller, &path).await?;
+    let segments = parse_path(&path)?;
+    let quota = state.default_quota_bytes;
+    let mut tx = state.db.begin().await?;
+    let place = access::locate(&mut tx, &caller.user, &segments, quota).await?;
+
+    if let Place::SharedWithMe = place {
+        let root = db::ensure_root(&mut tx, caller.user_id(), quota).await?;
+        let mounted = access::shelf(&mut tx, &caller.user, &root).await?;
+        tx.commit().await?;
+        return Ok(Json(
+            mounted.map(|(_, entries)| entries).unwrap_or_default(),
+        ));
+    }
+    tx.commit().await?;
+
+    let node = place.into_node()?;
     if node.kind != NodeKind::Directory {
         return Err(ApiError::WrongKind {
             expected: "directory",
@@ -186,15 +215,18 @@ pub async fn list_root(
 ) -> Result<Json<Vec<Node>>, ApiError> {
     let mut tx = state.db.begin().await?;
     let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
+    let shelf = access::shelf(&mut tx, &caller.user, &root).await?;
     tx.commit().await?;
-    Ok(Json(db::list_children(&state.db, root.id).await?))
+
+    let mut listing: Vec<Node> = shelf.map(|(directory, _)| directory).into_iter().collect();
+    listing.extend(db::list_children(&state.db, root.id).await?);
+    Ok(Json(listing))
 }
 
-async fn resolve_owned(state: &AppState, caller: Caller, path: &str) -> Result<Node, ApiError> {
+async fn located(state: &AppState, caller: &Caller, path: &str) -> Result<Place, ApiError> {
     let segments = parse_path(path)?;
     let mut tx = state.db.begin().await?;
-    let root = db::ensure_root(&mut tx, caller.user_id(), state.default_quota_bytes).await?;
-    let node = db::resolve(&mut tx, &root, &segments).await?;
+    let place = access::locate(&mut tx, &caller.user, &segments, state.default_quota_bytes).await?;
     tx.commit().await?;
-    Ok(node)
+    Ok(place)
 }

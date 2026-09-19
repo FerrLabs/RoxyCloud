@@ -90,6 +90,21 @@ pub async fn child(
     .map_err(Into::into)
 }
 
+pub async fn live_node(
+    tx: &mut Transaction<'_, Postgres>,
+    id: Uuid,
+) -> Result<Option<Node>, ApiError> {
+    sqlx::query_as::<_, Node>(concat!(
+        "SELECT ",
+        node_columns!(),
+        " FROM nodes WHERE id = $1 AND deleted_at IS NULL"
+    ))
+    .bind(id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(Into::into)
+}
+
 pub async fn resolve(
     tx: &mut Transaction<'_, Postgres>,
     root: &Node,

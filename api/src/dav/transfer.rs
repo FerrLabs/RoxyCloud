@@ -47,6 +47,7 @@ pub(super) async fn run(
         Err(ApiError::NotFound) => return Ok(StatusCode::CONFLICT.into_response()),
         Err(other) => return Err(other),
     };
+    crate::access::refuse_reserved(&parent, name)?;
 
     // A MOVE takes the source away, so its lock and any beneath it stand in the way. A COPY only
     // reads it, and the destination is what has to be free.

@@ -230,6 +230,7 @@ async fn mkcol(state: AppState, caller: DavCaller, request: Request) -> Result<R
         Err(ApiError::NotFound) => return Ok(StatusCode::CONFLICT.into_response()),
         Err(other) => return Err(other),
     };
+    crate::access::refuse_reserved(&parent, name)?;
     if db::child(&mut tx, parent.id, name).await?.is_some() {
         return Ok(refused());
     }
@@ -311,6 +312,7 @@ async fn put(state: AppState, caller: DavCaller, request: Request) -> Result<Res
         Err(ApiError::NotFound) => return Ok(StatusCode::CONFLICT.into_response()),
         Err(other) => return Err(other),
     };
+    crate::access::refuse_reserved(&parent, name)?;
     let existing = db::child(&mut tx, parent.id, name).await?;
     let existed = existing.is_some();
     match &existing {

@@ -343,6 +343,19 @@ impl Harness {
         .expect("counting the live nodes")
     }
 
+    pub async fn hold_account_lock(
+        &self,
+        owner: Uuid,
+    ) -> sqlx::Transaction<'static, sqlx::Postgres> {
+        let mut tx = self.state.db.begin().await.expect("begin");
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))")
+            .bind(owner)
+            .execute(&mut *tx)
+            .await
+            .expect("taking the account lock");
+        tx
+    }
+
     pub async fn used_bytes(&self, owner: Uuid) -> i64 {
         sqlx::query_scalar::<_, i64>("SELECT bytes_used FROM quotas WHERE owner_id = $1")
             .bind(owner)
