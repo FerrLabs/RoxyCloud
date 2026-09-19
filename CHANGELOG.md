@@ -4,6 +4,15 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.25.0] - 2026-09-19
+
+### Features
+
+- feat(web): share with another account, and find what was shared under Shared with me (#144)
+- feat(client): hold back what a share does not let the account change (#143)
+- feat(dav): reach folders shared with the account over WebDAV (#142)
+- feat(api): share a file or folder with another account on the instance (#141)
+
 ## [0.24.4] - 2026-09-18
 
 ### Bug Fixes
