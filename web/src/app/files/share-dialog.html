@@ -23,46 +23,146 @@
       </div>
     </div>
   } @else {
-    <form method="dialog" (submit)="$event.preventDefault(); mint()">
-      <h2>Share {{ node().name }}</h2>
-      <p class="hint">
-        Anyone holding the link can
-        {{ node().kind === 'directory' ? 'browse and download this folder' : 'download this file' }}
-        without an account.
-      </p>
+    <h2>Share {{ node().name }}</h2>
 
-      <label>
-        Expires on
-        <input
-          type="date"
-          [min]="earliest"
-          [value]="expiry()"
-          (input)="expiry.set($any($event.target).value)"
-        />
-      </label>
-      <p class="hint">Leave it empty for a link that does not expire.</p>
-
-      <label>
-        Password
-        <input
-          type="password"
-          autocomplete="new-password"
-          [value]="password()"
-          (input)="password.set($any($event.target).value)"
-        />
-      </label>
-      <p class="hint">Optional, and at least six characters. It is not part of the link.</p>
-
-      @if (failure(); as message) {
-        <p class="failure" role="alert">{{ message }}</p>
-      }
-
-      <div class="actions">
-        <button type="button" class="ghost" (click)="dismiss()">Cancel</button>
-        <button type="submit" class="primary" [disabled]="busy()">
-          {{ busy() ? 'Creating' : 'Create link' }}
+    @if (canGrant) {
+      <div class="modes" role="group" aria-label="How to share">
+        <button
+          type="button"
+          [class.chosen]="mode() === 'link'"
+          [attr.aria-pressed]="mode() === 'link'"
+          (click)="choose('link')"
+        >
+          With a link
+        </button>
+        <button
+          type="button"
+          [class.chosen]="mode() === 'account'"
+          [attr.aria-pressed]="mode() === 'account'"
+          (click)="choose('account')"
+        >
+          With an account
         </button>
       </div>
-    </form>
+    }
+
+    @if (mode() === 'link') {
+      <form method="dialog" (submit)="$event.preventDefault(); mint()">
+        <p class="hint">
+          Anyone holding the link can
+          {{ node().kind === 'directory' ? 'browse and download this folder' : 'download this file' }}
+          without an account.
+        </p>
+
+        <label>
+          Expires on
+          <input
+            type="date"
+            [min]="earliest"
+            [value]="expiry()"
+            (input)="expiry.set($any($event.target).value)"
+          />
+        </label>
+        <p class="hint">Leave it empty for a link that does not expire.</p>
+
+        <label>
+          Password
+          <input
+            type="password"
+            autocomplete="new-password"
+            [value]="password()"
+            (input)="password.set($any($event.target).value)"
+          />
+        </label>
+        <p class="hint">Optional, and at least six characters. It is not part of the link.</p>
+
+        @if (failure(); as message) {
+          <p class="failure" role="alert">{{ message }}</p>
+        }
+
+        <div class="actions">
+          <button type="button" class="ghost" (click)="dismiss()">Cancel</button>
+          <button type="submit" class="primary" [disabled]="busy()">
+            {{ busy() ? 'Creating' : 'Create link' }}
+          </button>
+        </div>
+      </form>
+    } @else {
+      <form method="dialog" (submit)="$event.preventDefault(); give()">
+        <p class="hint">
+          They find it under Shared with me. An address with no account yet receives it when one is
+          made for it.
+        </p>
+
+        <label>
+          Email address
+          <input
+            type="email"
+            autocomplete="off"
+            required
+            [value]="email()"
+            (input)="email.set($any($event.target).value)"
+          />
+        </label>
+
+        <label>
+          They can
+          <select [value]="access()" (change)="access.set($any($event.target).value)">
+            <option value="read">View and download</option>
+            <option value="write">Edit, add and delete</option>
+          </select>
+        </label>
+        @if (access() === 'write') {
+          <p class="hint">
+            What they add or change is stored in your files and counts against your storage.
+          </p>
+        }
+
+        @if (failure(); as message) {
+          <p class="failure" role="alert">{{ message }}</p>
+        }
+        <p class="announcement" role="status" aria-live="polite">{{ announcement() }}</p>
+
+        @if ((grants.value() ?? []).length > 0) {
+          <h3>Shared with</h3>
+          <ul class="people">
+            @for (given of grants.value() ?? []; track given.id) {
+              <li>
+                <span class="who">
+                  <span class="address">{{ given.email }}</span>
+                  <span class="detail">{{ describe(given.access) }}</span>
+                </span>
+                <button
+                  type="button"
+                  class="ghost danger"
+                  [disabled]="busy()"
+                  [attr.aria-label]="'Stop sharing with ' + given.email"
+                  (click)="removing.set(given)"
+                >
+                  Remove
+                </button>
+              </li>
+            }
+          </ul>
+        }
+
+        <div class="actions">
+          <button type="button" class="ghost" (click)="dismiss()">Done</button>
+          <button type="submit" class="primary" [disabled]="busy() || email().trim().length === 0">
+            {{ busy() ? 'Sharing' : 'Share' }}
+          </button>
+        </div>
+      </form>
+    }
   }
 </dialog>
+
+@if (removing(); as given) {
+  <rx-confirm
+    [heading]="'Stop sharing ' + node().name + ' with ' + given.email + '?'"
+    body="It disappears from their Shared with me on their next request. Your files are untouched."
+    action="Stop sharing"
+    (accepted)="take(given)"
+    (dismissed)="removing.set(null)"
+  />
+}

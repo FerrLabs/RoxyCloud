@@ -1,5 +1,6 @@
 import { InjectionToken, type Provider } from '@angular/core';
 import type { Account } from './account';
+import type { Given, NewGrant, Received } from './grant';
 import type { Node } from './node';
 import type { Minted, NewShare, Share } from './share';
 
@@ -19,6 +20,10 @@ export interface Platform {
   listShares?(): Promise<Share[]>;
   share?(request: NewShare): Promise<Minted>;
   revokeShare?(id: string): Promise<void>;
+  listGrants?(): Promise<Given[]>;
+  grant?(request: NewGrant): Promise<Given>;
+  receivedGrants?(): Promise<Received[]>;
+  withdrawGrant?(id: string): Promise<void>;
 }
 
 export const PLATFORM = new InjectionToken<Platform>('RoxyCloud platform');
@@ -92,13 +97,24 @@ function browserPlatform(baseUrl: string): Platform {
     revokeShare: async (id) => {
       await call(`/v1/shares/${encodeURIComponent(id)}`, { method: 'DELETE' });
     },
+    listGrants: () => json<Given[]>('/v1/grants'),
+    grant: (request) =>
+      json<Given>('/v1/grants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      }),
+    receivedGrants: () => json<Received[]>('/v1/grants/received'),
+    withdrawGrant: async (id) => {
+      await call(`/v1/grants/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    },
   };
 }
 
 async function messageFor(response: Response): Promise<string> {
   switch (response.status) {
     case 403:
-      return 'this account may only read';
+      return (await explanationFrom(response)) ?? 'this account may only read';
     case 507:
       return 'there is no room left in this account';
     default:

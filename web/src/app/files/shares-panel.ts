@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, input, output, resource, signal } from '@angular/core';
+import { describeAccess, type Given } from '../grant';
 import { PLATFORM } from '../platform';
 import { describeLink, type Share } from '../share';
 import { Confirm } from '../shared/confirm';
@@ -21,10 +22,24 @@ export class SharesPanel {
     loader: () => this.platform.listShares?.() ?? Promise.resolve([]),
   });
 
+  protected readonly canGrant = this.platform.listGrants !== undefined;
+  protected readonly grants = resource({
+    params: () => ({ version: this.version() }),
+    loader: () => this.platform.listGrants?.() ?? Promise.resolve([]),
+  });
+
   protected readonly doomed = signal<Share | null>(null);
+  protected readonly withdrawing = signal<Given | null>(null);
   protected readonly failure = signal<string | null>(null);
 
   protected readonly describe = describeLink;
+  protected describeGiven(given: Given): string {
+    const parts = [given.email, describeAccess(given.access)];
+    if (given.in_trash) {
+      parts.push('in the trash');
+    }
+    return parts.join(', ');
+  }
 
   protected async revoke(share: Share): Promise<void> {
     this.doomed.set(null);
@@ -37,6 +52,22 @@ export class SharesPanel {
     try {
       await drop(share.id);
       this.links.reload();
+    } catch (cause: unknown) {
+      this.failure.set(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  protected async withdraw(given: Given): Promise<void> {
+    this.withdrawing.set(null);
+    const drop = this.platform.withdrawGrant;
+    if (drop === undefined) {
+      return;
+    }
+
+    this.failure.set(null);
+    try {
+      await drop(given.id);
+      this.grants.reload();
     } catch (cause: unknown) {
       this.failure.set(cause instanceof Error ? cause.message : String(cause));
     }
