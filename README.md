@@ -239,8 +239,9 @@ trash, the account that published it being disabled, the expiry passing. All of 
 including a wrong password on a link that does not exist, because a link that says "wrong password"
 tells whoever guessed a token that they guessed it.
 
-In the web app the share action sits next to rename and delete, and a Links button lists what the
-account has published, with the expiry, when each was last opened, and a revoke. The token appears
+In the web app the share action sits next to rename and delete, and a Sharing button lists the
+links the account has published, with the expiry, when each was last opened, and a revoke, then what
+it shares with other accounts. The token appears
 once, in the dialog that mints it, because the server keeps only a fingerprint and cannot show it
 again. A link opens at `/#/s/{token}`, which is a page with none of the app's chrome on it: whoever
 follows it has no account, is never shown a sign-in form, and no request that page makes carries a
@@ -280,6 +281,11 @@ is a shared folder its owner sends to the trash, until it is restored. The owner
 keeps listing that share with `in_trash`, so it can be revoked before a restore hands it back.
 `Shared with me` is reserved
 at the top of every tree, and upgrading renames a folder that already had that name.
+
+In the web app the share dialog offers the same thing next to a link: an address, and whether they
+may only view or also edit, with who already has it listed underneath. The recipient sees who shared
+each folder and how, a folder they may only read offers download and nothing else, and a Leave button
+on `Shared with me` withdraws a share from their side.
 
 Over WebDAV the same folders appear under `/dav/Shared with me/`, with the same rules. A read-only
 share answers `current-user-privilege-set` without `write`, so a client that asks greys out what it

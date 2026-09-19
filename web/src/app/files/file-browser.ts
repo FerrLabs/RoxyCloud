@@ -13,6 +13,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, type UrlSegment } from '@angular/router';
 import { Session } from '../account';
 import { childOf } from '../folder';
+import { SHARED_WITH_ME, describeOrigin, whereIs, type Received } from '../grant';
 import { byKindThenName, formatDate, formatSize, type Node } from '../node';
 import { PLATFORM } from '../platform';
 import { Confirm } from '../shared/confirm';
@@ -58,11 +59,37 @@ export class FileBrowser {
   private readonly session = inject(Session);
 
   protected readonly canWrite = this.session.canWrite;
+  protected readonly where = computed(() => whereIs(this.path()));
+
+  private readonly left = signal(0);
+  protected readonly received = resource({
+    params: () =>
+      this.where().kind === 'own' ? undefined : { version: this.left(), path: this.path() },
+    loader: () => this.platform.receivedGrants?.() ?? Promise.resolve([]),
+  });
+
+  protected readonly mount = computed(() => {
+    const where = this.where();
+    if (where.kind !== 'shared') {
+      return null;
+    }
+    return (this.received.value() ?? []).find((mount) => mount.name === where.mount) ?? null;
+  });
+
+  protected readonly canChange = computed(() => {
+    const where = this.where();
+    const allowed =
+      where.kind === 'own' || (where.kind === 'shared' && this.mount()?.access === 'write');
+    return this.canWrite() && allowed;
+  });
   protected readonly canUpload = computed(
-    () => this.platform.upload !== undefined && this.canWrite(),
+    () => this.platform.upload !== undefined && this.canChange(),
   );
   protected readonly canShare = computed(
-    () => this.platform.share !== undefined && this.canWrite(),
+    () => this.platform.share !== undefined && this.canWrite() && this.where().kind === 'own',
+  );
+  protected readonly canLeave = computed(
+    () => this.platform.withdrawGrant !== undefined && this.where().kind === 'shelf',
   );
   protected readonly canSeeLinks = computed(() => this.platform.listShares !== undefined);
   protected readonly dragging = signal(false);
@@ -70,6 +97,7 @@ export class FileBrowser {
   protected readonly announcement = signal<string | null>(null);
   protected readonly failure = signal<string | null>(null);
   protected readonly doomed = signal<Node | null>(null);
+  protected readonly leaving = signal<Received | null>(null);
   protected readonly renaming = signal<Node | null>(null);
   protected readonly opened = signal<Node | null>(null);
   protected readonly sharing = signal<Node | null>(null);
@@ -87,6 +115,44 @@ export class FileBrowser {
       this.opened.set(null);
       this.renaming.set(null);
       this.sharing.set(null);
+    });
+  }
+
+  protected isShelf(node: Node): boolean {
+    return this.path() === '' && node.kind === 'directory' && node.name === SHARED_WITH_ME;
+  }
+
+  protected mayChange(node: Node): boolean {
+    return this.canChange() && !this.isShelf(node);
+  }
+
+  protected mayShare(node: Node): boolean {
+    return this.canShare() && !this.isShelf(node);
+  }
+
+  protected mountFor(node: Node): Received | null {
+    return (this.received.value() ?? []).find((mount) => mount.name === node.name) ?? null;
+  }
+
+  protected originOf(node: Node): string | null {
+    if (this.where().kind !== 'shelf') {
+      return null;
+    }
+    const mount = this.mountFor(node);
+    return mount === null ? null : describeOrigin(mount);
+  }
+
+  protected async leave(mount: Received): Promise<void> {
+    this.leaving.set(null);
+    const withdraw = this.platform.withdrawGrant;
+    if (withdraw === undefined) {
+      return;
+    }
+    await this.attempt(`leaving ${mount.name}`, async () => {
+      await withdraw(mount.id);
+      this.announcement.set(`Left ${mount.name}`);
+      this.left.update((count) => count + 1);
+      this.listing.reload();
     });
   }
 
@@ -198,12 +264,12 @@ export class FileBrowser {
         this.focus(last);
         break;
       case 'Delete':
-        if (this.canWrite()) {
+        if (this.mayChange(node)) {
           this.doomed.set(node);
         }
         break;
       case 'F2':
-        if (this.canWrite()) {
+        if (this.mayChange(node)) {
           this.renaming.set(node);
         }
         break;

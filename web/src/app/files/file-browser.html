@@ -23,7 +23,7 @@
           [attr.aria-expanded]="showingLinks()"
           (click)="showingLinks.set(!showingLinks())"
         >
-          Links
+          Sharing
         </button>
       }
       @if (canUpload()) {
@@ -34,6 +34,17 @@
 
   @if (showingLinks()) {
     <rx-shares-panel [version]="published()" (closed)="showingLinks.set(false)" />
+  }
+
+  @if (mount(); as shared) {
+    <p class="banner origin">
+      {{ shared.owner_name || shared.owner_email }} shares this with you.
+      @if (shared.access === 'read') {
+        You can view and download what is in it, and not change it.
+      } @else {
+        What you add or change here is stored in their files.
+      }
+    </p>
   }
 
   @if (failure(); as message) {
@@ -88,7 +99,12 @@
                 </svg>
               }
             </span>
-            <span class="name">{{ node.name }}</span>
+            <span class="name">
+              {{ node.name }}
+              @if (originOf(node); as origin) {
+                <span class="from">{{ origin }}</span>
+              }
+            </span>
             <span class="size">
               @if (node.kind === 'file') {
                 {{ size(node.size) }}
@@ -118,7 +134,7 @@
                 </svg>
               </button>
             }
-            @if (canShare()) {
+            @if (mayShare(node)) {
               <button
                 type="button"
                 class="icon"
@@ -140,7 +156,17 @@
                 </svg>
               </button>
             }
-            @if (canWrite()) {
+            @if (canLeave() && mountFor(node); as mount) {
+              <button
+                type="button"
+                class="ghost"
+                [attr.aria-label]="'Leave ' + node.name"
+                (click)="leaving.set(mount)"
+              >
+                Leave
+              </button>
+            }
+            @if (mayChange(node)) {
               <button
                 type="button"
                 class="icon"
@@ -214,6 +240,20 @@
     action="Delete"
     (accepted)="remove(node)"
     (dismissed)="doomed.set(null)"
+  />
+}
+
+@if (leaving(); as mount) {
+  <rx-confirm
+    [heading]="'Leave ' + mount.name + '?'"
+    [body]="
+      'It disappears from Shared with me. ' +
+      (mount.owner_name || mount.owner_email) +
+      ' keeps it, and can share it with you again.'
+    "
+    action="Leave"
+    (accepted)="leave(mount)"
+    (dismissed)="leaving.set(null)"
   />
 }
 

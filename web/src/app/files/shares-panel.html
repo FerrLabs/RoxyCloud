@@ -38,6 +38,40 @@
       }
     </ul>
   }
+
+  @if (canGrant) {
+    <h2>Shared with other accounts</h2>
+    @if (grants.isLoading()) {
+      <p class="state" aria-busy="true">Loading what you share</p>
+    } @else if (grants.error(); as error) {
+      <div class="state">
+        <p>What you share did not load.</p>
+        <p class="detail">{{ error }}</p>
+        <button type="button" (click)="grants.reload()">Try again</button>
+      </div>
+    } @else if ((grants.value() ?? []).length === 0) {
+      <p class="state">You do not share anything with another account.</p>
+    } @else {
+      <ul class="listing">
+        @for (given of grants.value() ?? []; track given.id) {
+          <li>
+            <span class="what">
+              <span class="name">{{ given.name }}</span>
+              <span class="detail">{{ given.email }}, {{ access(given.access) }}</span>
+            </span>
+            <button
+              type="button"
+              class="ghost danger"
+              [attr.aria-label]="'Stop sharing ' + given.name + ' with ' + given.email"
+              (click)="withdrawing.set(given)"
+            >
+              Stop sharing
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  }
 </section>
 
 @if (doomed(); as link) {
@@ -47,5 +81,15 @@
     action="Revoke"
     (accepted)="revoke(link)"
     (dismissed)="doomed.set(null)"
+  />
+}
+
+@if (withdrawing(); as given) {
+  <rx-confirm
+    [heading]="'Stop sharing ' + given.name + ' with ' + given.email + '?'"
+    body="It disappears from their Shared with me on their next request. Your files are untouched."
+    action="Stop sharing"
+    (accepted)="withdraw(given)"
+    (dismissed)="withdrawing.set(null)"
   />
 }

@@ -49,6 +49,11 @@
   color: var(--danger-ink);
 }
 
+.banner.origin {
+  background: var(--surface-raised);
+  color: var(--ink-muted);
+}
+
 .state {
   display: grid;
   justify-items: center;
@@ -128,6 +133,13 @@
 
 .entry.directory .name {
   font-weight: 600;
+}
+
+.from {
+  display: block;
+  color: var(--ink-faint);
+  font-size: 0.8rem;
+  font-weight: 400;
 }
 
 .size,
