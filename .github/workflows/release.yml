@@ -67,3 +67,13 @@ jobs:
     with:
       version: ${{ needs.released.outputs.version }}
       push: true
+
+  chart:
+    needs: [released, image]
+    uses: ./.github/workflows/chart.yml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    with:
+      version: ${{ needs.released.outputs.version }}
