@@ -52,7 +52,7 @@ pub async fn give(
 ) -> Result<Given, ApiError> {
     if grantee.as_str() == owner.email {
         return Err(ApiError::WrongKind {
-            expected: "address other than your own",
+            expected: "different address from your own",
         });
     }
 

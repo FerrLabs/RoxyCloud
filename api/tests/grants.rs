@@ -909,3 +909,30 @@ database_test!(
         );
     }
 );
+
+database_test!(an_account_cannot_share_with_itself, harness, {
+    let (owner, owner_bearer) = session(&harness, "owner@example.com", Role::Member).await;
+    harness.write(owner, "photos/beach.jpg", b"sand").await;
+
+    let refused = grant(
+        &harness,
+        &owner_bearer,
+        "photos",
+        "Owner@Example.com",
+        "read",
+    )
+    .await;
+
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.body);
+    assert!(
+        refused.body.contains("different address"),
+        "{}",
+        refused.body
+    );
+    assert!(
+        get(&harness, "/v1/folders", &owner_bearer)
+            .await
+            .names()
+            .contains(&"photos".to_owned())
+    );
+});
