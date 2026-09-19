@@ -20,9 +20,9 @@ pub struct Hit {
 }
 
 /// Substring match on the name, over the caller's live tree and the folders shared with them,
-/// prefix matches first. A shared match is kept only when a mount the caller holds sits above it,
-/// and its path climbs no further than that mount, so neither the owner's other files nor the
-/// names above the shared folder can reach a page.
+/// prefix matches first. Shared folders are walked downward from each mount, so a search costs the
+/// size of what is shared rather than of the owner's whole tree, and a path climbs no further than
+/// the mount it was found through, so the names above a shared folder never reach a page.
 pub async fn by_name(
     pool: &PgPool,
     caller: &User,
@@ -40,43 +40,45 @@ pub async fn by_name(
     let escaped = like_escape(query);
     sqlx::query_as::<_, Hit>(
         r"WITH RECURSIVE mounts AS (
-               SELECT grants.node_id, grants.mount_name, nodes.owner_id
+               SELECT grants.node_id, grants.mount_name
                FROM grants
                JOIN nodes ON nodes.id = grants.node_id AND nodes.deleted_at IS NULL
                WHERE grants.grantee_email = $2
            ),
+           shared AS (
+               SELECT mounts.node_id AS mount_id, mounts.node_id AS id, 0 AS depth
+               FROM mounts
+               UNION ALL
+               SELECT shared.mount_id, below.id, shared.depth + 1
+               FROM shared
+               JOIN nodes below ON below.parent_id = shared.id AND below.deleted_at IS NULL
+           ) CYCLE id SET looped USING trail,
+           nearest AS (
+               SELECT DISTINCT ON (shared.id) shared.id, shared.mount_id
+               FROM shared
+               ORDER BY shared.id, shared.depth
+           ),
            matched AS (
                SELECT id, owner_id, parent_id, name, kind, blob_hash, size, etag,
-                      created_at, updated_at, deleted_at
+                      created_at, updated_at, deleted_at, NULL::uuid AS mount_id
                FROM nodes
-               WHERE (owner_id = $1 OR owner_id IN (SELECT owner_id FROM mounts))
+               WHERE owner_id = $1
                  AND deleted_at IS NULL
                  AND parent_id IS NOT NULL
                  AND name ILIKE '%' || $3 || '%' ESCAPE '\'
-           ),
-           climb AS (
-               SELECT matched.id AS of, matched.id, matched.parent_id, 0 AS climbed
-               FROM matched
-               WHERE matched.owner_id <> $1
                UNION ALL
-               SELECT climb.of, above.id, above.parent_id, climb.climbed + 1
-               FROM climb
-               JOIN nodes above ON above.id = climb.parent_id
-               WHERE climb.id NOT IN (SELECT node_id FROM mounts)
-           ) CYCLE id SET looped USING trail,
-           entry AS (
-               SELECT DISTINCT ON (climb.of) climb.of, climb.id AS mount_id
-               FROM climb
-               JOIN mounts ON mounts.node_id = climb.id
-               ORDER BY climb.of, climb.climbed
+               SELECT nodes.id, nodes.owner_id, nodes.parent_id, nodes.name, nodes.kind,
+                      nodes.blob_hash, nodes.size, nodes.etag, nodes.created_at,
+                      nodes.updated_at, nodes.deleted_at, nearest.mount_id
+               FROM nearest
+               JOIN nodes ON nodes.id = nearest.id
+               WHERE nodes.owner_id <> $1
+                 AND nodes.name ILIKE '%' || $3 || '%' ESCAPE '\'
            ),
            found AS (
-               SELECT matched.*, entry.mount_id
+               SELECT *
                FROM matched
-               LEFT JOIN entry ON entry.of = matched.id
-               WHERE matched.owner_id = $1 OR entry.mount_id IS NOT NULL
-               ORDER BY (matched.name ILIKE $3 || '%' ESCAPE '\') DESC, lower(matched.name),
-                        matched.id
+               ORDER BY (name ILIKE $3 || '%' ESCAPE '\') DESC, lower(name), id
                LIMIT $4 OFFSET $5
            ),
            lineage AS (

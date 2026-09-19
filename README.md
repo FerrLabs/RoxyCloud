@@ -276,7 +276,9 @@ with the same name are told apart as `Photos` and `Photos (2)`.
 
 `DELETE /v1/grants/{id}` takes a share back when the owner sends it and leaves it when the
 recipient does. Either way it is gone on the next request, from sessions already open too, and so
-is a shared folder its owner sends to the trash, until it is restored. `Shared with me` is reserved
+is a shared folder its owner sends to the trash, until it is restored. The owner's `GET /v1/grants`
+keeps listing that share with `in_trash`, so it can be revoked before a restore hands it back.
+`Shared with me` is reserved
 at the top of every tree, and upgrading renames a folder that already had that name.
 
 Over WebDAV, shared folders do not appear yet.

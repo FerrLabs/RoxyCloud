@@ -29,6 +29,7 @@ pub struct Given {
     pub kind: NodeKind,
     pub email: String,
     pub access: Access,
+    pub in_trash: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -98,6 +99,7 @@ pub async fn give(
         kind: node.kind,
         email: grantee.as_str().to_owned(),
         access,
+        in_trash: false,
         created_at,
     })
 }
@@ -153,10 +155,11 @@ fn numbered(name: &str, ordinal: u32) -> String {
 pub async fn given(pool: &PgPool, owner_id: Uuid) -> Result<Vec<Given>, ApiError> {
     sqlx::query_as::<_, Given>(
         "SELECT grants.id, grants.node_id, nodes.name, nodes.kind,
-                grants.grantee_email AS email, grants.access, grants.created_at
+                grants.grantee_email AS email, grants.access,
+                nodes.deleted_at IS NOT NULL AS in_trash, grants.created_at
          FROM grants
          JOIN nodes ON nodes.id = grants.node_id
-         WHERE nodes.owner_id = $1 AND nodes.deleted_at IS NULL
+         WHERE nodes.owner_id = $1
          ORDER BY grants.created_at DESC",
     )
     .bind(owner_id)
@@ -182,12 +185,24 @@ pub async fn received(pool: &PgPool, grantee: &str) -> Result<Vec<Received>, Api
     .map_err(Into::into)
 }
 
+#[derive(sqlx::FromRow)]
+struct Mounted {
+    grant_id: Uuid,
+    access: Access,
+    mount_name: String,
+    #[sqlx(flatten)]
+    node: Node,
+}
+
 pub async fn mounts(
     tx: &mut Transaction<'_, Postgres>,
     grantee: &str,
 ) -> Result<Vec<(Mount, Node)>, ApiError> {
-    let mounts = sqlx::query_as::<_, Mount>(
-        "SELECT grants.id, grants.node_id, grants.access, grants.mount_name
+    let rows = sqlx::query_as::<_, Mounted>(
+        "SELECT grants.id AS grant_id, grants.access, grants.mount_name,
+                nodes.id, nodes.owner_id, nodes.parent_id, nodes.name, nodes.kind,
+                nodes.blob_hash, nodes.size, nodes.etag, nodes.created_at, nodes.updated_at,
+                nodes.deleted_at
          FROM grants
          JOIN nodes ON nodes.id = grants.node_id AND nodes.deleted_at IS NULL
          WHERE grants.grantee_email = $1
@@ -197,13 +212,20 @@ pub async fn mounts(
     .fetch_all(&mut **tx)
     .await?;
 
-    let mut found = Vec::with_capacity(mounts.len());
-    for mount in mounts {
-        if let Some(node) = live_node(tx, mount.node_id).await? {
-            found.push((mount, node));
-        }
-    }
-    Ok(found)
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            (
+                Mount {
+                    id: row.grant_id,
+                    node_id: row.node.id,
+                    access: row.access,
+                    mount_name: row.mount_name,
+                },
+                row.node,
+            )
+        })
+        .collect())
 }
 
 pub async fn mount(

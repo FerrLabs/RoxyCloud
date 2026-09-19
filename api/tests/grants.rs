@@ -841,6 +841,9 @@ database_test!(
         harness
             .write(owner, "family/beach-diary.txt", b"private")
             .await;
+        harness
+            .write(owner, "family/photos/2019/beach-old.jpg", b"older")
+            .await;
         harness.write(guest_id, "beach-mine.txt", b"mine").await;
         granted(
             &harness,
@@ -861,7 +864,14 @@ database_test!(
             .collect();
         paths.sort();
 
-        assert_eq!(paths, ["Shared with me/photos/beach.jpg", "beach-mine.txt"]);
+        assert_eq!(
+            paths,
+            [
+                "Shared with me/photos/2019/beach-old.jpg",
+                "Shared with me/photos/beach.jpg",
+                "beach-mine.txt"
+            ]
+        );
     }
 );
 
@@ -936,3 +946,72 @@ database_test!(an_account_cannot_share_with_itself, harness, {
             .contains(&"photos".to_owned())
     );
 });
+
+database_test!(a_write_grant_on_a_file_grows_nothing_below_it, harness, {
+    let (owner, owner_bearer) = session(&harness, "owner@example.com", Role::Member).await;
+    let (_, guest) = session(&harness, "guest@example.com", Role::Member).await;
+    let file = harness.write(owner, "photos/beach.jpg", b"sand").await;
+    granted(
+        &harness,
+        &owner_bearer,
+        "photos/beach.jpg",
+        "guest@example.com",
+        "write",
+    )
+    .await;
+
+    let written = put(
+        &harness,
+        "/v1/files/Shared with me/beach.jpg/a/b.txt",
+        &guest,
+        b"x",
+    )
+    .await;
+    let overwritten = put(
+        &harness,
+        "/v1/files/Shared with me/beach.jpg",
+        &guest,
+        b"dune",
+    )
+    .await;
+
+    assert_eq!(written.status, StatusCode::BAD_REQUEST, "{}", written.body);
+    assert!(harness.children(&file).await.is_empty());
+    assert_eq!(
+        overwritten.status,
+        StatusCode::CREATED,
+        "{}",
+        overwritten.body
+    );
+    assert_eq!(
+        get(&harness, "/v1/files/Shared with me/beach.jpg", &guest)
+            .await
+            .body,
+        "dune"
+    );
+});
+
+database_test!(
+    a_share_of_a_trashed_folder_stays_on_its_owners_list,
+    harness,
+    {
+        let (owner, owner_bearer) = session(&harness, "owner@example.com", Role::Member).await;
+        harness.account("guest@example.com", Role::Member).await;
+        harness.write(owner, "photos/beach.jpg", b"sand").await;
+        granted(
+            &harness,
+            &owner_bearer,
+            "photos",
+            "guest@example.com",
+            "read",
+        )
+        .await;
+
+        harness.trash(&harness.resolve(owner, "photos").await).await;
+
+        let given = get(&harness, "/v1/grants", &owner_bearer).await.json();
+        let given = given.as_array().expect("a list");
+        assert_eq!(given.len(), 1);
+        assert_eq!(given[0]["in_trash"], true);
+    }
+);

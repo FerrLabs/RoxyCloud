@@ -125,6 +125,11 @@ pub async fn create_directories(
     root: &Node,
     segments: &[NodeName],
 ) -> Result<Node, ApiError> {
+    if !segments.is_empty() && root.kind != NodeKind::Directory {
+        return Err(ApiError::WrongKind {
+            expected: "directory",
+        });
+    }
     let mut current = root.clone();
     for segment in segments {
         current = match child(tx, current.id, segment).await? {

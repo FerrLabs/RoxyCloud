@@ -493,12 +493,15 @@ if it is two answers for one node.
 Revocation is a row going away, and a grant is read on every request, so it takes effect on the next
 one from every session and app password alike. The owner revokes; the recipient may withdraw too,
 which leaves the share without touching the folder. A shared node going to the trash hides the mount,
-a restore brings it back, and a purge removes the grant with the node.
+a restore brings it back, and a purge removes the grant with the node. The owner's own list keeps
+showing a grant on a trashed node, marked as such, because a restore would hand the access straight
+back and the owner should be able to see and revoke that first.
 
-Search reaches shared folders by matching names across the caller's tree and the trees of accounts
-that share with it, then keeping a match from another tree only when a mount the caller holds sits
-above it. The path is built by climbing to that mount and no further, so the names of the owner's
-folders above the shared one never reach a page.
+Search reaches shared folders by walking down from each mount the caller holds and matching names
+along the way, so it costs the size of what is shared rather than the size of the owner's tree, and
+nothing outside a mount is ever read. A node reachable through two mounts is found through the
+nearer one. The path is built by climbing back to that mount and no further, so the names of the
+owner's folders above the shared one never reach a page.
 
 Not implemented: WebDAV access to shared folders.
 
