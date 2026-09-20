@@ -8,6 +8,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { Router } from '@angular/router';
 import { Session, describeRole } from '../account';
 import { PLATFORM } from '../platform';
 
@@ -20,6 +21,7 @@ import { PLATFORM } from '../platform';
 export class AccountMenu {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly platform = inject(PLATFORM);
+  private readonly router = inject(Router);
   private readonly session = inject(Session);
 
   readonly changingPassword = output<void>();
@@ -28,6 +30,9 @@ export class AccountMenu {
 
   protected readonly canChangePassword = this.platform.changePassword !== undefined;
   protected readonly canMintAppPasswords = this.platform.mintAppPassword !== undefined;
+  protected readonly canAdminister = computed(
+    () => this.platform.listAccounts !== undefined && this.session.isAdmin(),
+  );
 
   protected readonly account = this.session.account;
   protected readonly open = signal(false);
@@ -60,6 +65,11 @@ export class AccountMenu {
   protected openAppPasswords(): void {
     this.open.set(false);
     this.openingAppPasswords.emit();
+  }
+
+  protected administer(): void {
+    this.open.set(false);
+    void this.router.navigate(['/accounts']);
   }
 
   protected signOut(): void {

@@ -33,6 +33,9 @@
       @if (canMintAppPasswords) {
         <button type="button" role="menuitem" (click)="openAppPasswords()">App passwords</button>
       }
+      @if (canAdminister()) {
+        <button type="button" role="menuitem" (click)="administer()">Accounts</button>
+      }
       <button type="button" role="menuitem" (click)="signOut()">Sign out</button>
     </div>
   }

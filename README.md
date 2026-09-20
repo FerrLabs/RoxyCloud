@@ -36,8 +36,7 @@ side, either once or watching the folder as it changes. Share links for people w
 sharing a folder with another account on the instance, search by name, thumbnails, resumable
 uploads, and WebDAV with locking, which is what lets macOS Finder and Windows Explorer write to it.
 
-Not written: an interface for the sync client beyond the command line, and account administration in
-the web app, which exists in the API and is reached with curl today.
+Not written: an interface for the sync client beyond the command line.
 
 ## Layout
 
@@ -228,6 +227,13 @@ the bytes twice, and quota is charged for the copy because the tree grew.
 Each account carries a role: `admin`, `member` or `reader`. A reader may list and download; upload
 and delete answer 403. The check sits in the API rather than in the interface, so it holds for curl
 and for `roxy sync` as much as for the web app.
+
+An administrator reaches the accounts from their own menu: who exists, what each is using against
+its quota, and whether it is disabled, with a role to change, a quota to set, an account to add, one
+to disable or enable, a password to reset and a locked one to unlock. A created or reset password is
+generated there and shown once, because the server keeps only its hash. The interface does not offer
+an administrator the two things the API refuses them, disabling their own account and taking their
+own admin role away, and it is the API that enforces it either way.
 
 A share link hands a file or a folder to somebody who has no account. `POST /v1/shares` takes a
 path, mints a 256-bit token, shows it once and stores only a fingerprint of it, so a stolen database

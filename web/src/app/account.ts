@@ -34,6 +34,8 @@ export class Session {
 
   readonly isReader = computed(() => this.account()?.role === 'reader');
 
+  readonly isAdmin = computed(() => this.account()?.role === 'admin');
+
   async load(): Promise<void> {
     this.account.set(await this.platform.account());
   }

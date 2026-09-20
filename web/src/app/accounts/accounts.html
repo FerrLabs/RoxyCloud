@@ -1,0 +1,115 @@
+<section class="accounts">
+  <div class="bar">
+    <h1>Accounts</h1>
+    <span class="controls">
+      <button type="button" class="ghost" [disabled]="accounts.isLoading()" (click)="accounts.reload()">
+        Refresh
+      </button>
+      <button type="button" class="primary" (click)="adding.set(true)">Add an account</button>
+    </span>
+  </div>
+
+  @if (failure(); as message) {
+    <p class="banner failure" role="alert">{{ message }}</p>
+  }
+  <p class="banner announcement" role="status" aria-live="polite">{{ announcement() }}</p>
+
+  @if (accounts.isLoading() || accounts.value() === undefined) {
+    <p class="state" aria-busy="true">Loading the accounts</p>
+  } @else if (accounts.error(); as error) {
+    <div class="state">
+      <p>The accounts did not load.</p>
+      <p class="detail">{{ error }}</p>
+      <button type="button" (click)="accounts.reload()">Try again</button>
+    </div>
+  } @else {
+    <ul class="listing">
+      @for (account of accounts.value() ?? []; track account.id) {
+        <li [class.disabled]="account.disabled_at !== undefined">
+          <span class="who">
+            <span class="name">
+              {{ account.display_name }}
+              @if (account.id === me()) {
+                <span class="tag">you</span>
+              }
+              @if (account.disabled_at !== undefined) {
+                <span class="tag">disabled</span>
+              }
+            </span>
+            <span class="detail">{{ account.email }}, {{ usage(account) }}</span>
+          </span>
+
+          <span class="actions">
+            <label class="role">
+              <span class="label">Role</span>
+              <select
+                [disabled]="account.id === me()"
+                (change)="setRole(account, $any($event.target).value)"
+              >
+                @for (role of roles; track role) {
+                  <option [value]="role" [selected]="role === account.role">
+                    {{ describe(role) }}
+                  </option>
+                }
+              </select>
+            </label>
+
+            <button type="button" class="ghost" (click)="quota.set(account)">Quota</button>
+            <button type="button" class="ghost" (click)="resetting.set(account)">Password</button>
+            <button type="button" class="ghost" (click)="unlock(account)">Unlock</button>
+            @if (account.id !== me()) {
+              @if (account.disabled_at === undefined) {
+                <button type="button" class="ghost danger" (click)="disabling.set(account)">
+                  Disable
+                </button>
+              } @else {
+                <button type="button" class="ghost" (click)="setDisabled(account, false)">
+                  Enable
+                </button>
+              }
+            }
+          </span>
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+@if (adding()) {
+  <rx-new-account (submitted)="create($event)" (dismissed)="adding.set(false)" />
+}
+
+@if (quota(); as account) {
+  <rx-quota
+    [account]="account"
+    (submitted)="setQuota(account, $event)"
+    (dismissed)="quota.set(null)"
+  />
+}
+
+@if (resetting(); as account) {
+  <rx-account-password
+    [heading]="'Reset the password of ' + account.email"
+    action="Reset"
+    (submitted)="resetPassword(account, $event)"
+    (dismissed)="resetting.set(null)"
+  />
+}
+
+@if (password(); as shown) {
+  <rx-account-password
+    [heading]="shown.heading"
+    [secret]="shown.secret"
+    (dismissed)="password.set(null)"
+  />
+}
+
+@if (disabling(); as account) {
+  <rx-confirm
+    [heading]="'Disable ' + account.email + '?'"
+    body="Their sessions stop working on their next request, and they cannot sign in again until you enable them. Their files are untouched."
+    action="Disable"
+    (accepted)="setDisabled(account, true)"
+    (dismissed)="disabling.set(null)"
+  />
+}
