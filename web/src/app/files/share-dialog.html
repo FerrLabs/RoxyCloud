@@ -107,9 +107,9 @@
 
         <label>
           They can
-          <select [value]="access()" (change)="access.set($any($event.target).value)">
-            <option value="read">View and download</option>
-            <option value="write">Edit, add and delete</option>
+          <select (change)="access.set($any($event.target).value)">
+            <option value="read" [selected]="access() === 'read'">View and download</option>
+            <option value="write" [selected]="access() === 'write'">Edit, add and delete</option>
           </select>
         </label>
         @if (access() === 'write') {

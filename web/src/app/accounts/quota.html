@@ -1,0 +1,26 @@
+<dialog #dialog (cancel)="dismiss()">
+  <form method="dialog" (submit)="$event.preventDefault(); submit()">
+    <h2>Quota for {{ account().email }}</h2>
+    <label>
+      Gigabytes
+      <input
+        type="number"
+        min="1"
+        step="1"
+        [value]="gigabytes()"
+        (input)="gigabytes.set($any($event.target).value)"
+      />
+    </label>
+    <p class="hint">
+      What the account may hold. Lowering it below what is already stored refuses the next upload
+      rather than deleting anything.
+    </p>
+    @if (failure(); as message) {
+      <p class="failure" role="alert">{{ message }}</p>
+    }
+    <div class="actions">
+      <button type="button" class="ghost" (click)="dismiss()">Cancel</button>
+      <button type="submit" class="primary">Set</button>
+    </div>
+  </form>
+</dialog>

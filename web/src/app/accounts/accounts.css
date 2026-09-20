@@ -1,0 +1,133 @@
+.accounts {
+  display: grid;
+  gap: 1rem;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 1.5rem var(--gutter) 3rem;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.banner {
+  margin: 0;
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+.banner:empty {
+  display: none;
+}
+
+.announcement {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+
+.failure {
+  background: var(--danger-wash);
+  color: var(--danger-ink);
+}
+
+.state {
+  margin: 0;
+  padding: 3rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.state .detail {
+  font-size: 0.9rem;
+  color: var(--ink-faint);
+}
+
+.listing {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.listing li {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) 9rem repeat(4, 5.75rem);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1rem;
+}
+
+.listing li + li {
+  border-top: 1px solid var(--rule-soft);
+}
+
+.listing li.disabled .who {
+  opacity: 0.6;
+}
+
+.who {
+  display: grid;
+  min-width: 12rem;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.tag {
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: calc(var(--radius) - 0.25rem);
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.detail {
+  color: var(--ink-faint);
+  font-size: 0.82rem;
+}
+
+.listing select,
+.listing button {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.listing select {
+  text-align: left;
+}
+
+@media (max-width: 52rem) {
+  .listing li {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .who {
+    grid-column: 1 / -1;
+  }
+}

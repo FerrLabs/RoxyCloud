@@ -1,6 +1,7 @@
 import { InjectionToken, type Provider } from '@angular/core';
-import type { Account } from './account';
+import type { Account, Role } from './account';
 import type { AppPassword, MintedPassword } from './account/app-password';
+import type { ManagedAccount, NewAccount } from './accounts/managed';
 import type { Given, NewGrant, Received } from './grant';
 import type { Node } from './node';
 import type { Minted, NewShare, Share } from './share';
@@ -16,6 +17,13 @@ export interface Platform {
   listAppPasswords?(): Promise<AppPassword[]>;
   mintAppPassword?(name: string): Promise<MintedPassword>;
   revokeAppPassword?(id: string): Promise<void>;
+  listAccounts?(): Promise<ManagedAccount[]>;
+  createAccount?(account: NewAccount): Promise<void>;
+  setRole?(id: string, role: Role): Promise<void>;
+  setQuota?(id: string, bytes: number): Promise<void>;
+  setDisabled?(id: string, disabled: boolean): Promise<void>;
+  unlockAccount?(id: string): Promise<void>;
+  resetPassword?(id: string, password: string): Promise<void>;
   account(): Promise<Account>;
   listFolder(path: string): Promise<Node[]>;
   read(path: string): Promise<Blob>;
@@ -107,6 +115,43 @@ function browserPlatform(baseUrl: string): Platform {
       }),
     revokeAppPassword: async (id) => {
       await call(`/v1/app-passwords/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    },
+    listAccounts: () => json<ManagedAccount[]>('/v1/users'),
+    createAccount: async (account) => {
+      await call('/v1/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(account),
+      });
+    },
+    setRole: async (id, role) => {
+      await call(`/v1/users/${encodeURIComponent(id)}/role`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+    },
+    setQuota: async (id, bytes) => {
+      await call(`/v1/users/${encodeURIComponent(id)}/quota`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bytes_max: bytes }),
+      });
+    },
+    setDisabled: async (id, disabled) => {
+      await call(`/v1/users/${encodeURIComponent(id)}/${disabled ? 'disable' : 'enable'}`, {
+        method: 'POST',
+      });
+    },
+    unlockAccount: async (id) => {
+      await call(`/v1/users/${encodeURIComponent(id)}/unlock`, { method: 'POST' });
+    },
+    resetPassword: async (id, password) => {
+      await call(`/v1/users/${encodeURIComponent(id)}/password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
     },
     account: () => json<Account>('/v1/auth/me'),
     listFolder: (path) => json<Node[]>(`/v1/folders${encodePath(path)}`),

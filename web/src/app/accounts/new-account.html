@@ -1,0 +1,62 @@
+<dialog #dialog (cancel)="dismiss()">
+  <form method="dialog" (submit)="$event.preventDefault(); submit()">
+    <h2>Add an account</h2>
+
+    <label>
+      Email address
+      <input
+        type="email"
+        autocomplete="off"
+        required
+        [value]="email()"
+        (input)="email.set($any($event.target).value)"
+      />
+    </label>
+
+    <label>
+      Display name
+      <input
+        type="text"
+        autocomplete="off"
+        required
+        [value]="displayName()"
+        (input)="displayName.set($any($event.target).value)"
+      />
+    </label>
+
+    <label>
+      Role
+      <select (change)="role.set($any($event.target).value)">
+        @for (role of roles; track role) {
+          <option [value]="role" [selected]="role === this.role()">{{ describe(role) }}</option>
+        }
+      </select>
+    </label>
+
+    <label>
+      First password
+      <input
+        type="text"
+        autocomplete="off"
+        spellcheck="false"
+        [value]="password()"
+        (input)="password.set($any($event.target).value)"
+      />
+    </label>
+    <p class="hint">
+      Generated here, and yours to change. It is shown once more after the account is made, and
+      never again.
+    </p>
+
+    <div class="actions">
+      <button type="button" class="ghost" (click)="dismiss()">Cancel</button>
+      <button
+        type="submit"
+        class="primary"
+        [disabled]="email().trim().length === 0 || displayName().trim().length === 0"
+      >
+        Add
+      </button>
+    </div>
+  </form>
+</dialog>
