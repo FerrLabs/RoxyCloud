@@ -4,6 +4,14 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.26.0] - 2026-09-20
+
+### Features
+
+- feat(web): account administration for an administrator (#156)
+- feat(web): mint and revoke app passwords from the account menu (#155)
+- feat(web): an account menu in the header, with sign out and a password change (#154)
+
 ## [0.25.2] - 2026-09-20
 
 ### Bug Fixes
