@@ -27,7 +27,9 @@
         <p class="detail">{{ account.email }}</p>
         <p class="detail">{{ role() }}</p>
       </div>
-      <button type="button" role="menuitem" (click)="changePassword()">Change password</button>
+      @if (canChangePassword) {
+        <button type="button" role="menuitem" (click)="changePassword()">Change password</button>
+      }
       <button type="button" role="menuitem" (click)="signOut()">Sign out</button>
     </div>
   }

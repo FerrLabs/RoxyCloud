@@ -10,7 +10,7 @@ export interface Platform {
   readonly kind: PlatformKind;
   authenticated(): boolean;
   login(email: string, password: string): Promise<void>;
-  signOut(): void;
+  signOut(): void | Promise<void>;
   changePassword?(current: string, password: string): Promise<void>;
   account(): Promise<Account>;
   listFolder(path: string): Promise<Node[]>;
@@ -164,7 +164,9 @@ function desktopPlatform(serverUrl: string): Platform {
       await invoke<void>('login', { server: serverUrl, email, password });
       connected = true;
     },
-    signOut: () => {
+    signOut: async () => {
+      const { invoke } = await core();
+      await invoke<void>('sign_out');
       connected = false;
     },
     account: async () => {

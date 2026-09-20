@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { Session, describeRole } from '../account';
+import { PLATFORM } from '../platform';
 
 @Component({
   selector: 'rx-account-menu',
@@ -19,12 +20,14 @@ import { Session, describeRole } from '../account';
 export class AccountMenu {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly session = inject(Session);
+  private readonly platform = inject(PLATFORM);
 
   readonly changingPassword = output<void>();
   readonly signedOut = output<void>();
 
   protected readonly account = this.session.account;
   protected readonly open = signal(false);
+  protected readonly canChangePassword = this.platform.changePassword !== undefined;
   protected readonly role = computed(() => {
     const role = this.account()?.role;
     return role === undefined ? '' : describeRole(role);

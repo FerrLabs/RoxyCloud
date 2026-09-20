@@ -36,6 +36,7 @@ export class App {
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
   protected readonly changing = signal(false);
+  protected readonly notice = signal<string | null>(null);
 
   constructor() {
     if (this.connected()) {
@@ -43,15 +44,22 @@ export class App {
     }
   }
 
-  protected signOut(): void {
-    this.platform.signOut();
+  protected async signOut(): Promise<void> {
+    await this.platform.signOut();
     this.session.forget();
     this.connected.set(false);
+    this.notice.set(null);
     void this.router.navigate(['/']);
+  }
+
+  protected changePassword(): void {
+    this.notice.set(null);
+    this.changing.set(true);
   }
 
   protected noteChanged(): void {
     this.changing.set(false);
+    this.notice.set('Your password has been changed.');
   }
 
   protected async signIn(credentials: Credentials): Promise<void> {

@@ -9,7 +9,7 @@
       </p>
       @if (connected()) {
         <rx-account-menu
-          (changingPassword)="changing.set(true)"
+          (changingPassword)="changePassword()"
           (signedOut)="signOut()"
         />
       }
@@ -18,6 +18,9 @@
 
   <main id="content">
     @if (connected()) {
+      @if (notice(); as message) {
+        <p class="notice" role="status">{{ message }}</p>
+      }
       <router-outlet />
     } @else {
       <section class="sign-in">
