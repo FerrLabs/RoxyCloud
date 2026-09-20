@@ -102,6 +102,7 @@ export class AppPasswords {
   }
 
   protected done(): void {
+    this.failure.set(null);
     this.minted.set(null);
   }
 
