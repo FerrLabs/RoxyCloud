@@ -50,6 +50,36 @@ site/       Angular marketing and documentation site, prerendered
 deploy/     Dockerfile, compose file, Helm chart
 ```
 
+## Installing the desktop app
+
+Every release carries an installer: `RoxyCloud_<version>_x64-setup.exe` for Windows and
+`RoxyCloud_<version>_amd64.AppImage` for Linux, on the
+[releases page](https://github.com/FerrLabs/RoxyCloud/releases/latest). The app asks for the address
+of the instance on first launch, so it works against any server, not only a particular one.
+
+The Windows installer is not signed with an Authenticode certificate yet, so SmartScreen shows
+"Windows protected your PC" on first run. "More info" then "Run anyway" gets past it. Check the
+installer against the release page if that matters to you.
+
+The AppImage needs the executable bit and a system with FUSE:
+
+```bash
+chmod +x RoxyCloud_*_amd64.AppImage
+./RoxyCloud_*_amd64.AppImage
+```
+
+macOS has no build yet: a `.dmg` anyone can open needs an Apple developer account and notarisation.
+
+To build it yourself, from a checkout:
+
+```bash
+pnpm install
+cd app && pnpm exec tauri build
+```
+
+The bundle lands in `target/release/bundle/`, since every crate in the workspace shares one output
+directory.
+
 ## Running the API
 
 Postgres 15 or later, and a Rust toolchain matching `rust-toolchain.toml`.
