@@ -30,6 +30,9 @@
       @if (canChangePassword) {
         <button type="button" role="menuitem" (click)="changePassword()">Change password</button>
       }
+      @if (canMintAppPasswords) {
+        <button type="button" role="menuitem" (click)="openAppPasswords()">App passwords</button>
+      }
       <button type="button" role="menuitem" (click)="signOut()">Sign out</button>
     </div>
   }

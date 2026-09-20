@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AccountMenu } from './account/account-menu';
+import { AppPasswords } from './account/app-passwords';
 import { ChangePassword } from './account/change-password';
 import { Session } from './account';
 import type { Credentials } from './login-form/credentials';
@@ -12,7 +13,7 @@ import { SHARE_PREFIX } from './share';
 
 @Component({
   selector: 'rx-root',
-  imports: [AccountMenu, ChangePassword, LoginForm, RouterOutlet],
+  imports: [AccountMenu, AppPasswords, ChangePassword, LoginForm, RouterOutlet],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,6 +38,7 @@ export class App {
   protected readonly busy = signal(false);
   protected readonly changing = signal(false);
   protected readonly notice = signal<string | null>(null);
+  protected readonly listingAppPasswords = signal(false);
 
   constructor() {
     if (this.connected()) {

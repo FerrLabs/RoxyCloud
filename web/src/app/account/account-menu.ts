@@ -19,11 +19,15 @@ import { PLATFORM } from '../platform';
 })
 export class AccountMenu {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly platform = inject(PLATFORM);
   private readonly session = inject(Session);
   private readonly platform = inject(PLATFORM);
 
   readonly changingPassword = output<void>();
+  readonly openingAppPasswords = output<void>();
   readonly signedOut = output<void>();
+
+  protected readonly canMintAppPasswords = this.platform.mintAppPassword !== undefined;
 
   protected readonly account = this.session.account;
   protected readonly open = signal(false);
@@ -52,6 +56,11 @@ export class AccountMenu {
   protected changePassword(): void {
     this.open.set(false);
     this.changingPassword.emit();
+  }
+
+  protected openAppPasswords(): void {
+    this.open.set(false);
+    this.openingAppPasswords.emit();
   }
 
   protected signOut(): void {
