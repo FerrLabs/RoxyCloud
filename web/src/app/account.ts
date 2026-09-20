@@ -3,6 +3,17 @@ import { PLATFORM } from './platform';
 
 export type Role = 'admin' | 'member' | 'reader';
 
+export function describeRole(role: Role): string {
+  switch (role) {
+    case 'admin':
+      return 'Administrator';
+    case 'member':
+      return 'Member';
+    case 'reader':
+      return 'Read only';
+  }
+}
+
 export type Account = {
   id: string;
   email: string;

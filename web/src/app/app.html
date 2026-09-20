@@ -7,14 +7,23 @@
         <img src="favicon.svg" alt="" width="24" height="24" />
         RoxyCloud
       </p>
-      @if (session.isReader()) {
-        <p class="badge">Read only</p>
+      @if (connected()) {
+        <rx-account-menu
+          (changingPassword)="changePassword()"
+          (signedOut)="signOut()"
+        />
       }
     </div>
   </header>
 
   <main id="content">
     @if (connected()) {
+      @if (notice(); as message) {
+        <p class="notice" role="status">{{ message }}</p>
+      }
+      @if (error(); as message) {
+        <p class="failure" role="alert">{{ message }}</p>
+      }
       <router-outlet />
     } @else {
       <section class="sign-in">
@@ -26,6 +35,13 @@
       </section>
     }
   </main>
+
+  @if (changing()) {
+    <rx-change-password
+      (changed)="noteChanged()"
+      (dismissed)="changing.set(false)"
+    />
+  }
 
   <footer>
     <a [href]="sourceUrl" rel="noreferrer">Source</a>

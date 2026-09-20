@@ -28,14 +28,8 @@ header {
   letter-spacing: -0.01em;
 }
 
-.badge {
-  margin: 0;
-  padding: 0.15rem 0.55rem;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  color: var(--ink-muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.02em;
+rx-account-menu {
+  margin-left: auto;
 }
 
 main {
@@ -44,6 +38,15 @@ main {
   max-width: var(--measure);
   margin: 0 auto;
   padding: 2rem var(--gutter) 4rem;
+}
+
+.notice {
+  margin: 0 0 1.5rem;
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius);
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-size: 0.9rem;
 }
 
 .sign-in {
@@ -57,7 +60,7 @@ main {
   font-weight: 600;
 }
 
-.sign-in .failure {
+.failure {
   margin: 0 0 1rem;
   padding: 0.7rem 1rem;
   border-radius: var(--radius);

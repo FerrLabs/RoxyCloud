@@ -10,6 +10,8 @@ export interface Platform {
   readonly kind: PlatformKind;
   authenticated(): boolean;
   login(email: string, password: string): Promise<void>;
+  signOut(): void | Promise<void>;
+  changePassword?(current: string, password: string): Promise<void>;
   account(): Promise<Account>;
   listFolder(path: string): Promise<Node[]>;
   read(path: string): Promise<Blob>;
@@ -28,22 +30,35 @@ export interface Platform {
 
 export const PLATFORM = new InjectionToken<Platform>('RoxyCloud platform');
 
+export class RequestFailed extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 const TOKEN_KEY = 'roxycloud.token';
 
 const isDesktop = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 function browserPlatform(baseUrl: string): Platform {
+  const bearer = (): Record<string, string> => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   const call = async (path: string, init?: RequestInit): Promise<Response> => {
-    const bearer = localStorage.getItem(TOKEN_KEY);
     const response = await fetch(`${baseUrl}${path}`, {
       ...init,
       headers: {
         ...init?.headers,
-        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+        ...bearer(),
       },
     });
     if (!response.ok) {
-      throw new Error(await messageFor(response));
+      throw new RequestFailed(response.status, await messageFor(response));
     }
     return response;
   };
@@ -61,6 +76,23 @@ function browserPlatform(baseUrl: string): Platform {
         body: JSON.stringify({ email, password }),
       });
       localStorage.setItem(TOKEN_KEY, session.token);
+    },
+    signOut: () => localStorage.removeItem(TOKEN_KEY),
+    changePassword: async (current, password) => {
+      const response = await fetch(`${baseUrl}/v1/auth/password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...bearer(),
+        },
+        body: JSON.stringify({ current, password }),
+      });
+      if (response.status === 401) {
+        throw new Error('that is not your current password');
+      }
+      if (!response.ok) {
+        throw new Error(await messageFor(response));
+      }
     },
     account: () => json<Account>('/v1/auth/me'),
     listFolder: (path) => json<Node[]>(`/v1/folders${encodePath(path)}`),
@@ -140,6 +172,11 @@ function desktopPlatform(serverUrl: string): Platform {
       const { invoke } = await core();
       await invoke<void>('login', { server: serverUrl, email, password });
       connected = true;
+    },
+    signOut: async () => {
+      const { invoke } = await core();
+      await invoke<void>('sign_out');
+      connected = false;
     },
     account: async () => {
       const { invoke } = await core();

@@ -26,16 +26,19 @@ Done: content-addressed blob store with dedup, on local disk or S3, the node tre
 and upload, download, listing, trash and restore over REST.
 
 Done too: password accounts with Argon2id, session tokens, and login from the web app, the desktop
-shell and the CLI, plus the marketing and documentation site in English and French. The file browser
-uploads, previews, renames and deletes, and renaming doubles as moving: type a path instead of a name
-and the node lands there.
+shell and the CLI, OIDC alongside passwords, plus the marketing and documentation site in English
+and French. The file browser uploads, previews, renames and deletes, shows who is signed in and lets
+them sign out, and renaming doubles as moving: type a path instead of a name and the node lands
+there.
 
 And: folder sync, with a three-way reconciler that keeps both copies when a file changed on either
-side, either once or watching the folder as it changes.
+side, either once or watching the folder as it changes. Share links for people with no account,
+sharing a folder with another account on the instance, search by name, thumbnails, resumable
+uploads, and WebDAV with locking, which is what lets macOS Finder and Windows Explorer write to it.
 
-Not written: sharing, search, OIDC, the S3 backend, WebDAV locking, and any interface for the sync
-beyond the command line. Without locking the surface advertises class 1, which macOS Finder and
-Windows Explorer read as read-only.
+Not written: an interface for the sync client beyond the command line, and, in the web app, app
+passwords and account administration, both of which exist in the API and are reached with curl
+today.
 
 ## Layout
 
@@ -238,6 +241,11 @@ Revoking is immediate, and so is everything else that should take a link down: t
 trash, the account that published it being disabled, the expiry passing. All of them answer 404,
 including a wrong password on a link that does not exist, because a link that says "wrong password"
 tells whoever guessed a token that they guessed it.
+
+The header carries the account: the display name, opening a menu with the address it belongs to, its
+role, a password change and a way to sign out. Signing out forgets the token rather than asking the
+server, since a session token is only stored in the browser, and changing a password does not end
+sessions elsewhere.
 
 In the web app the share action sits next to rename and delete, and a Sharing button lists the
 links the account has published, with the expiry, when each was last opened, and a revoke, then what

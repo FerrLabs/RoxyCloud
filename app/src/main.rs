@@ -42,6 +42,16 @@ async fn login(
 }
 
 #[tauri::command]
+async fn sign_out(desktop: State<'_, Desktop>) -> Result<(), String> {
+    if let Some(session) = desktop.sync.lock().await.take() {
+        session.stop().await;
+    }
+    desktop.remote.lock().await.take();
+    desktop.credentials.lock().await.take();
+    Ok(())
+}
+
+#[tauri::command]
 async fn list_folder(desktop: State<'_, Desktop>, path: String) -> Result<Vec<Node>, String> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
@@ -177,6 +187,7 @@ fn main() {
         .manage(Desktop::default())
         .invoke_handler(tauri::generate_handler![
             login,
+            sign_out,
             list_folder,
             account,
             read_file,
