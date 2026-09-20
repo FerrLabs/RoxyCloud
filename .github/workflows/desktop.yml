@@ -30,7 +30,11 @@ jobs:
           - os: windows-latest
             bundles: target/release/bundle/nsis/*.exe
             extra: --bundles nsis
-          - os: ubuntu-latest
+          # Pinned, not ubuntu-latest: an AppImage inherits the glibc of the
+          # machine that built it, so the floor it imposes on everyone's
+          # distribution should move when we say so, not when GitHub repoints
+          # the label.
+          - os: ubuntu-24.04
             bundles: target/release/bundle/appimage/*.AppImage
             extra: --bundles appimage
     permissions:
@@ -83,5 +87,12 @@ jobs:
             exit 1
           fi
 
+          # The Windows installer is unsigned, so the digest is the only thing
+          # a careful person can check it against.
+          for bundle in "${bundles[@]}"; do
+            (cd "$(dirname "$bundle")" && sha256sum "$(basename "$bundle")" > "$(basename "$bundle").sha256")
+          done
+
           printf 'uploading %s\n' "${bundles[@]}"
-          gh release upload "$TAG" "${bundles[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$TAG" "${bundles[@]}" "${bundles[@]/%/.sha256}" \
+            --clobber --repo "$GITHUB_REPOSITORY"

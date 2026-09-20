@@ -58,10 +58,15 @@ Every release carries an installer: `RoxyCloud_<version>_x64-setup.exe` for Wind
 of the instance on first launch, so it works against any server, not only a particular one.
 
 The Windows installer is not signed with an Authenticode certificate yet, so SmartScreen shows
-"Windows protected your PC" on first run. "More info" then "Run anyway" gets past it. Check the
-installer against the release page if that matters to you.
+"Windows protected your PC" on first run. "More info" then "Run anyway" gets past it. Each installer
+is published with its SHA-256 beside it, so the download can be checked before it is run:
 
-The AppImage needs the executable bit and a system with FUSE:
+```bash
+sha256sum -c RoxyCloud_0.26.0_x64-setup.exe.sha256
+```
+
+The AppImage needs the executable bit and a system with FUSE. It is built on Ubuntu 24.04 and
+therefore wants glibc 2.39 or later, so Debian 12 and Ubuntu 22.04 need a build of their own:
 
 ```bash
 chmod +x RoxyCloud_*_amd64.AppImage
