@@ -4,6 +4,13 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.27.0] - 2026-09-20
+
+### Features
+
+- feat(app): update the desktop app from its own menu (#161)
+- feat(web): ask the desktop app which server to sign in to (#159)
+
 ## [0.26.0] - 2026-09-20
 
 ### Features
