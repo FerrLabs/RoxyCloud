@@ -39,36 +39,30 @@
             <span class="detail">{{ account.email }}, {{ usage(account) }}</span>
           </span>
 
-          <span class="actions">
-            <label class="role">
-              <span class="label">Role</span>
-              <select
-                [disabled]="account.id === me()"
-                (change)="setRole(account, $any($event.target).value)"
-              >
-                @for (role of roles; track role) {
-                  <option [value]="role" [selected]="role === account.role">
-                    {{ describe(role) }}
-                  </option>
-                }
-              </select>
-            </label>
-
-            <button type="button" class="ghost" (click)="quota.set(account)">Quota</button>
-            <button type="button" class="ghost" (click)="resetting.set(account)">Password</button>
-            <button type="button" class="ghost" (click)="unlock(account)">Unlock</button>
-            @if (account.id !== me()) {
-              @if (account.disabled_at === undefined) {
-                <button type="button" class="ghost danger" (click)="disabling.set(account)">
-                  Disable
-                </button>
-              } @else {
-                <button type="button" class="ghost" (click)="setDisabled(account, false)">
-                  Enable
-                </button>
-              }
+          <select
+            [attr.aria-label]="'Role of ' + account.email"
+            [disabled]="account.id === me()"
+            (change)="setRole(account, $any($event.target).value)"
+          >
+            @for (role of roles; track role) {
+              <option [value]="role" [selected]="role === account.role">
+                {{ describe(role) }}
+              </option>
             }
-          </span>
+          </select>
+
+          <button type="button" class="ghost" (click)="quota.set(account)">Quota</button>
+          <button type="button" class="ghost" (click)="resetting.set(account)">Password</button>
+          <button type="button" class="ghost" (click)="unlock(account)">Unlock</button>
+          @if (account.id === me()) {
+            <span></span>
+          } @else if (account.disabled_at === undefined) {
+            <button type="button" class="ghost danger" (click)="disabling.set(account)">
+              Disable
+            </button>
+          } @else {
+            <button type="button" class="ghost" (click)="setDisabled(account, false)">Enable</button>
+          }
         </li>
       }
     </ul>
