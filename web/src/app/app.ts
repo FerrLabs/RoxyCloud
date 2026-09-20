@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
+import { AccountMenu } from './account/account-menu';
+import { ChangePassword } from './account/change-password';
 import { Session } from './account';
 import type { Credentials } from './login-form/credentials';
 import { LoginForm } from './login-form/login-form';
@@ -10,7 +12,7 @@ import { SHARE_PREFIX } from './share';
 
 @Component({
   selector: 'rx-root',
-  imports: [LoginForm, RouterOutlet],
+  imports: [AccountMenu, ChangePassword, LoginForm, RouterOutlet],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,11 +35,23 @@ export class App {
   protected readonly connected = signal(this.platform.authenticated());
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
+  protected readonly changing = signal(false);
 
   constructor() {
     if (this.connected()) {
       void this.session.load();
     }
+  }
+
+  protected signOut(): void {
+    this.platform.signOut();
+    this.session.forget();
+    this.connected.set(false);
+    void this.router.navigate(['/']);
+  }
+
+  protected noteChanged(): void {
+    this.changing.set(false);
   }
 
   protected async signIn(credentials: Credentials): Promise<void> {

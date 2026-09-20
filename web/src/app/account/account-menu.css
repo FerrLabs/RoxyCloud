@@ -1,0 +1,82 @@
+:host {
+  position: relative;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem 0.35rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.trigger:hover,
+.trigger[aria-expanded='true'] {
+  border-color: var(--rule);
+  background: var(--surface-raised);
+}
+
+.initial {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 10;
+  display: grid;
+  min-width: 14rem;
+  padding: 0.35rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgb(8 15 26 / 12%);
+}
+
+.identity {
+  padding: 0.5rem 0.6rem 0.6rem;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.name {
+  margin: 0;
+  font-weight: 600;
+}
+
+.detail {
+  margin: 0.15rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+}
+
+.menu button {
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 0.15rem);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu button:hover {
+  background: var(--surface-raised);
+}

@@ -1,0 +1,34 @@
+@if (account(); as account) {
+  <button
+    type="button"
+    class="trigger"
+    aria-haspopup="menu"
+    [attr.aria-expanded]="open()"
+    (click)="toggle()"
+  >
+    <span class="initial" aria-hidden="true">{{ account.display_name.slice(0, 1) }}</span>
+    <span class="who">{{ account.display_name }}</span>
+    <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+      <path
+        d="M5.5 8 10 12.5 14.5 8"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  </button>
+
+  @if (open()) {
+    <div class="menu" role="menu">
+      <div class="identity">
+        <p class="name">{{ account.display_name }}</p>
+        <p class="detail">{{ account.email }}</p>
+        <p class="detail">{{ role() }}</p>
+      </div>
+      <button type="button" role="menuitem" (click)="changePassword()">Change password</button>
+      <button type="button" role="menuitem" (click)="signOut()">Sign out</button>
+    </div>
+  }
+}

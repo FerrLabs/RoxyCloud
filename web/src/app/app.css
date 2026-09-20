@@ -28,15 +28,10 @@ header {
   letter-spacing: -0.01em;
 }
 
-.badge {
-  margin: 0;
-  padding: 0.15rem 0.55rem;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  color: var(--ink-muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.02em;
+rx-account-menu {
+  margin-left: auto;
 }
+
 
 main {
   flex: 1;
