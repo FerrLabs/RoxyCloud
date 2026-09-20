@@ -21,6 +21,7 @@ struct Desktop {
     remote: Mutex<Option<Remote>>,
     credentials: Mutex<Option<Credentials>>,
     sync: Mutex<Option<SyncSession>>,
+    offered: Mutex<Option<tauri_plugin_updater::Update>>,
 }
 
 #[tauri::command]
@@ -55,31 +56,32 @@ struct Update {
 }
 
 #[tauri::command]
-async fn check_update(app: AppHandle) -> Result<Update, String> {
+async fn check_update(desktop: State<'_, Desktop>, app: AppHandle) -> Result<Update, String> {
     let current = app.package_info().version.to_string();
-    let available = app
-        .updater()
-        .map_err(|error| error.to_string())?
-        .check()
-        .await
-        .map_err(|error| error.to_string())?
-        .map(|update| Available {
-            version: update.version,
-            notes: update.body,
-        });
-
-    Ok(Update { current, available })
-}
-
-#[tauri::command]
-async fn install_update(app: AppHandle) -> Result<(), String> {
     let update = app
         .updater()
         .map_err(|error| error.to_string())?
         .check()
         .await
-        .map_err(|error| error.to_string())?
-        .ok_or("there is no new version to install")?;
+        .map_err(|error| error.to_string())?;
+
+    let available = update.as_ref().map(|update| Available {
+        version: update.version.clone(),
+        notes: update.body.clone(),
+    });
+    *desktop.offered.lock().await = update;
+
+    Ok(Update { current, available })
+}
+
+#[tauri::command]
+async fn install_update(desktop: State<'_, Desktop>, app: AppHandle) -> Result<(), String> {
+    let update = desktop
+        .offered
+        .lock()
+        .await
+        .take()
+        .ok_or("check for updates before installing one")?;
 
     update
         .download_and_install(|_, _| {}, || {})
