@@ -18,16 +18,10 @@ export class LoginForm {
   protected readonly asks = this.platform.server !== undefined;
 
   protected readonly form = inject(FormBuilder).nonNullable.group({
-    server: [this.platform.server?.() ?? ''],
+    server: [this.platform.server?.() ?? '', this.asks ? [Validators.required] : []],
     email: ['', [Validators.required, Validators.email]],
     password: ['', Validators.required],
   });
-
-  constructor() {
-    if (this.asks) {
-      this.form.controls.server.addValidators(Validators.required);
-    }
-  }
 
   protected submit(): void {
     if (this.form.invalid) {
