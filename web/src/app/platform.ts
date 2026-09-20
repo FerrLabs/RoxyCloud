@@ -1,5 +1,6 @@
 import { InjectionToken, type Provider } from '@angular/core';
 import type { Account } from './account';
+import type { AppPassword, MintedPassword } from './account/app-password';
 import type { Given, NewGrant, Received } from './grant';
 import type { Node } from './node';
 import type { Minted, NewShare, Share } from './share';
@@ -12,6 +13,9 @@ export interface Platform {
   login(email: string, password: string): Promise<void>;
   signOut(): void | Promise<void>;
   changePassword?(current: string, password: string): Promise<void>;
+  listAppPasswords?(): Promise<AppPassword[]>;
+  mintAppPassword?(name: string): Promise<MintedPassword>;
+  revokeAppPassword?(id: string): Promise<void>;
   account(): Promise<Account>;
   listFolder(path: string): Promise<Node[]>;
   read(path: string): Promise<Blob>;
@@ -93,6 +97,16 @@ function browserPlatform(baseUrl: string): Platform {
       if (!response.ok) {
         throw new Error(await messageFor(response));
       }
+    },
+    listAppPasswords: () => json<AppPassword[]>('/v1/app-passwords'),
+    mintAppPassword: (name) =>
+      json<MintedPassword>('/v1/app-passwords', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      }),
+    revokeAppPassword: async (id) => {
+      await call(`/v1/app-passwords/${encodeURIComponent(id)}`, { method: 'DELETE' });
     },
     account: () => json<Account>('/v1/auth/me'),
     listFolder: (path) => json<Node[]>(`/v1/folders${encodePath(path)}`),

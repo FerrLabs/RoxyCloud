@@ -36,9 +36,8 @@ side, either once or watching the folder as it changes. Share links for people w
 sharing a folder with another account on the instance, search by name, thumbnails, resumable
 uploads, and WebDAV with locking, which is what lets macOS Finder and Windows Explorer write to it.
 
-Not written: an interface for the sync client beyond the command line, and, in the web app, app
-passwords and account administration, both of which exist in the API and are reached with curl
-today.
+Not written: an interface for the sync client beyond the command line, and account administration in
+the web app, which exists in the API and is reached with curl today.
 
 ## Layout
 
@@ -211,6 +210,10 @@ account password. `POST /v1/app-passwords` mints a high-entropy secret, shows it
 a fingerprint of it. The secret authenticates over Basic auth on the WebDAV surface and nowhere else:
 account management answers 401 to it, so a stolen credential cannot mint itself a successor. Revoking
 takes effect on the next request, and `last_used_at` says which credentials nothing is using.
+
+The account menu mints and revokes them without a terminal. The secret appears once, in the dialog
+that made it, next to the WebDAV address of the instance and the address to sign in with, so the
+three go into a client together.
 
 `/dav` speaks WebDAV against the same tree, authenticated by Basic auth with an app password and
 nothing else: a session token is answered 401 there. It advertises class 2, which is what macOS

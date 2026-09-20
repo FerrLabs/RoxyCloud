@@ -10,6 +10,7 @@
       @if (connected()) {
         <rx-account-menu
           (changingPassword)="changePassword()"
+          (openingAppPasswords)="listingAppPasswords.set(true)"
           (signedOut)="signOut()"
         />
       }
@@ -35,6 +36,10 @@
       </section>
     }
   </main>
+
+  @if (listingAppPasswords()) {
+    <rx-app-passwords (dismissed)="listingAppPasswords.set(false)" />
+  }
 
   @if (changing()) {
     <rx-change-password
