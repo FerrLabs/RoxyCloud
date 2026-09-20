@@ -7,7 +7,7 @@ import { ChangePassword } from './account/change-password';
 import { Session } from './account';
 import type { Credentials } from './login-form/credentials';
 import { LoginForm } from './login-form/login-form';
-import { PLATFORM } from './platform';
+import { PLATFORM, RequestFailed } from './platform';
 import { SHARE_PREFIX } from './share';
 
 @Component({
@@ -40,7 +40,20 @@ export class App {
 
   constructor() {
     if (this.connected()) {
-      void this.session.load();
+      void this.start();
+    }
+  }
+
+  private async start(): Promise<void> {
+    try {
+      await this.session.load();
+    } catch (cause: unknown) {
+      if (cause instanceof RequestFailed && (cause.status === 401 || cause.status === 403)) {
+        void this.signOut();
+        return;
+      }
+      const message = cause instanceof Error ? cause.message : String(cause);
+      this.error.set(`Your account did not load: ${message}`);
     }
   }
 

@@ -30,6 +30,15 @@ export interface Platform {
 
 export const PLATFORM = new InjectionToken<Platform>('RoxyCloud platform');
 
+export class RequestFailed extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 const TOKEN_KEY = 'roxycloud.token';
 
 const isDesktop = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -49,7 +58,7 @@ function browserPlatform(baseUrl: string): Platform {
       },
     });
     if (!response.ok) {
-      throw new Error(await messageFor(response));
+      throw new RequestFailed(response.status, await messageFor(response));
     }
     return response;
   };

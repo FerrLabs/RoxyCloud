@@ -60,7 +60,7 @@ main {
   font-weight: 600;
 }
 
-.sign-in .failure {
+.failure {
   margin: 0 0 1rem;
   padding: 0.7rem 1rem;
   border-radius: var(--radius);
