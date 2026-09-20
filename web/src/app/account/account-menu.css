@@ -6,9 +6,9 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.35rem 0.6rem 0.35rem 0.35rem;
+  padding: 0.3rem 0.6rem 0.3rem 0.35rem;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--ink);
   font: inherit;
@@ -25,9 +25,9 @@
 .initial {
   display: grid;
   place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 999px;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: calc(var(--radius) - 0.2rem);
   background: var(--accent-wash);
   color: var(--accent-ink);
   font-size: 0.85rem;
