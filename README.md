@@ -75,6 +75,19 @@ chmod +x RoxyCloud_*_amd64.AppImage
 
 macOS has no build yet: a `.dmg` anyone can open needs an Apple developer account and notarisation.
 
+## Updating the desktop app
+
+The account menu has "Check for updates". It reads the manifest attached to the newest release,
+compares versions, and offers the new one with its release notes. Installing downloads the
+installer, checks it against the signature published beside it, and restarts the app on the new
+version, which stops a sync running in that window. Nothing is downloaded or installed until the
+update is accepted.
+
+A release only reaches installed copies if it carries the `.sig` files and `latest.json`, which the
+Desktop workflow produces from `TAURI_SIGNING_PRIVATE_KEY`. Losing that key means no installed copy
+accepts any later version, so it belongs in the repository secrets and in a backup, not only on one
+machine.
+
 To build it yourself, from a checkout:
 
 ```bash

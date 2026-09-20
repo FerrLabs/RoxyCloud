@@ -29,6 +29,7 @@ jobs:
         include:
           - os: windows-latest
             bundles: target/release/bundle/nsis/*.exe
+            signatures: target/release/bundle/nsis/*.exe.sig
             extra: --bundles nsis
           # Pinned, not ubuntu-latest: an AppImage inherits the glibc of the
           # machine that built it, so the floor it imposes on everyone's
@@ -36,6 +37,7 @@ jobs:
           # the label.
           - os: ubuntu-24.04
             bundles: target/release/bundle/appimage/*.AppImage
+            signatures: target/release/bundle/appimage/*.AppImage.sig
             extra: --bundles appimage
     permissions:
       contents: write
@@ -66,9 +68,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
+      # The CLI reads both names itself. createUpdaterArtifacts is on, so a
+      # missing key fails the bundle rather than quietly shipping a release that
+      # no installed copy would accept as an update.
       - name: Bundle
         working-directory: app
         run: pnpm exec tauri build ${{ matrix.extra }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       # target/ is at the root of the repository, not under app/: every crate in
       # the workspace shares one output directory.
@@ -93,6 +101,88 @@ jobs:
             (cd "$(dirname "$bundle")" && sha256sum "$(basename "$bundle")" > "$(basename "$bundle").sha256")
           done
 
-          printf 'uploading %s\n' "${bundles[@]}"
-          gh release upload "$TAG" "${bundles[@]}" "${bundles[@]/%/.sha256}" \
+          # Without the detached signature the installer is still usable by
+          # hand, but invisible to the updater, and that only shows up later,
+          # when nobody is offered the next version.
+          signatures=(${{ matrix.signatures }})
+          if [ ${#signatures[@]} -eq 0 ]; then
+            echo "the update signature is missing" >&2
+            ls -R target/release/bundle >&2 || true
+            exit 1
+          fi
+
+          printf 'uploading %s\n' "${bundles[@]}" "${signatures[@]}"
+          gh release upload "$TAG" "${bundles[@]}" "${bundles[@]/%/.sha256}" "${signatures[@]}" \
             --clobber --repo "$GITHUB_REPOSITORY"
+
+  # The app reads one manifest covering every platform, so it can only be
+  # written once both installers are on the release.
+  manifest:
+    needs: bundle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Write latest.json from the release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets,body > release.json
+
+          named() {
+            jq -r --arg suffix "$1" \
+              '[.assets[] | select(.name | endswith($suffix))] | first | .name // ""' release.json
+          }
+          field() {
+            jq -r --arg name "$1" --arg field "$2" \
+              '[.assets[] | select(.name == $name) | .[$field]] | first // ""' release.json
+          }
+
+          windows=$(named '-setup.exe')
+          linux=$(named '.AppImage')
+          if [ -z "$windows" ] || [ -z "$linux" ]; then
+            echo "expected both installers on $TAG" >&2
+            jq -r '.assets[].name' release.json >&2
+            exit 1
+          fi
+
+          # Read the two urls before fetching either: an absent signature
+          # would otherwise reach gh as an empty argument, and set -e would
+          # kill the step on a usage error instead of the message below.
+          windows_signature_url=$(field "$windows.sig" apiUrl)
+          linux_signature_url=$(field "$linux.sig" apiUrl)
+          if [ -z "$windows_signature_url" ] || [ -z "$linux_signature_url" ]; then
+            echo "an update signature is missing from $TAG" >&2
+            jq -r '.assets[].name' release.json >&2
+            exit 1
+          fi
+
+          windows_signature=$(gh api -H 'Accept: application/octet-stream' "$windows_signature_url")
+          linux_signature=$(gh api -H 'Accept: application/octet-stream' "$linux_signature_url")
+          if [ -z "$windows_signature" ] || [ -z "$linux_signature" ]; then
+            echo "an update signature on $TAG is empty" >&2
+            exit 1
+          fi
+
+          jq -n \
+            --arg version "${TAG#v}" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg notes "$(jq -r '.body // ""' release.json)" \
+            --arg windows_url "$(field "$windows" url)" \
+            --arg windows_signature "$windows_signature" \
+            --arg linux_url "$(field "$linux" url)" \
+            --arg linux_signature "$linux_signature" \
+            '{
+              version: $version,
+              notes: $notes,
+              pub_date: $date,
+              platforms: {
+                "windows-x86_64": { signature: $windows_signature, url: $windows_url },
+                "linux-x86_64": { signature: $linux_signature, url: $linux_url }
+              }
+            }' > latest.json
+
+          jq '.platforms | map_values(.url)' latest.json
+          gh release upload "$TAG" latest.json --clobber --repo "$GITHUB_REPOSITORY"

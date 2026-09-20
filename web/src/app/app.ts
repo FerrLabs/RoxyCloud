@@ -5,6 +5,7 @@ import { filter, map, startWith } from 'rxjs';
 import { AccountMenu } from './account/account-menu';
 import { AppPasswords } from './account/app-passwords';
 import { ChangePassword } from './account/change-password';
+import { Update } from './account/update';
 import { Session } from './account';
 import type { Credentials } from './login-form/credentials';
 import { LoginForm } from './login-form/login-form';
@@ -13,7 +14,7 @@ import { SHARE_PREFIX } from './share';
 
 @Component({
   selector: 'rx-root',
-  imports: [AccountMenu, AppPasswords, ChangePassword, LoginForm, RouterOutlet],
+  imports: [AccountMenu, AppPasswords, ChangePassword, LoginForm, RouterOutlet, Update],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -39,6 +40,7 @@ export class App {
   protected readonly changing = signal(false);
   protected readonly notice = signal<string | null>(null);
   protected readonly listingAppPasswords = signal(false);
+  protected readonly updating = signal(false);
 
   constructor() {
     if (this.connected()) {

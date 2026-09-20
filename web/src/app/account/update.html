@@ -1,0 +1,30 @@
+<dialog #dialog (cancel)="$event.preventDefault(); dismiss()">
+  <h2>Updates</h2>
+
+  @if (looking()) {
+    <p class="state" aria-busy="true">Looking for a new version</p>
+  } @else if (release(); as release) {
+    <p>Version {{ release.version }} is available. You are running {{ current() }}.</p>
+    @if (release.notes; as notes) {
+      <p class="notes">{{ notes }}</p>
+    }
+    <p class="hint">RoxyCloud closes and reopens on the new version. A running sync stops with it.</p>
+  } @else if (failure() === null) {
+    <p>You are running the latest version, {{ current() }}.</p>
+  }
+
+  @if (failure(); as message) {
+    <p class="failure" role="alert">{{ message }}</p>
+  }
+
+  <div class="actions">
+    <button type="button" class="ghost" [disabled]="installing()" (click)="dismiss()">
+      {{ release() === null ? 'Close' : 'Later' }}
+    </button>
+    @if (release() !== null) {
+      <button type="button" class="primary" [disabled]="installing()" (click)="install()">
+        {{ installing() ? 'Installing' : 'Install and restart' }}
+      </button>
+    }
+  </div>
+</dialog>

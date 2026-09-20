@@ -25,10 +25,12 @@ export class AccountMenu {
   private readonly session = inject(Session);
 
   readonly changingPassword = output<void>();
+  readonly checkingForUpdates = output<void>();
   readonly openingAppPasswords = output<void>();
   readonly signedOut = output<void>();
 
   protected readonly canChangePassword = this.platform.changePassword !== undefined;
+  protected readonly canUpdate = this.platform.checkUpdate !== undefined;
   protected readonly canMintAppPasswords = this.platform.mintAppPassword !== undefined;
   protected readonly canAdminister = computed(
     () => this.platform.listAccounts !== undefined && this.session.isAdmin(),
@@ -60,6 +62,11 @@ export class AccountMenu {
   protected changePassword(): void {
     this.open.set(false);
     this.changingPassword.emit();
+  }
+
+  protected checkForUpdates(): void {
+    this.open.set(false);
+    this.checkingForUpdates.emit();
   }
 
   protected openAppPasswords(): void {

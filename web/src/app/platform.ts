@@ -8,11 +8,23 @@ import type { Minted, NewShare, Share } from './share';
 
 export type PlatformKind = 'browser' | 'desktop';
 
+export type Available = {
+  version: string;
+  notes?: string;
+};
+
+export type Release = {
+  current: string;
+  available: Available | null;
+};
+
 export interface Platform {
   readonly kind: PlatformKind;
   authenticated(): boolean;
   login(email: string, password: string, server?: string): Promise<void>;
   server?(): string;
+  checkUpdate?(): Promise<Release>;
+  installUpdate?(): Promise<void>;
   signOut(): void | Promise<void>;
   changePassword?(current: string, password: string): Promise<void>;
   listAppPasswords?(): Promise<AppPassword[]>;
@@ -253,6 +265,14 @@ function desktopPlatform(fallback: string): Platform {
       const { invoke } = await core();
       await invoke<void>('sign_out');
       connected = false;
+    },
+    checkUpdate: async () => {
+      const { invoke } = await core();
+      return invoke<Release>('check_update');
+    },
+    installUpdate: async () => {
+      const { invoke } = await core();
+      await invoke<void>('install_update');
     },
     account: async () => {
       const { invoke } = await core();
