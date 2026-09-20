@@ -31,11 +31,11 @@ jobs:
             bundles: target/release/bundle/nsis/*.exe
             signatures: target/release/bundle/nsis/*.exe.sig
             extra: --bundles nsis
-          # Pinned, not ubuntu-latest: an AppImage inherits the glibc of the
-          # machine that built it, so the floor it imposes on everyone's
-          # distribution should move when we say so, not when GitHub repoints
-          # the label.
-          - os: ubuntu-24.04
+          # An AppImage inherits the glibc of the machine that built it, so
+          # this label is the oldest distribution RoxyCloud runs on, not a
+          # detail: 22.04 means glibc 2.35, which covers Debian 12 and Ubuntu
+          # 22.04 alike. Raise it deliberately, and never to ubuntu-latest.
+          - os: ubuntu-22.04
             bundles: target/release/bundle/appimage/*.AppImage
             signatures: target/release/bundle/appimage/*.AppImage.sig
             extra: --bundles appimage
