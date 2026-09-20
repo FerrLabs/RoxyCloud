@@ -58,7 +58,12 @@ export class App {
   }
 
   protected async signOut(): Promise<void> {
-    await this.platform.signOut();
+    try {
+      await this.platform.signOut();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      this.error.set(`Signed out here, but the app kept its session: ${message}`);
+    }
     this.session.forget();
     this.connected.set(false);
     this.notice.set(null);
