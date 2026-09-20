@@ -86,7 +86,7 @@ export class App {
     this.error.set(null);
     this.busy.set(true);
     try {
-      await this.platform.login(credentials.email, credentials.password);
+      await this.platform.login(credentials.email, credentials.password, credentials.server);
       this.connected.set(true);
       await this.session.load();
     } catch (cause: unknown) {

@@ -38,6 +38,9 @@ uploads, and WebDAV with locking, which is what lets macOS Finder and Windows Ex
 
 Not written: an interface for the sync client beyond the command line.
 
+The desktop app asks which instance to sign in to and remembers it, so one build works against
+any server.
+
 ## Layout
 
 ```
