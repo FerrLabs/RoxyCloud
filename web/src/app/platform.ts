@@ -11,7 +11,8 @@ export type PlatformKind = 'browser' | 'desktop';
 export interface Platform {
   readonly kind: PlatformKind;
   authenticated(): boolean;
-  login(email: string, password: string): Promise<void>;
+  login(email: string, password: string, server?: string): Promise<void>;
+  server?(): string;
   signOut(): void | Promise<void>;
   changePassword?(current: string, password: string): Promise<void>;
   listAppPasswords?(): Promise<AppPassword[]>;
@@ -52,6 +53,7 @@ export class RequestFailed extends Error {
 }
 
 const TOKEN_KEY = 'roxycloud.token';
+const SERVER_KEY = 'roxycloud.server';
 
 const isDesktop = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -220,16 +222,31 @@ async function explanationFrom(response: Response): Promise<string | null> {
   return typeof explanation === 'string' && explanation.length > 0 ? explanation : null;
 }
 
-function desktopPlatform(serverUrl: string): Platform {
+function desktopPlatform(fallback: string): Platform {
   const core = () => import('@tauri-apps/api/core');
   let connected = false;
+
+  const remembered = (): string => {
+    try {
+      return localStorage.getItem(SERVER_KEY) ?? fallback;
+    } catch {
+      return fallback;
+    }
+  };
 
   return {
     kind: 'desktop',
     authenticated: () => connected,
-    login: async (email, password) => {
+    server: remembered,
+    login: async (email, password, server) => {
+      const address = addressOf(server ?? remembered());
       const { invoke } = await core();
-      await invoke<void>('login', { server: serverUrl, email, password });
+      await invoke<void>('login', { server: address, email, password });
+      try {
+        localStorage.setItem(SERVER_KEY, address);
+      } catch {
+        // A browser that refuses storage still signs in, it just forgets the address.
+      }
       connected = true;
     },
     signOut: async () => {
@@ -262,6 +279,11 @@ function desktopPlatform(serverUrl: string): Platform {
       return invoke<Node>('move_node', { from, to });
     },
   };
+}
+
+function addressOf(server: string): string {
+  const trimmed = server.trim().replace(/\/+$/, '');
+  return /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
 export function encodePath(path: string): string {
