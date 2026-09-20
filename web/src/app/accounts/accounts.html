@@ -14,14 +14,14 @@
   }
   <p class="banner announcement" role="status" aria-live="polite">{{ announcement() }}</p>
 
-  @if (accounts.isLoading() || accounts.value() === undefined) {
-    <p class="state" aria-busy="true">Loading the accounts</p>
-  } @else if (accounts.error(); as error) {
+  @if (accounts.error(); as error) {
     <div class="state">
       <p>The accounts did not load.</p>
       <p class="detail">{{ error }}</p>
       <button type="button" (click)="accounts.reload()">Try again</button>
     </div>
+  } @else if (accounts.isLoading() || accounts.value() === undefined) {
+    <p class="state" aria-busy="true">Loading the accounts</p>
   } @else {
     <ul class="listing">
       @for (account of accounts.value() ?? []; track account.id) {
@@ -42,7 +42,7 @@
           <select
             [attr.aria-label]="'Role of ' + account.email"
             [disabled]="account.id === me()"
-            (change)="setRole(account, $any($event.target).value)"
+            (change)="setRole(account, $event)"
           >
             @for (role of roles; track role) {
               <option [value]="role" [selected]="role === account.role">

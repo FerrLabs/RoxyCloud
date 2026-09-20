@@ -56,11 +56,16 @@ export class Accounts {
     });
   }
 
-  protected async setRole(account: ManagedAccount, role: string): Promise<void> {
-    await this.attempt(`changing ${account.email}`, async () => {
-      await this.platform.setRole?.(account.id, role as Role);
-      this.announcement.set(`${account.email} is now ${describeRole(role as Role).toLowerCase()}`);
+  protected async setRole(account: ManagedAccount, event: Event): Promise<void> {
+    const select = event.target as HTMLSelectElement;
+    const role = select.value as Role;
+    const changed = await this.attempt(`changing ${account.email}`, async () => {
+      await this.platform.setRole?.(account.id, role);
+      this.announcement.set(`${account.email} is now ${describeRole(role).toLowerCase()}`);
     });
+    if (!changed) {
+      select.value = account.role;
+    }
   }
 
   protected async setDisabled(account: ManagedAccount, disabled: boolean): Promise<void> {
@@ -112,14 +117,16 @@ export class Accounts {
     });
   }
 
-  private async attempt(what: string, run: () => Promise<void>): Promise<void> {
+  private async attempt(what: string, run: () => Promise<void>): Promise<boolean> {
     this.failure.set(null);
     this.announcement.set(null);
     try {
       await run();
       this.version.update((count) => count + 1);
+      return true;
     } catch (cause: unknown) {
       this.failure.set(`${what} failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+      return false;
     }
   }
 }
