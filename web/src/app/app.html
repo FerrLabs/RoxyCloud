@@ -11,6 +11,7 @@
         <rx-account-menu
           (changingPassword)="changePassword()"
           (openingAppPasswords)="listingAppPasswords.set(true)"
+          (checkingForUpdates)="updating.set(true)"
           (signedOut)="signOut()"
         />
       }
@@ -39,6 +40,10 @@
 
   @if (listingAppPasswords()) {
     <rx-app-passwords (dismissed)="listingAppPasswords.set(false)" />
+  }
+
+  @if (updating()) {
+    <rx-update (dismissed)="updating.set(false)" />
   }
 
   @if (changing()) {

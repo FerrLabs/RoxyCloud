@@ -5,6 +5,7 @@ use roxycloud_client::{Debounce, Engine, Remote};
 use roxycloud_core::node::Node;
 use roxycloud_core::user::User;
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::Mutex;
 
 const STATUS_EVENT: &str = "sync:status";
@@ -20,6 +21,7 @@ struct Desktop {
     remote: Mutex<Option<Remote>>,
     credentials: Mutex<Option<Credentials>>,
     sync: Mutex<Option<SyncSession>>,
+    offered: Mutex<Option<tauri_plugin_updater::Update>>,
 }
 
 #[tauri::command]
@@ -39,6 +41,54 @@ async fn login(
         token: session.token,
     });
     Ok(())
+}
+
+#[derive(serde::Serialize)]
+struct Available {
+    version: String,
+    notes: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct Update {
+    current: String,
+    available: Option<Available>,
+}
+
+#[tauri::command]
+async fn check_update(desktop: State<'_, Desktop>, app: AppHandle) -> Result<Update, String> {
+    let current = app.package_info().version.to_string();
+    let update = app
+        .updater()
+        .map_err(|error| error.to_string())?
+        .check()
+        .await
+        .map_err(|error| error.to_string())?;
+
+    let available = update.as_ref().map(|update| Available {
+        version: update.version.clone(),
+        notes: update.body.clone(),
+    });
+    *desktop.offered.lock().await = update;
+
+    Ok(Update { current, available })
+}
+
+#[tauri::command]
+async fn install_update(desktop: State<'_, Desktop>, app: AppHandle) -> Result<(), String> {
+    let update = desktop
+        .offered
+        .lock()
+        .await
+        .take()
+        .ok_or("check for updates before installing one")?;
+
+    update
+        .download_and_install(|_, _| {}, || {})
+        .await
+        .map_err(|error| error.to_string())?;
+
+    app.restart();
 }
 
 #[tauri::command]
@@ -184,6 +234,7 @@ async fn sync_control(desktop: State<'_, Desktop>, command: Command) -> Result<(
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Desktop::default())
         .invoke_handler(tauri::generate_handler![
             login,
@@ -195,7 +246,9 @@ fn main() {
             move_node,
             delete_node,
             start_sync,
-            sync_control
+            sync_control,
+            check_update,
+            install_update
         ])
         .run(tauri::generate_context!())
         .expect("starting the RoxyCloud window");

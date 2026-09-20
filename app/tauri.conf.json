@@ -33,6 +33,15 @@
       "icons/icon.icns",
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/FerrLabs/RoxyCloud/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDFERTRERThDMTJFQUMxMDgKUldRSXdlb1NqTjdrSFFCWmJJOUg2c3lBVEtpSGFKWk5UdFNlcWxtNzhiMU1GK1BiOTJVazJkOVkK"
+    }
   }
 }
