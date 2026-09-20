@@ -55,7 +55,7 @@ fn print(report: &Report) {
         println!("blocked: {path} is a file on one side and a directory on the other");
     }
     for path in &report.held {
-        println!("held: {path} was not sent, the share does not let this account change it");
+        println!("held: {path} was not changed on the server");
     }
     for path in &report.skipped {
         println!("skipped: {path}");
