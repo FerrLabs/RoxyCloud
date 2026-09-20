@@ -65,8 +65,8 @@ is published with its SHA-256 beside it, so the download can be checked before i
 sha256sum -c RoxyCloud_0.26.0_x64-setup.exe.sha256
 ```
 
-The AppImage needs the executable bit and a system with FUSE. It is built on Ubuntu 24.04 and
-therefore wants glibc 2.39 or later, so Debian 12 and Ubuntu 22.04 need a build of their own:
+The AppImage needs the executable bit and a system with FUSE. It is built on Ubuntu 22.04, so it
+wants glibc 2.35 or later, which covers Debian 12 and everything more recent:
 
 ```bash
 chmod +x RoxyCloud_*_amd64.AppImage
