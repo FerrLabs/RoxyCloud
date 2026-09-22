@@ -41,10 +41,12 @@ export const en: SiteContent = {
         'OIDC login alongside passwords, with an admin switch to turn passwords off',
         'The sweep that collects blobs nothing points at any more',
         'S3-compatible object storage as well as local disk, which is what lets the chart run more than one replica',
+        'Folder sync from the desktop window or the command line, keeping both copies when a file changed on both sides',
+        'Installers for Windows and Linux on every release, and updates installed from inside the app',
       ],
       plannedHeading: 'Not written yet',
       planned: [
-        'The sync engine behind the desktop client',
+        'A Windows installer signed so SmartScreen stops warning, and a macOS build',
       ],
     },
     design: {
