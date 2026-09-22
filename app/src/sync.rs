@@ -32,12 +32,23 @@ impl Tracked {
 }
 
 #[tauri::command]
-pub async fn pick_folder(app: AppHandle) -> Option<PathBuf> {
+pub async fn pick_folder(app: AppHandle) -> Result<Option<PathBuf>, String> {
     let (chosen, answer) = oneshot::channel();
     app.dialog().file().pick_folder(move |folder| {
         let _ = chosen.send(folder);
     });
-    answer.await.ok().flatten()?.into_path().ok()
+
+    let Some(folder) = answer
+        .await
+        .map_err(|_| "the folder picker went away".to_owned())?
+    else {
+        return Ok(None);
+    };
+
+    folder
+        .into_path()
+        .map(Some)
+        .map_err(|error| format!("that folder is not one this computer can open: {error}"))
 }
 
 #[tauri::command]
@@ -57,6 +68,7 @@ pub async fn start_sync(
         Remote::new(&credentials.server, credentials.token).map_err(|error| error.to_string())?;
     let engine = Engine::open(folder.clone(), remote).map_err(|error| error.to_string())?;
     let session = watch(engine, Debounce::default()).map_err(|error| error.to_string())?;
+    let mut status = session.subscribe();
 
     let generation = {
         let mut tracked = desktop.tracked.lock().await;
@@ -69,28 +81,32 @@ pub async fn start_sync(
         tracked.generation
     };
 
-    let mut status = session.subscribe();
     tauri::async_runtime::spawn(async move {
         while let Ok(update) = status.recv().await {
             let stopped = matches!(update, Status::Stopped);
             let desktop = app.state::<Desktop>();
-            let mut tracked = desktop.tracked.lock().await;
-            if tracked.generation != generation {
-                break;
-            }
-            let last = match &update {
-                Status::Synced(report) => Some(report.clone()),
-                _ => tracked
-                    .latest
-                    .as_ref()
-                    .and_then(|latest| latest.last.clone()),
+
+            let syncing = {
+                let mut tracked = desktop.tracked.lock().await;
+                if tracked.generation != generation {
+                    break;
+                }
+                let last = match &update {
+                    Status::Synced(report) => Some(report.clone()),
+                    _ => tracked
+                        .latest
+                        .as_ref()
+                        .and_then(|latest| latest.last.clone()),
+                };
+                let syncing = Syncing {
+                    folder: folder.clone(),
+                    status: update,
+                    last,
+                };
+                tracked.latest = Some(syncing.clone());
+                syncing
             };
-            let syncing = Syncing {
-                folder: folder.clone(),
-                status: update,
-                last,
-            };
-            tracked.latest = Some(syncing.clone());
+
             let _ = app.emit(STATUS_EVENT, syncing);
             if stopped {
                 break;

@@ -69,10 +69,7 @@ export class SyncView {
       }
     }
 
-    const current = await this.platform.syncStatus?.();
-    if (current !== null && current !== undefined) {
-      this.syncing.set(current);
-    }
+    await this.refresh();
     this.remembered.set(this.readRemembered());
   }
 
@@ -97,17 +94,29 @@ export class SyncView {
   }
 
   protected async choose(): Promise<void> {
-    const folder = await this.platform.pickFolder?.();
-    if (folder !== null && folder !== undefined) {
-      await this.start(folder);
-    }
+    await this.run(async () => {
+      const folder = await this.platform.pickFolder?.();
+      if (folder !== null && folder !== undefined) {
+        await this.begin(folder);
+      }
+    });
   }
 
   protected async start(folder: string): Promise<void> {
-    await this.run(async () => {
-      await this.platform.startSync?.(folder);
-      this.remember(folder);
-    });
+    await this.run(() => this.begin(folder));
+  }
+
+  private async begin(folder: string): Promise<void> {
+    await this.platform.startSync?.(folder);
+    this.remember(folder);
+    await this.refresh();
+  }
+
+  private async refresh(): Promise<void> {
+    const current = await this.platform.syncStatus?.();
+    if (current !== null && current !== undefined) {
+      this.syncing.set(current);
+    }
   }
 
   protected async control(command: SyncCommand): Promise<void> {
