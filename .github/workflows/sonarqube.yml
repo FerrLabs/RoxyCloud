@@ -55,9 +55,11 @@ jobs:
       # spawns blocking threads. Thumbnail decoding runs off the async runtime on purpose, so the
       # coverage tool is what has to give.
       #
-      # --timeout because 0.37.4 made the llvm engine honour it, and the default of 60 seconds is
-      # shorter than suites that wait on real clocks: the rate-limit tests sit out lockout windows
-      # and the sweep test waits for an expiry.
+      # --timeout because 0.37.4 made the llvm engine honour it, and its default of 60 seconds is
+      # per test binary rather than per test. Instrumented, the database suites go past that:
+      # attempts takes 81s on the runner and dav 56s, each test creating a database, running the
+      # migrations, and hashing with Argon2id where a login is involved. 600 leaves room for a
+      # slower runner without letting a hung run sit there.
       - run: cargo tarpaulin --workspace --exclude roxycloud-app --engine llvm --out xml --skip-clean --timeout 600
         env:
           DATABASE_URL: postgres://roxy:roxy@localhost:5432/roxycloud
