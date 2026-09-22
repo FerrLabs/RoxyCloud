@@ -41,10 +41,12 @@ export const fr: SiteContent = {
         "La connexion OIDC à côté des mots de passe, avec un interrupteur admin pour couper ces derniers",
         'Le ramasse-miettes qui récupère les blobs que plus rien ne référence',
         "Le stockage objet compatible S3 en plus du disque local, ce qui permet au chart de faire tourner plusieurs répliques",
+        "La synchronisation d'un dossier depuis la fenêtre desktop ou la ligne de commande, qui garde les deux copies quand un fichier a changé des deux côtés",
+        "Des installeurs Windows et Linux à chaque release, et les mises à jour installées depuis l'application",
       ],
       plannedHeading: "Ce qui n'est pas encore écrit",
       planned: [
-        'Le moteur de synchronisation derrière le client desktop',
+        "Un installeur Windows signé pour que SmartScreen cesse d'avertir, et une version macOS",
       ],
     },
     design: {

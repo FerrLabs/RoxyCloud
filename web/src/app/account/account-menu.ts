@@ -31,6 +31,7 @@ export class AccountMenu {
 
   protected readonly canChangePassword = this.platform.changePassword !== undefined;
   protected readonly canUpdate = this.platform.checkUpdate !== undefined;
+  protected readonly canSync = this.platform.startSync !== undefined;
   protected readonly canMintAppPasswords = this.platform.mintAppPassword !== undefined;
   protected readonly canAdminister = computed(
     () => this.platform.listAccounts !== undefined && this.session.isAdmin(),
@@ -77,6 +78,11 @@ export class AccountMenu {
   protected administer(): void {
     this.open.set(false);
     void this.router.navigate(['/accounts']);
+  }
+
+  protected openSync(): void {
+    this.open.set(false);
+    void this.router.navigate(['/sync']);
   }
 
   protected signOut(): void {
