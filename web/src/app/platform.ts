@@ -5,6 +5,7 @@ import type { ManagedAccount, NewAccount } from './accounts/managed';
 import type { Given, NewGrant, Received } from './grant';
 import type { Node } from './node';
 import type { Minted, NewShare, Share } from './share';
+import type { SyncCommand, Syncing } from './sync/syncing';
 
 export type PlatformKind = 'browser' | 'desktop';
 
@@ -25,6 +26,11 @@ export interface Platform {
   server?(): string;
   checkUpdate?(): Promise<Release>;
   installUpdate?(): Promise<void>;
+  pickFolder?(): Promise<string | null>;
+  startSync?(folder: string): Promise<void>;
+  controlSync?(command: SyncCommand): Promise<void>;
+  syncStatus?(): Promise<Syncing | null>;
+  watchSync?(listener: (syncing: Syncing) => void): Promise<() => void>;
   signOut(): void | Promise<void>;
   changePassword?(current: string, password: string): Promise<void>;
   listAppPasswords?(): Promise<AppPassword[]>;
@@ -273,6 +279,26 @@ function desktopPlatform(fallback: string): Platform {
     installUpdate: async () => {
       const { invoke } = await core();
       await invoke<void>('install_update');
+    },
+    pickFolder: async () => {
+      const { invoke } = await core();
+      return invoke<string | null>('pick_folder');
+    },
+    startSync: async (folder) => {
+      const { invoke } = await core();
+      await invoke<void>('start_sync', { folder });
+    },
+    controlSync: async (command) => {
+      const { invoke } = await core();
+      await invoke<void>('sync_control', { command });
+    },
+    syncStatus: async () => {
+      const { invoke } = await core();
+      return invoke<Syncing | null>('sync_status');
+    },
+    watchSync: async (listener) => {
+      const { listen } = await import('@tauri-apps/api/event');
+      return listen<Syncing>('sync:status', (event) => listener(event.payload));
     },
     account: async () => {
       const { invoke } = await core();

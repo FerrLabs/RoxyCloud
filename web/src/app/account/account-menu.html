@@ -27,6 +27,9 @@
         <p class="detail">{{ account.email }}</p>
         <p class="detail">{{ role() }}</p>
       </div>
+      @if (canSync) {
+        <button type="button" role="menuitem" (click)="openSync()">Sync a folder</button>
+      }
       @if (canChangePassword) {
         <button type="button" role="menuitem" (click)="changePassword()">Change password</button>
       }

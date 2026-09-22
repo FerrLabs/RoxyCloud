@@ -1,0 +1,82 @@
+<section class="sync">
+  <h1>Sync</h1>
+
+  @if (failure(); as message) {
+    <p class="failure" role="alert">{{ message }}</p>
+  }
+
+  @if (running()) {
+    @let current = syncing()!;
+    <div class="folder">
+      <p class="label">Folder</p>
+      <p class="path">{{ current.folder }}</p>
+    </div>
+
+    <p class="state" role="status" aria-live="polite" [attr.aria-busy]="current.status.state === 'syncing'">
+      {{ describe() }}
+    </p>
+
+    <div class="controls">
+      <button type="button" class="primary" [disabled]="busy() || paused()" (click)="control('sync-now')">
+        Sync now
+      </button>
+      @if (paused()) {
+        <button type="button" class="ghost" [disabled]="busy()" (click)="control('resume')">Resume</button>
+      } @else {
+        <button type="button" class="ghost" [disabled]="busy()" (click)="control('pause')">Pause</button>
+      }
+      <button type="button" class="ghost" [disabled]="busy()" (click)="control('stop')">Stop</button>
+    </div>
+  } @else {
+    <p class="intro">
+      Keep a folder on this computer in step with your account. Changes on either side are sent
+      across as they happen, and nothing is overwritten: when a file changed in both places, both
+      copies are kept.
+    </p>
+
+    <div class="controls">
+      @if (remembered(); as folder) {
+        <button type="button" class="primary" [disabled]="busy()" (click)="start(folder)">
+          Sync {{ folder }}
+        </button>
+        <button type="button" class="ghost" [disabled]="busy()" (click)="choose()">
+          Choose another folder
+        </button>
+      } @else {
+        <button type="button" class="primary" [disabled]="busy()" (click)="choose()">
+          Choose a folder
+        </button>
+      }
+    </div>
+  }
+
+  @if (report(); as last) {
+    <div class="report">
+      <h2>Last pass</h2>
+      <p>{{ summary() }}</p>
+
+      @if (attention()) {
+        <ul class="paths">
+          @for (path of last.conflicts; track path) {
+            <li><span class="tag">conflict</span> {{ path }}, both copies kept</li>
+          }
+          @for (path of last.blocked; track path) {
+            <li>
+              <span class="tag">blocked</span> {{ path }} is a file on one side and a directory on
+              the other
+            </li>
+          }
+          @for (path of last.held; track path) {
+            <li><span class="tag">held</span> {{ path }} was not changed on the server</li>
+          }
+          @for (path of last.skipped; track path) {
+            <li><span class="tag">skipped</span> {{ path }}</li>
+          }
+          @for (failed of last.failures; track failed.path) {
+            <li><span class="tag danger">failed</span> {{ failed.path }} ({{ failed.reason }})</li>
+          }
+        </ul>
+      }
+    </div>
+  }
+</section>

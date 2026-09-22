@@ -36,10 +36,8 @@ side, either once or watching the folder as it changes. Share links for people w
 sharing a folder with another account on the instance, search by name, thumbnails, resumable
 uploads, and WebDAV with locking, which is what lets macOS Finder and Windows Explorer write to it.
 
-Not written: an interface for the sync client beyond the command line.
-
 The desktop app asks which instance to sign in to and remembers it, so one build works against
-any server.
+any server, and keeps a folder in sync from its own window as well as from `roxy sync`.
 
 ## Layout
 
@@ -504,6 +502,14 @@ cargo run -p roxycloud-cli -- login you@example.com --password '...'
 ```
 
 ## Syncing a folder
+
+In the desktop app, "Sync a folder" in the account menu picks a folder with the system's own
+dialog and keeps it in step with the account for as long as the app runs. The view shows what the
+sync is doing, what the last pass moved, and every path that needs a person: conflicts, paths that
+are a file on one side and a folder on the other, changes held back by a read-only share, and
+failures, in the same words as the command line below. Sync now, Pause, Resume and Stop do what
+they say, and the folder is remembered for the account, so the next session offers it again rather
+than asking.
 
 `roxy sync` reconciles a local folder with the server once and prints what it did. It compares
 content, not timestamps: a file is only transferred when its bytes differ from the other side.
