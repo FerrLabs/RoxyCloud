@@ -54,7 +54,13 @@ jobs:
       # The llvm engine rather than the default ptrace one, which segfaults on a test binary that
       # spawns blocking threads. Thumbnail decoding runs off the async runtime on purpose, so the
       # coverage tool is what has to give.
-      - run: cargo tarpaulin --workspace --exclude roxycloud-app --engine llvm --out xml --skip-clean
+      #
+      # --timeout because 0.37.4 made the llvm engine honour it, and its default of 60 seconds is
+      # per test binary rather than per test. Instrumented, the database suites go past that:
+      # attempts takes 81s on the runner and dav 56s, each test creating a database, running the
+      # migrations, and hashing with Argon2id where a login is involved. 600 leaves room for a
+      # slower runner without letting a hung run sit there.
+      - run: cargo tarpaulin --workspace --exclude roxycloud-app --engine llvm --out xml --skip-clean --timeout 600
         env:
           DATABASE_URL: postgres://roxy:roxy@localhost:5432/roxycloud
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
