@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.28.0] - 2026-09-22
+
+### Features
+
+- feat(app): sync a folder from the desktop app (#178)
+
 ## [0.27.0] - 2026-09-20
 
 ### Features
