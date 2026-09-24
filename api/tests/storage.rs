@@ -71,35 +71,51 @@ database_test!(
     }
 );
 
-database_test!(an_overwrite_credits_the_size_it_replaces, harness, {
-    let owner = harness.account("overwrite@example.com", Role::Member).await;
+database_test!(
+    without_versions_an_overwrite_credits_the_size_it_replaces,
+    harness,
+    {
+        let owner = harness.account("overwrite@example.com", Role::Member).await;
 
-    harness.write(owner.id, "a.txt", &[b'x'; 400]).await;
-    assert_eq!(harness.used_bytes(owner.id).await, 400);
+        harness
+            .write_without_versions(owner.id, "a.txt", &[b'x'; 400])
+            .await;
+        assert_eq!(harness.used_bytes(owner.id).await, 400);
 
-    harness.write(owner.id, "a.txt", &[b'y'; 10]).await;
-    assert_eq!(
-        harness.used_bytes(owner.id).await,
-        10,
-        "the quota holds what the file weighs now, not the sum of what it ever weighed"
-    );
-});
+        harness
+            .write_without_versions(owner.id, "a.txt", &[b'y'; 10])
+            .await;
+        assert_eq!(
+            harness.used_bytes(owner.id).await,
+            10,
+            "the quota holds what the file weighs now, not the sum of what it ever weighed"
+        );
+    }
+);
 
-database_test!(an_overwrite_releases_the_bytes_it_replaces, harness, {
-    let owner = harness.account("release@example.com", Role::Member).await;
-    let before = b"the first contents";
-    let after = b"the second contents";
+database_test!(
+    without_versions_an_overwrite_releases_the_bytes_it_replaces,
+    harness,
+    {
+        let owner = harness.account("release@example.com", Role::Member).await;
+        let before = b"the first contents";
+        let after = b"the second contents";
 
-    harness.write(owner.id, "a.txt", before).await;
-    harness.write(owner.id, "a.txt", after).await;
+        harness
+            .write_without_versions(owner.id, "a.txt", before)
+            .await;
+        harness
+            .write_without_versions(owner.id, "a.txt", after)
+            .await;
 
-    assert_eq!(
-        harness.blob(hash_of(before)).await,
-        Some((0, true)),
-        "the replaced bytes are no longer referenced"
-    );
-    assert_eq!(harness.blob(hash_of(after)).await, Some((1, false)));
-});
+        assert_eq!(
+            harness.blob(hash_of(before)).await,
+            Some((0, true)),
+            "the replaced bytes are no longer referenced"
+        );
+        assert_eq!(harness.blob(hash_of(after)).await, Some((1, false)));
+    }
+);
 
 database_test!(rewriting_the_same_bytes_keeps_one_reference, harness, {
     let owner = harness.account("rewrite@example.com", Role::Member).await;
@@ -356,9 +372,17 @@ database_test!(two_writes_racing_for_an_empty_file_do_not_fail, harness, {
     let (hash, size) = harness.stage(b"").await;
 
     let mut winner = harness.state.db.begin().await.expect("begin");
-    let written = db::put_file(&mut winner, owner.id, &root, &name, hash, size)
-        .await
-        .expect("the first write");
+    let written = db::put_file(
+        &mut winner,
+        owner.id,
+        &root,
+        &name,
+        hash,
+        size,
+        harness.state.versions_kept,
+    )
+    .await
+    .expect("the first write");
 
     let (loser, ()) = tokio::join!(harness.try_write(owner.id, "empty.txt", b""), async {
         harness.wait_until_blocked_on("INSERT INTO blobs").await;
@@ -408,9 +432,17 @@ database_test!(a_move_onto_a_name_a_write_just_took_conflicts, harness, {
     let (hash, size) = harness.stage(b"").await;
 
     let mut winner = harness.state.db.begin().await.expect("begin");
-    db::put_file(&mut winner, owner.id, &root, &name, hash, size)
-        .await
-        .expect("the write");
+    db::put_file(
+        &mut winner,
+        owner.id,
+        &root,
+        &name,
+        hash,
+        size,
+        harness.state.versions_kept,
+    )
+    .await
+    .expect("the write");
 
     let (moved, ()) = tokio::join!(harness.try_rename(owner.id, "a.txt", "b.txt"), async {
         harness.wait_until_blocked_on("UPDATE nodes").await;

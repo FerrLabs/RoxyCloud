@@ -35,6 +35,7 @@ And: folder sync, with a three-way reconciler that keeps both copies when a file
 side, either once or watching the folder as it changes. Share links for people with no account,
 sharing a folder with another account on the instance, search by name, thumbnails, resumable
 uploads, and WebDAV with locking, which is what lets macOS Finder and Windows Explorer write to it.
+Overwriting a file keeps what it replaced as a version, which can be downloaded or restored.
 
 The desktop app asks which instance to sign in to and remembers it, so one build works against
 any server, and keeps a folder in sync from its own window as well as from `roxy sync`.
@@ -128,6 +129,7 @@ Migrations run on boot. Configuration is environment only:
 | `WEB_ROOT` | unset | Directory holding the built web app, served alongside the API |
 | `CORS_ALLOWED_ORIGINS` | empty | Comma-separated origins for the SPA, not needed when `WEB_ROOT` serves it |
 | `DEFAULT_QUOTA_BYTES` | 10 GiB | Quota granted on first write |
+| `VERSIONS_KEPT` | `10` | Previous versions kept per file; `0` keeps none |
 | `SESSION_TTL_SECONDS` | 12 h | Session token lifetime |
 | `BLOB_SWEEP_INTERVAL_SECONDS` | 1 h | How often orphaned blobs are collected, `0` disables it |
 | `BLOB_GRACE_PERIOD_SECONDS` | 24 h | How long an unreferenced blob is kept before collection |
@@ -235,6 +237,9 @@ UNLOCK    /dav/{*path}  release one
 GET    /v1/trash              what the account has deleted
 POST   /v1/trash/{id}/restore bring it back, with the directories it needs
 DELETE /v1/trash/{id}         delete it for good, and release its bytes
+GET    /v1/versions/{*path}        the previous versions of a file, newest first
+GET    /v1/version/{id}/{*path}    download one
+POST   /v1/version/{id}/{*path}    restore it, keeping what it replaces as a version
 ```
 
 Every `/v1` route except login and `/v1/public/*` takes `Authorization: Bearer <session token>`.
@@ -247,6 +252,20 @@ was deleted separately stays separate, so restoring a file out of a folder someo
 leaves the rest of that folder in the trash, listed on its own. Only a purge releases the blobs,
 which is what makes it the one irreversible call, and purging a folder takes everything trashed
 under it, including what was deleted before it.
+
+Overwriting is reversible too. Every write that replaces a file's content, whether through
+`PUT /v1/files`, a resumable upload or WebDAV, keeps what it replaced as a version, up to
+`VERSIONS_KEPT` per file, oldest first out. A version is a reference to a blob that already exists,
+so keeping one copies nothing, and saving the same bytes again keeps nothing. Restoring is an
+ordinary write of the old content, so the content it replaces becomes a version in turn and the
+restore can itself be undone. Whoever can read a file can list and download its versions, and
+whoever can write it can restore one, shares included.
+
+Versions count against the quota, since they occupy storage. A write that would not fit drops the
+oldest versions of that same file to make room, and a save never fails because history is being
+kept: with no history left to give, it goes through without a version, and only fails, as it
+always has, when the new content alone does not fit. A trashed file takes its versions out of the
+quota with it, a restore brings them back, and a purge releases them.
 
 Releasing a blob does not delete it. A background sweep collects blobs nothing points at once they
 have been unreferenced for `BLOB_GRACE_PERIOD_SECONDS`, which is what keeps a delete followed by a

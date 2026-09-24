@@ -145,7 +145,7 @@ async fn empty_file(
         )])))
         .await?;
     db::register_blob(&state.db, written.hash, 0).await?;
-    let node = db::put_file(tx, parent.owner_id, &parent, &name, written.hash, 0).await?;
+    let node = db::put_file(tx, parent.owner_id, &parent, &name, written.hash, 0, 0).await?;
     state.blobs.settle(&written).await?;
 
     Ok(node)

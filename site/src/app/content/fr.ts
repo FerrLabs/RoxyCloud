@@ -43,6 +43,7 @@ export const fr: SiteContent = {
         "Le stockage objet compatible S3 en plus du disque local, ce qui permet au chart de faire tourner plusieurs répliques",
         "La synchronisation d'un dossier depuis la fenêtre desktop ou la ligne de commande, qui garde les deux copies quand un fichier a changé des deux côtés",
         "Des installeurs Windows et Linux à chaque release, et les mises à jour installées depuis l'application",
+        "Les versions précédentes d'un fichier, gardées à chaque écrasement et restaurables, comptées dans le quota",
       ],
       plannedHeading: "Ce qui n'est pas encore écrit",
       planned: [

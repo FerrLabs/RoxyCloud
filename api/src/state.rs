@@ -21,6 +21,7 @@ pub struct AppState {
     pub oidc: Option<Arc<OidcConfig>>,
     pub http: reqwest::Client,
     pub default_quota_bytes: i64,
+    pub versions_kept: i64,
 }
 
 async fn open_blobs(backend: &BlobBackend) -> Result<Arc<dyn BlobStore>> {
@@ -100,6 +101,7 @@ impl AppState {
                 chrono::Duration::seconds(cfg.session_ttl_seconds),
             )),
             default_quota_bytes: cfg.default_quota_bytes,
+            versions_kept: cfg.versions_kept,
         })
     }
 }

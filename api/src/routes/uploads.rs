@@ -144,7 +144,16 @@ pub async fn finish(
         state.default_quota_bytes,
     )
     .await?;
-    let node = db::put_file(&mut tx, parent.owner_id, &parent, &name, written.hash, size).await?;
+    let node = db::put_file(
+        &mut tx,
+        parent.owner_id,
+        &parent,
+        &name,
+        written.hash,
+        size,
+        state.versions_kept,
+    )
+    .await?;
     tx.commit().await?;
     state.blobs.settle(&written).await?;
 

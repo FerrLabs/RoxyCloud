@@ -9,6 +9,7 @@ pub mod thumbnails;
 pub mod trash;
 pub mod uploads;
 pub mod users;
+pub mod versions;
 
 use axum::Json;
 use axum::routing::get;
@@ -67,6 +68,11 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/trash", get(trash::list))
         .route("/v1/trash/{id}", delete(trash::purge))
         .route("/v1/trash/{id}/restore", post(trash::restore))
+        .route("/v1/versions/{*path}", get(versions::list))
+        .route(
+            "/v1/version/{id}/{*path}",
+            get(versions::content).post(versions::restore),
+        )
         .route("/v1/folders", get(files::list_root))
         .route("/v1/folders/{*path}", get(files::list))
         .route(

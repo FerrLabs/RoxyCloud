@@ -77,6 +77,7 @@ impl Harness {
                 oidc: None,
                 http: reqwest::Client::new(),
                 default_quota_bytes: 1_000_000,
+                versions_kept: 3,
             },
             blob_root,
             upload_root,
@@ -129,11 +130,28 @@ impl Harness {
             .expect("writing the file")
     }
 
+    pub async fn write_without_versions(&self, owner: Uuid, path: &str, contents: &[u8]) -> Node {
+        self.try_write_keeping(owner, path, contents, 0)
+            .await
+            .expect("writing the file")
+    }
+
     pub async fn try_write(
         &self,
         owner: Uuid,
         path: &str,
         contents: &[u8],
+    ) -> Result<Node, roxycloud_api::error::ApiError> {
+        self.try_write_keeping(owner, path, contents, self.state.versions_kept)
+            .await
+    }
+
+    async fn try_write_keeping(
+        &self,
+        owner: Uuid,
+        path: &str,
+        contents: &[u8],
+        versions_kept: i64,
     ) -> Result<Node, roxycloud_api::error::ApiError> {
         let mut segments = roxycloud_core::name::parse_path(path).expect("valid path");
         let name = segments.pop().expect("a file name");
@@ -156,6 +174,7 @@ impl Harness {
             &name,
             written.hash,
             i64::try_from(written.size).expect("small test payload"),
+            versions_kept,
         )
         .await?;
         tx.commit().await.expect("commit");
@@ -211,6 +230,7 @@ impl Harness {
             &name,
             written.hash,
             i64::try_from(written.size).expect("small test payload"),
+            self.state.versions_kept,
         )
         .await
         .expect("writing the file");

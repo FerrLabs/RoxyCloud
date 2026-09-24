@@ -20,6 +20,7 @@ pub mod thumbnails;
 pub mod trash;
 pub mod uploads;
 pub mod users;
+pub mod versions;
 
 use std::path::Path;
 
