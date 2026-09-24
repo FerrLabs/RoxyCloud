@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.30.1] - 2026-09-24
+
+### Bug Fixes
+
+- fix(web): open folders under /files so none can collide with an app page (#199)
+
 ## [0.30.0] - 2026-09-24
 
 ### Features
