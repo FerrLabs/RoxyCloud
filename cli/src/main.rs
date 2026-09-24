@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use roxycloud_client::{Engine, Remote};
-use roxycloud_core::node::NodeKind;
+use roxycloud_core::node::{NodeKind, Trashed};
 use uuid::Uuid;
 
 #[derive(Parser)]
@@ -85,7 +85,7 @@ async fn main() -> Result<()> {
             connect(&cli)?.delete(path).await?;
         }
         Command::Trash => {
-            for node in connect(&cli)?.trash().await? {
+            for Trashed { node, .. } in connect(&cli)?.trash().await? {
                 let deleted = node
                     .deleted_at
                     .map(|at| at.format("%Y-%m-%d %H:%M").to_string())

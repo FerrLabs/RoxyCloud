@@ -3,7 +3,7 @@ use std::path::Path;
 use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 use reqwest::{Client, StatusCode};
 use roxycloud_core::name::{InvalidNodeName, parse_path};
-use roxycloud_core::node::Node;
+use roxycloud_core::node::{Node, Trashed};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -30,6 +30,8 @@ pub enum RemoteError {
     NotFound(String),
     #[error("{0} clashes with something already on the server")]
     Conflict(String),
+    #[error("{0}")]
+    Refused(String),
     #[error("the server answered {0}")]
     Status(StatusCode),
     #[error("talking to the server failed")]
@@ -144,7 +146,7 @@ impl Remote {
         Ok(response.json().await?)
     }
 
-    pub async fn trash(&self) -> Result<Vec<Node>, RemoteError> {
+    pub async fn trash(&self) -> Result<Vec<Trashed>, RemoteError> {
         let response = self
             .http
             .get(format!("{}/v1/trash", self.base))
@@ -163,7 +165,7 @@ impl Remote {
             .send()
             .await?;
         if response.status() == StatusCode::CONFLICT {
-            return Err(RemoteError::Conflict(id.to_string()));
+            return Err(RemoteError::Refused(explanation(response).await));
         }
         check(response.status(), &id.to_string())?;
         Ok(response.json().await?)
@@ -179,6 +181,16 @@ impl Remote {
         check(response.status(), &id.to_string())
     }
 
+    pub async fn empty_trash(&self) -> Result<(), RemoteError> {
+        let response = self
+            .http
+            .delete(format!("{}/v1/trash", self.base))
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
+        check(response.status(), "the trash")
+    }
+
     pub async fn delete(&self, path: &str) -> Result<(), RemoteError> {
         let url = self.endpoint("files", path)?;
         let response = self
@@ -189,6 +201,19 @@ impl Remote {
             .await?;
         check(response.status(), path)
     }
+}
+
+#[derive(Deserialize)]
+struct Explained {
+    error: String,
+}
+
+pub(crate) async fn explanation(response: reqwest::Response) -> String {
+    let status = response.status();
+    response.json::<Explained>().await.map_or_else(
+        |_| format!("the server answered {status}"),
+        |body| body.error,
+    )
 }
 
 pub(crate) fn check(status: StatusCode, path: &str) -> Result<(), RemoteError> {

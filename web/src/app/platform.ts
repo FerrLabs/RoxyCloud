@@ -351,6 +351,22 @@ function desktopPlatform(fallback: string): Platform {
       const { invoke } = await core();
       return invoke<Node>('move_node', { from, to });
     },
+    listTrash: async () => {
+      const { invoke } = await core();
+      return invoke<Trashed[]>('list_trash');
+    },
+    restoreFromTrash: async (id) => {
+      const { invoke } = await core();
+      return invoke<Node>('restore_from_trash', { id });
+    },
+    purgeFromTrash: async (id) => {
+      const { invoke } = await core();
+      await invoke<void>('purge_from_trash', { id });
+    },
+    emptyTrash: async () => {
+      const { invoke } = await core();
+      await invoke<void>('empty_trash');
+    },
   };
 }
 

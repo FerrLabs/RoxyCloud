@@ -265,7 +265,7 @@ unannounced. It runs with the sweep, so the API refuses to start with a retentio
 In the web app a Trash button next to Sharing lists what the account deleted, with when and how
 large, when it goes for good if a retention is set, and offers Restore, Delete forever and Empty
 the trash to an account that can write. Deleting forever and emptying both ask first. The desktop
-app does not show the trash yet.
+app shows the same panel.
 
 Overwriting is reversible too. Every write that replaces a file's content, whether through
 `PUT /v1/files`, a resumable upload or WebDAV, keeps what it replaced as a version, up to
