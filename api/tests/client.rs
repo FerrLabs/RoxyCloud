@@ -1,6 +1,7 @@
 mod common;
 
 use chrono::TimeDelta;
+use reqwest::StatusCode;
 use roxycloud_client::Remote;
 use roxycloud_client::remote::RemoteError;
 use roxycloud_core::role::Role;
@@ -68,11 +69,29 @@ database_test!(
         let refused = remote.restore(first.id).await;
 
         match refused {
-            Err(RemoteError::Refused(message)) => assert_eq!(message, "a.txt already exists"),
+            Err(RemoteError::Refused { status, message }) => {
+                assert_eq!(status, StatusCode::CONFLICT);
+                assert_eq!(message, "a.txt already exists");
+            }
             other => panic!("expected the server's own words, got {other:?}"),
         }
     }
 );
+
+database_test!(a_reader_emptying_the_trash_is_told_why, harness, {
+    let reader = harness.account("reader@example.com", Role::Reader).await;
+    let remote = connect(&harness, &reader).await;
+
+    let refused = remote.empty_trash().await;
+
+    match refused {
+        Err(error @ RemoteError::Refused { .. }) => {
+            assert_eq!(error.status(), Some(StatusCode::FORBIDDEN));
+            assert_eq!(error.to_string(), "this account may not write");
+        }
+        other => panic!("expected the server's own words, got {other:?}"),
+    }
+});
 
 database_test!(the_client_empties_the_trash, harness, {
     let owner = harness.account("empty@example.com", Role::Member).await;

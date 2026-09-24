@@ -1,3 +1,4 @@
+mod failure;
 mod sync;
 
 use roxycloud_client::Remote;
@@ -7,6 +8,8 @@ use roxycloud_core::user::User;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::Mutex;
+
+use failure::Failure;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -179,34 +182,31 @@ async fn delete_node(desktop: State<'_, Desktop>, path: String) -> Result<(), St
 }
 
 #[tauri::command]
-async fn list_trash(desktop: State<'_, Desktop>) -> Result<Vec<Trashed>, String> {
+async fn list_trash(desktop: State<'_, Desktop>) -> Result<Vec<Trashed>, Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote.trash().await.map_err(|error| error.to_string())
+    Ok(remote.trash().await?)
 }
 
 #[tauri::command]
-async fn restore_from_trash(desktop: State<'_, Desktop>, id: Uuid) -> Result<Node, String> {
+async fn restore_from_trash(desktop: State<'_, Desktop>, id: Uuid) -> Result<Node, Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote.restore(id).await.map_err(|error| error.to_string())
+    Ok(remote.restore(id).await?)
 }
 
 #[tauri::command]
-async fn purge_from_trash(desktop: State<'_, Desktop>, id: Uuid) -> Result<(), String> {
+async fn purge_from_trash(desktop: State<'_, Desktop>, id: Uuid) -> Result<(), Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote.purge(id).await.map_err(|error| error.to_string())
+    Ok(remote.purge(id).await?)
 }
 
 #[tauri::command]
-async fn empty_trash(desktop: State<'_, Desktop>) -> Result<(), String> {
+async fn empty_trash(desktop: State<'_, Desktop>) -> Result<(), Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote
-        .empty_trash()
-        .await
-        .map_err(|error| error.to_string())
+    Ok(remote.empty_trash().await?)
 }
 
 fn main() {
