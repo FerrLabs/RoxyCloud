@@ -287,9 +287,12 @@
   <rx-confirm
     [heading]="'Delete ' + node.name + '?'"
     [body]="
-      node.kind === 'directory'
-        ? 'The folder and everything in it move to the trash, where you can restore them.'
-        : 'The file moves to the trash, where you can restore it.'
+      (node.kind === 'directory'
+        ? 'The folder and everything in it move to the trash'
+        : 'The file moves to the trash') +
+      (where().kind === 'own'
+        ? ', where you can restore ' + (node.kind === 'directory' ? 'them.' : 'it.')
+        : ' of the account that shares it with you.')
     "
     action="Delete"
     (accepted)="remove(node)"
