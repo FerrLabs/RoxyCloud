@@ -30,7 +30,8 @@ shell and the CLI, OIDC alongside passwords, plus the marketing and documentatio
 and French. The file browser uploads, previews, renames and deletes, shows who is signed in and lets
 them sign out, and renaming doubles as moving: type a path instead of a name and the node lands
 there. A folder opens at `/#/files/{path}`, so no folder name can collide with a page of the app, and
-an older link without `files/` is redirected there.
+an older link without `files/` is redirected there, except exactly `/#/accounts`, `/#/sync` and
+`/#/s/{token}`, which still open those pages.
 
 And: folder sync, with a three-way reconciler that keeps both copies when a file changed on either
 side, either once or watching the folder as it changes. Share links for people with no account,
