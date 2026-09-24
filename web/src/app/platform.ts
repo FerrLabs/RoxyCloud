@@ -4,7 +4,7 @@ import type { AppPassword, MintedPassword } from './account/app-password';
 import type { ManagedAccount, NewAccount } from './accounts/managed';
 import type { Given, NewGrant, Received } from './grant';
 import type { Node, Trashed } from './node';
-import { baseName, type Dropping, type Outgoing } from './outgoing';
+import type { Dropping, Outgoing } from './outgoing';
 import type { Minted, NewShare, Share } from './share';
 import type { SyncCommand, Syncing } from './sync/syncing';
 import type { Version } from './version';
@@ -369,7 +369,7 @@ function desktopPlatform(fallback: string): Platform {
     grant: (request) => command<Given>('grant', { request }),
     receivedGrants: () => command<Received[]>('received_grants'),
     withdrawGrant: (id) => command<void>('withdraw_grant', { id }),
-    pickUploads: async () => fromPaths(await command<string[]>('pick_uploads')),
+    pickUploads: async () => fromPicked(await command<Picked[]>('pick_uploads')),
     watchDrops: async (listener) => {
       const { getCurrentWebview } = await import('@tauri-apps/api/webview');
       return getCurrentWebview().onDragDropEvent(({ payload }) => {
@@ -382,7 +382,9 @@ function desktopPlatform(fallback: string): Platform {
             listener({ kind: 'leave' });
             break;
           case 'drop':
-            listener({ kind: 'drop', items: fromPaths(payload.paths) });
+            void command<Picked[]>('describe_drops', { paths: payload.paths }).then((picked) =>
+              listener({ kind: 'drop', items: fromPicked(picked) }),
+            );
             break;
         }
       });
@@ -409,9 +411,11 @@ function failureFrom(cause: unknown): Error {
     : new Error(String(message));
 }
 
-function fromPaths(paths: string[]): Outgoing[] {
-  return paths.map((source) => ({
-    name: baseName(source),
+type Picked = { name: string; source: string };
+
+function fromPicked(picked: Picked[]): Outgoing[] {
+  return picked.map(({ name, source }) => ({
+    name,
     send: async (destination) => {
       await command<Node>('upload_file', { path: destination, source });
     },

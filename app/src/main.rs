@@ -298,8 +298,24 @@ async fn withdraw_grant(desktop: State<'_, Desktop>, id: Uuid) -> Result<(), Fai
     Ok(remote.withdraw_grant(id).await?)
 }
 
+#[derive(serde::Serialize)]
+struct Picked {
+    name: String,
+    source: PathBuf,
+}
+
+impl From<PathBuf> for Picked {
+    fn from(source: PathBuf) -> Self {
+        let name = source.file_name().map_or_else(
+            || source.to_string_lossy().into_owned(),
+            |name| name.to_string_lossy().into_owned(),
+        );
+        Self { name, source }
+    }
+}
+
 #[tauri::command]
-async fn pick_uploads(app: AppHandle) -> Result<Vec<PathBuf>, String> {
+async fn pick_uploads(app: AppHandle) -> Result<Vec<Picked>, Failure> {
     let (chosen, answer) = tokio::sync::oneshot::channel();
     app.dialog().file().pick_files(move |files| {
         let _ = chosen.send(files);
@@ -307,15 +323,23 @@ async fn pick_uploads(app: AppHandle) -> Result<Vec<PathBuf>, String> {
 
     let files = answer
         .await
-        .map_err(|_| "the file picker went away".to_owned())?
+        .map_err(|_| "the file picker went away")?
         .unwrap_or_default();
     files
         .into_iter()
         .map(|file| {
-            file.into_path()
-                .map_err(|error| format!("that file is not one this computer can open: {error}"))
+            file.into_path().map(Picked::from).map_err(|error| {
+                Failure::from(format!(
+                    "that file is not one this computer can open: {error}"
+                ))
+            })
         })
         .collect()
+}
+
+#[tauri::command]
+fn describe_drops(paths: Vec<PathBuf>) -> Vec<Picked> {
+    paths.into_iter().map(Picked::from).collect()
 }
 
 #[tauri::command]
@@ -323,19 +347,16 @@ async fn upload_file(
     desktop: State<'_, Desktop>,
     path: String,
     source: PathBuf,
-) -> Result<Node, String> {
+) -> Result<Node, Failure> {
     if source.is_dir() {
-        return Err(format!(
+        return Err(Failure::from(format!(
             "{} is a folder; upload the files inside it, or sync the folder",
             source.display()
-        ));
+        )));
     }
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote
-        .upload(&path, &source)
-        .await
-        .map_err(|error| format!("{path}: {error}"))
+    Ok(remote.upload(&path, &source).await?)
 }
 
 fn main() {
@@ -367,6 +388,7 @@ fn main() {
             received_grants,
             withdraw_grant,
             pick_uploads,
+            describe_drops,
             upload_file,
             sync::pick_folder,
             sync::start_sync,
