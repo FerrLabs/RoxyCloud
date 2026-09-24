@@ -257,6 +257,7 @@ pnpm --filter @roxycloud/web build \\
         ['PUT', '/v1/users/{id}/password', "Le réinitialiser sans connaître l'ancien (admin)"],
         ['POST', '/v1/users/{id}/unlock', 'Redonner sa chance à un compte verrouillé (admin)'],
         ['GET', '/v1/trash', "Ce que le compte a supprimé"],
+        ['DELETE', '/v1/trash', 'La vider'],
         ['POST', '/v1/trash/{id}/restore', 'Le restaurer, avec les répertoires nécessaires'],
         ['DELETE', '/v1/trash/{id}', 'Le supprimer définitivement et libérer ses octets'],
         ['GET', '/v1/grants', "Ce que ce compte partage avec d'autres comptes"],

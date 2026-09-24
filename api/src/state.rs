@@ -22,6 +22,7 @@ pub struct AppState {
     pub http: reqwest::Client,
     pub default_quota_bytes: i64,
     pub versions_kept: i64,
+    pub trash_retention: Option<chrono::TimeDelta>,
 }
 
 async fn open_blobs(backend: &BlobBackend) -> Result<Arc<dyn BlobStore>> {
@@ -102,6 +103,8 @@ impl AppState {
             )),
             default_quota_bytes: cfg.default_quota_bytes,
             versions_kept: cfg.versions_kept,
+            trash_retention: (cfg.trash_retention_days > 0)
+                .then(|| chrono::TimeDelta::days(i64::from(cfg.trash_retention_days))),
         })
     }
 }

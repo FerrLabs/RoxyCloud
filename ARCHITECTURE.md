@@ -266,6 +266,12 @@ it after a grace period, so a delete followed by a re-upload of the same content
 collector. The sweep reads the collectable rows, then deletes each one under a second check in the
 same statement, so a reference taken between the read and the delete keeps the blob.
 
+Emptying the trash, and expiring it after `TRASH_RETENTION_DAYS`, are purges of each trash root in
+turn, newest first. A root trashed inside a folder that was trashed later is already gone with that
+folder by the time its turn comes, so it is skipped rather than treated as an error. Expiry purges
+each root in its own transaction, so one account's purge never holds another's lock, and a root a
+user restored between the read and the purge is simply not found.
+
 The bytes go after the row, inside the same transaction, and only when the file on disk is itself
 older than the grace period. A crash between the two leaves a row with no file, which the next sweep
 finishes. A file younger than the grace was written by something, most likely an upload that raced

@@ -134,6 +134,7 @@ Migrations run on boot. Configuration is environment only:
 | `VERSIONS_KEPT` | `10` | Previous versions kept per file; lowering it, or `0`, trims a file's history at its next write |
 | `SESSION_TTL_SECONDS` | 12 h | Session token lifetime |
 | `BLOB_SWEEP_INTERVAL_SECONDS` | 1 h | How often orphaned blobs are collected, `0` disables it |
+| `TRASH_RETENTION_DAYS` | `0` | Days something stays in the trash before the sweep deletes it for good; `0` keeps it until it is purged |
 | `BLOB_GRACE_PERIOD_SECONDS` | 24 h | How long an unreferenced blob is kept before collection |
 | `BOOTSTRAP_ADMIN_EMAIL` | unset | Creates the first administrator on an empty database |
 | `BOOTSTRAP_ADMIN_PASSWORD` | unset | Required alongside the email, minimum 12 characters |
@@ -237,6 +238,7 @@ MOVE      /dav/{*path}  move, in one transaction
 LOCK      /dav/{*path}  take or refresh an exclusive write lock
 UNLOCK    /dav/{*path}  release one
 GET    /v1/trash              what the account has deleted
+DELETE /v1/trash              empty it
 POST   /v1/trash/{id}/restore bring it back, with the directories it needs
 DELETE /v1/trash/{id}         delete it for good, and release its bytes
 GET    /v1/versions/{*path}        the previous versions of a file, newest first
@@ -253,11 +255,17 @@ since the delete answers 409 rather than inventing a new one: move the occupant,
 was deleted separately stays separate, so restoring a file out of a folder someone deleted later
 leaves the rest of that folder in the trash, listed on its own. Only a purge releases the blobs,
 which is what makes it the one irreversible call, and purging a folder takes everything trashed
-under it, including what was deleted before it.
+under it, including what was deleted before it. `DELETE /v1/trash` purges all of it at once.
+
+With `TRASH_RETENTION_DAYS` set, the background sweep deletes for good whatever has been in the
+trash longer than that, and `GET /v1/trash` adds an `expires_at` to each entry so nothing goes
+unannounced. It runs with the sweep, so the API refuses to start with a retention set and
+`BLOB_SWEEP_INTERVAL_SECONDS=0` rather than promise dates nothing would keep.
 
 In the web app a Trash button next to Sharing lists what the account deleted, with when and how
-large, and offers Restore and Delete forever to an account that can write. Deleting forever asks
-first. The desktop app does not show the trash yet.
+large, when it goes for good if a retention is set, and offers Restore, Delete forever and Empty
+the trash to an account that can write. Deleting forever and emptying both ask first. The desktop
+app does not show the trash yet.
 
 Overwriting is reversible too. Every write that replaces a file's content, whether through
 `PUT /v1/files`, a resumable upload or WebDAV, keeps what it replaced as a version, up to

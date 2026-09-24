@@ -1,3 +1,4 @@
+use chrono::{TimeDelta, Utc};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
@@ -122,6 +123,55 @@ pub async fn purge(
         release_blob(tx, hash).await?;
     }
     Ok(())
+}
+
+pub async fn empty(tx: &mut Transaction<'_, Postgres>, owner_id: Uuid) -> Result<u64, ApiError> {
+    lock_owner(tx, owner_id).await?;
+    let roots = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM nodes WHERE owner_id = $1 AND trash_root_id = id ORDER BY deleted_at DESC",
+    )
+    .bind(owner_id)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let mut purged = 0;
+    for id in roots {
+        match purge(tx, owner_id, id).await {
+            Ok(()) => purged += 1,
+            Err(ApiError::NotFound) => {}
+            Err(other) => return Err(other),
+        }
+    }
+    Ok(purged)
+}
+
+pub async fn expire(pool: &PgPool, retention: TimeDelta) -> Result<u64, ApiError> {
+    let due = sqlx::query_as::<_, (Uuid, Uuid)>(
+        "SELECT owner_id, id FROM nodes
+         WHERE trash_root_id = id AND deleted_at < $1
+         ORDER BY deleted_at DESC
+         LIMIT 10000",
+    )
+    .bind(Utc::now() - retention)
+    .fetch_all(pool)
+    .await?;
+
+    let mut purged = 0;
+    for (owner_id, id) in due {
+        let mut tx = pool.begin().await?;
+        match purge(&mut tx, owner_id, id).await {
+            Ok(()) => {
+                tx.commit().await?;
+                purged += 1;
+            }
+            Err(ApiError::NotFound) => tx.rollback().await?,
+            Err(error) => {
+                tx.rollback().await?;
+                tracing::error!(%error, %owner_id, %id, "could not purge an expired trash root");
+            }
+        }
+    }
+    Ok(purged)
 }
 
 async fn root(

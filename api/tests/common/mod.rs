@@ -78,6 +78,7 @@ impl Harness {
                 http: reqwest::Client::new(),
                 default_quota_bytes: 1_000_000,
                 versions_kept: 3,
+                trash_retention: None,
             },
             blob_root,
             upload_root,

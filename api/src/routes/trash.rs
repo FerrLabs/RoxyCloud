@@ -1,6 +1,8 @@
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
+use chrono::{DateTime, Utc};
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::auth::{Caller, Writer};
@@ -9,11 +11,39 @@ use crate::state::AppState;
 use crate::trash;
 use roxycloud_core::node::Node;
 
+#[derive(Serialize)]
+pub struct Trashed {
+    #[serde(flatten)]
+    node: Node,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expires_at: Option<DateTime<Utc>>,
+}
+
 pub async fn list(
     State(state): State<AppState>,
     caller: Caller,
-) -> Result<Json<Vec<Node>>, ApiError> {
-    Ok(Json(trash::list(&state.db, caller.user_id()).await?))
+) -> Result<Json<Vec<Trashed>>, ApiError> {
+    let trashed = trash::list(&state.db, caller.user_id()).await?;
+    Ok(Json(
+        trashed
+            .into_iter()
+            .map(|node| Trashed {
+                expires_at: node
+                    .deleted_at
+                    .zip(state.trash_retention)
+                    .map(|(deleted, kept)| deleted + kept),
+                node,
+            })
+            .collect(),
+    ))
+}
+
+pub async fn empty(State(state): State<AppState>, caller: Writer) -> Result<StatusCode, ApiError> {
+    let mut tx = state.db.begin().await?;
+    trash::empty(&mut tx, caller.user_id()).await?;
+    tx.commit().await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn restore(

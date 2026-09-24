@@ -7,7 +7,7 @@ import {
   resource,
   signal,
 } from '@angular/core';
-import { formatSize, type Node } from '../node';
+import { formatSize, type Node, type Trashed } from '../node';
 import { PLATFORM, RequestFailed } from '../platform';
 import { Confirm } from '../shared/confirm';
 import { formatMoment } from '../version';
@@ -36,13 +36,29 @@ export class TrashPanel {
   protected readonly failure = signal<string | null>(null);
   protected readonly announcement = signal<string | null>(null);
   protected readonly doomed = signal<Node | null>(null);
+  protected readonly emptying = signal(false);
 
-  protected describe(node: Node): string {
+  protected describe(node: Trashed): string {
     const parts = [node.kind === 'directory' ? 'Folder' : formatSize(node.size)];
     if (node.deleted_at !== undefined) {
       parts.push(`deleted ${formatMoment(node.deleted_at)}`);
     }
+    if (node.expires_at !== undefined) {
+      parts.push(`goes for good ${formatMoment(node.expires_at)}`);
+    }
     return parts.join(', ');
+  }
+
+  protected async empty(): Promise<void> {
+    this.emptying.set(false);
+    const clear = this.platform.emptyTrash;
+    if (clear === undefined) {
+      return;
+    }
+    await this.attempt(async () => {
+      await clear();
+      this.announcement.set('Emptied the trash');
+    });
   }
 
   protected async restore(node: Node): Promise<void> {
