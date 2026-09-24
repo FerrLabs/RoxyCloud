@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.28.1] - 2026-09-24
+
+### Bug Fixes
+
+- fix(ci): run the S3 tests against RustFS now that MinIO images are gone (#195)
+
 ## [0.28.0] - 2026-09-22
 
 ### Features
