@@ -268,6 +268,10 @@ kept: with no history left to give, it goes through without a version, and only 
 always has, when the new content alone does not fit. A trashed file takes its versions out of the
 quota with it, a restore brings them back, and a purge releases them.
 
+In the web app a history button on each file opens its versions with their date and size, to
+download one or restore it. Restore shows only where the file can be written. The desktop app does
+not offer versions yet.
+
 Releasing a blob does not delete it. A background sweep collects blobs nothing points at once they
 have been unreferenced for `BLOB_GRACE_PERIOD_SECONDS`, which is what keeps a delete followed by a
 re-upload of the same content from racing the collector: the re-upload finds the blob and adopts it.
