@@ -7,6 +7,7 @@ import { AppPasswords } from './account/app-passwords';
 import { ChangePassword } from './account/change-password';
 import { Update } from './account/update';
 import { Session } from './account';
+import { linkTo } from './folder';
 import type { Credentials } from './login-form/credentials';
 import { LoginForm } from './login-form/login-form';
 import { PLATFORM, RequestFailed } from './platform';
@@ -71,7 +72,7 @@ export class App {
     this.session.forget();
     this.connected.set(false);
     this.notice.set(null);
-    void this.router.navigate(['/']);
+    void this.router.navigate(linkTo(''));
   }
 
   protected changePassword(): void {

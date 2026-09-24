@@ -1,3 +1,9 @@
+export const FILES = 'files';
+
+export function linkTo(path: string): string[] {
+  return ['/', FILES, ...normalise(path).split('/').filter(Boolean)];
+}
+
 export type Segment = {
   name: string;
   path: string;

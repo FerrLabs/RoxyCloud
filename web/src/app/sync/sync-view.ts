@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { Session } from '../account';
+import { linkTo } from '../folder';
 import { PLATFORM } from '../platform';
 import {
   needsAttention,
@@ -51,7 +52,7 @@ export class SyncView {
 
   constructor() {
     if (this.platform.startSync === undefined) {
-      void inject(Router).navigate(['/']);
+      void inject(Router).navigate(linkTo(''));
       return;
     }
 

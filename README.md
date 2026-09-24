@@ -29,7 +29,8 @@ Done too: password accounts with Argon2id, session tokens, and login from the we
 shell and the CLI, OIDC alongside passwords, plus the marketing and documentation site in English
 and French. The file browser uploads, previews, renames and deletes, shows who is signed in and lets
 them sign out, and renaming doubles as moving: type a path instead of a name and the node lands
-there.
+there. A folder opens at `/#/files/{path}`, so no folder name can collide with a page of the app, and
+an older link without `files/` is redirected there.
 
 And: folder sync, with a three-way reconciler that keeps both copies when a file changed on either
 side, either once or watching the folder as it changes. Share links for people with no account,
