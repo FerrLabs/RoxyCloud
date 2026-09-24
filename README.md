@@ -256,9 +256,10 @@ under it, including what was deleted before it.
 Overwriting is reversible too. Every write that replaces a file's content, whether through
 `PUT /v1/files`, a resumable upload or WebDAV, keeps what it replaced as a version, up to
 `VERSIONS_KEPT` per file, oldest first out. A version is a reference to a blob that already exists,
-so keeping one copies nothing, and saving the same bytes again keeps nothing. Restoring is an
-ordinary write of the old content, so the content it replaces becomes a version in turn and the
-restore can itself be undone. Whoever can read a file can list and download its versions, and
+so keeping one copies nothing. Saving the same bytes again keeps nothing, and neither does
+replacing an empty file, which is what a WebDAV `LOCK` leaves before the first save. Restoring
+takes the version out of the history, since it is the file again, and writes it back; the content
+it replaces becomes a version in turn, so the restore can itself be undone. Whoever can read a file can list and download its versions, and
 whoever can write it can restore one, shares included.
 
 Versions count against the quota, since they occupy storage. A write that would not fit drops the

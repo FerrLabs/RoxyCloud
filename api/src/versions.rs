@@ -50,6 +50,26 @@ pub async fn find(
     .ok_or(ApiError::NotFound)
 }
 
+pub async fn take(
+    tx: &mut Transaction<'_, Postgres>,
+    owner_id: Uuid,
+    node_id: Uuid,
+    id: Uuid,
+) -> Result<Version, ApiError> {
+    let taken = sqlx::query_as::<_, Version>(
+        "DELETE FROM versions WHERE node_id = $1 AND id = $2
+         RETURNING id, blob_hash, size, created_at",
+    )
+    .bind(node_id)
+    .bind(id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(ApiError::NotFound)?;
+    release_blob(tx, taken.blob_hash).await?;
+    charge_quota(tx, owner_id, -taken.size).await?;
+    Ok(taken)
+}
+
 pub(crate) async fn keep(
     tx: &mut Transaction<'_, Postgres>,
     node_id: Uuid,

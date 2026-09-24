@@ -91,6 +91,25 @@ pub async fn child(
     .map_err(Into::into)
 }
 
+async fn child_for_update(
+    tx: &mut Transaction<'_, Postgres>,
+    parent_id: Uuid,
+    name: &NodeName,
+) -> Result<Option<Node>, ApiError> {
+    sqlx::query_as::<_, Node>(concat!(
+        "SELECT ",
+        node_columns!(),
+        " FROM nodes
+         WHERE parent_id = $1 AND name = $2 AND deleted_at IS NULL
+         FOR UPDATE"
+    ))
+    .bind(parent_id)
+    .bind(name.as_str())
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(Into::into)
+}
+
 pub async fn live_node(
     tx: &mut Transaction<'_, Postgres>,
     id: Uuid,
@@ -219,7 +238,7 @@ pub async fn put_file(
         .execute(&mut **tx)
         .await?;
 
-    let existing = child(tx, parent.id, name).await?;
+    let existing = child_for_update(tx, parent.id, name).await?;
     if let Some(node) = &existing
         && node.kind == NodeKind::Directory
     {
@@ -232,7 +251,7 @@ pub async fn put_file(
     });
     let versioned = match previous {
         Some((node_id, previous_hash, previous_size))
-            if versions_kept > 0 && previous_hash != hash =>
+            if versions_kept > 0 && previous_size > 0 && previous_hash != hash =>
         {
             versions::make_room(tx, owner_id, node_id, size, previous_size).await?
         }

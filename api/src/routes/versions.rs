@@ -59,7 +59,7 @@ pub async fn restore(
             .await?
             .into_node()?,
     )?;
-    let version = versions::find(&mut tx, node.id, id).await?;
+    let version = versions::take(&mut tx, node.owner_id, node.id, id).await?;
     let (parent, name) =
         access::file_target(&mut tx, &caller.user, &segments, false, quota).await?;
     let restored = db::put_file(

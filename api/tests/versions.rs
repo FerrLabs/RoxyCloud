@@ -4,9 +4,12 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
 use roxycloud_api::build_router;
+use roxycloud_api::db;
 use roxycloud_api::error::ApiError;
 use roxycloud_core::blob::BlobHash;
 use roxycloud_core::grant::Access;
+use roxycloud_core::name::NodeName;
+use roxycloud_core::node::Node;
 use roxycloud_core::role::Role;
 use serde_json::Value;
 use tower::ServiceExt;
@@ -63,6 +66,17 @@ async fn version_count(harness: &Harness, owner: uuid::Uuid, path: &str) -> i64 
         .expect("counting versions")
 }
 
+async fn holders(harness: &Harness, hash: BlobHash) -> i64 {
+    sqlx::query_scalar::<_, i64>(
+        "SELECT (SELECT count(*) FROM nodes WHERE blob_hash = $1)
+              + (SELECT count(*) FROM versions WHERE blob_hash = $1)",
+    )
+    .bind(hash)
+    .fetch_one(&harness.state.db)
+    .await
+    .expect("counting what holds the blob")
+}
+
 database_test!(an_overwrite_keeps_what_it_replaced, harness, {
     let owner = harness.account("keep@example.com", Role::Member).await;
     let before = b"the draft that was right";
@@ -92,6 +106,97 @@ database_test!(writing_the_same_bytes_again_keeps_no_version, harness, {
         "nothing was replaced, so there is nothing to keep"
     );
 });
+
+database_test!(an_empty_file_is_replaced_without_a_version, harness, {
+    let owner = harness.account("empty@example.com", Role::Member).await;
+
+    harness.write(owner.id, "saved.docx", b"").await;
+    harness
+        .write(owner.id, "saved.docx", b"what the editor saved")
+        .await;
+
+    assert_eq!(
+        version_count(&harness, owner.id, "saved.docx").await,
+        0,
+        "the empty file a LOCK leaves behind is nothing anyone would restore"
+    );
+});
+
+async fn wait_for_waiters(harness: &Harness, count: i64) {
+    for _ in 0..500 {
+        let waiting = sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM pg_stat_activity
+             WHERE datname = current_database() AND wait_event_type = 'Lock'",
+        )
+        .fetch_one(&harness.state.db)
+        .await
+        .expect("reading pg_stat_activity");
+        if waiting >= count {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("{count} writers never ended up waiting, so the race under test never happened");
+}
+
+async fn overwrite(harness: &Harness, root: &Node, (hash, size): (BlobHash, i64)) {
+    let name = "a.txt".parse::<NodeName>().expect("a valid name");
+    let mut tx = harness.state.db.begin().await.expect("begin");
+    db::put_file(
+        &mut tx,
+        root.owner_id,
+        root,
+        &name,
+        hash,
+        size,
+        harness.state.versions_kept,
+    )
+    .await
+    .expect("the overwrite");
+    tx.commit().await.expect("commit");
+}
+
+database_test!(
+    two_overwrites_racing_keep_a_reference_for_every_version,
+    harness,
+    {
+        let owner = harness.account("race@example.com", Role::Member).await;
+        let original = b"the original";
+        let first = b"the first rewrite";
+        let second = b"the second rewrite";
+        harness.write(owner.id, "a.txt", original).await;
+        let root = harness.root(owner.id).await;
+        let staged_first = harness.stage(first).await;
+        let staged_second = harness.stage(second).await;
+
+        let mut quota = harness.state.db.begin().await.expect("begin");
+        sqlx::query("SELECT 1 FROM quotas WHERE owner_id = $1 FOR UPDATE")
+            .bind(owner.id)
+            .execute(&mut *quota)
+            .await
+            .expect("holding the quota row");
+
+        tokio::join!(overwrite(&harness, &root, staged_first), async {
+            wait_for_waiters(&harness, 1).await;
+            tokio::join!(overwrite(&harness, &root, staged_second), async {
+                wait_for_waiters(&harness, 2).await;
+                quota.rollback().await.expect("rollback");
+            });
+        });
+
+        assert_eq!(version_count(&harness, owner.id, "a.txt").await, 2);
+        for contents in [&original[..], first, second] {
+            assert_eq!(
+                harness
+                    .blob(hash_of(contents))
+                    .await
+                    .map(|(count, _)| count),
+                Some(holders(&harness, hash_of(contents)).await),
+                "every holder has its own reference, or pruning one frees bytes another still needs"
+            );
+        }
+    }
+);
 
 database_test!(the_history_stops_at_the_cap, harness, {
     let owner = harness.account("cap@example.com", Role::Member).await;
@@ -256,10 +361,53 @@ database_test!(versions_are_listed_downloaded_and_restored, harness, {
     assert_eq!(current, b"first", "the restore wrote the old content back");
 
     let (_, body) = call(&harness, "GET", "/v1/versions/notes.md", &token, b"").await;
+    let history = ids(&body);
     assert_eq!(
-        ids(&body).len(),
-        2,
+        history.len(),
+        1,
+        "the restored version is the file again, so it left the history"
+    );
+    let (_, replaced) = call(
+        &harness,
+        "GET",
+        &format!("/v1/version/{}/notes.md", history[0]),
+        &token,
+        b"",
+    )
+    .await;
+    assert_eq!(
+        replaced, b"second",
         "what the restore replaced became a version, so the restore is undoable"
+    );
+});
+
+database_test!(a_restore_does_not_count_the_same_bytes_twice, harness, {
+    let owner = harness.account("twice@example.com", Role::Member).await;
+    let token = harness.state.sessions.issue(owner.id).expect("a token");
+    call(&harness, "PUT", "/v1/files/a.txt", &token, &[b'a'; 300]).await;
+    call(&harness, "PUT", "/v1/files/a.txt", &token, &[b'b'; 100]).await;
+    let (_, body) = call(&harness, "GET", "/v1/versions/a.txt", &token, b"").await;
+    let version = ids(&body).remove(0);
+
+    let (status, _) = call(
+        &harness,
+        "POST",
+        &format!("/v1/version/{version}/a.txt"),
+        &token,
+        b"",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    assert_eq!(
+        harness.used_bytes(owner.id).await,
+        400,
+        "300 bytes back in the file and 100 kept as a version, nothing counted twice"
+    );
+    assert_eq!(
+        harness.blob(hash_of(&[b'a'; 300])).await,
+        Some((1, false)),
+        "only the file holds the restored bytes now"
     );
 });
 
