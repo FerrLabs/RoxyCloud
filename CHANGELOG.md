@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.31.0] - 2026-09-24
+
+### Features
+
+- feat: empty the trash, and purge it after TRASH_RETENTION_DAYS (#201)
+
 ## [0.30.1] - 2026-09-24
 
 ### Bug Fixes
