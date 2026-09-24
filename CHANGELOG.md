@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.30.0] - 2026-09-24
+
+### Features
+
+- feat(web): list the trash and restore or delete what is in it (#197)
+
 ## [0.29.0] - 2026-09-24
 
 ### Features
