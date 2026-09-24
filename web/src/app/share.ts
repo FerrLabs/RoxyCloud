@@ -32,8 +32,7 @@ export type Linked = {
 
 export const SHARE_PREFIX = '/s';
 
-export function linkFor(token: string): string {
-  const origin = typeof location === 'undefined' ? '' : location.origin;
+export function linkFor(token: string, origin: string): string {
   return `${origin}/#${SHARE_PREFIX}/${token}`;
 }
 

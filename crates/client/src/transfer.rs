@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 
 use futures::StreamExt;
 use reqwest::Body;
-use serde::Deserialize;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
@@ -12,15 +11,9 @@ use crate::sync::held::Held;
 use crate::sync::path::RelPath;
 use crate::sync::snapshot::{Entry, Snapshot};
 use crate::sync::transport::Transport;
-use roxycloud_core::grant::Access;
+use roxycloud_core::grant::Received;
 use roxycloud_core::node::{Node, NodeKind};
 use roxycloud_core::user::User;
-
-#[derive(Debug, Deserialize)]
-pub struct Received {
-    pub name: String,
-    pub access: Access,
-}
 
 #[must_use]
 pub fn free_path(directory: &Path, name: &str) -> PathBuf {
@@ -205,6 +198,7 @@ fn held_from(received: Result<Vec<Received>, RemoteError>) -> Result<Held, Remot
 #[cfg(test)]
 mod tests {
     use super::*;
+    use roxycloud_core::grant::Access;
 
     fn scratch(name: &str) -> PathBuf {
         let directory = std::env::temp_dir().join(format!("roxycloud-free-{name}"));
@@ -262,8 +256,13 @@ mod tests {
     #[test]
     fn received_shares_become_what_is_held() {
         let held = held_from(Ok(vec![Received {
+            id: uuid::Uuid::nil(),
             name: "archive".to_owned(),
+            kind: NodeKind::Directory,
             access: Access::Read,
+            owner_email: "owner@example.com".to_owned(),
+            owner_name: "Owner".to_owned(),
+            created_at: chrono::Utc::now(),
         }]))
         .expect("held");
         assert_eq!(

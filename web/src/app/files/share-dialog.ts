@@ -151,7 +151,9 @@ export class ShareDialog {
 
   protected url(): string {
     const minted = this.minted();
-    return minted === null ? '' : linkFor(minted.token);
+    return minted === null
+      ? ''
+      : linkFor(minted.token, this.platform.server?.() ?? location.origin);
   }
 
   protected async copy(): Promise<void> {

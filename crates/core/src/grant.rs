@@ -1,4 +1,8 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::node::NodeKind;
 
 pub const SHARED_WITH_ME: &str = "Shared with me";
 
@@ -19,6 +23,38 @@ impl Access {
     pub const fn may_write(self) -> bool {
         matches!(self, Self::Write)
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "postgres", derive(sqlx::FromRow))]
+pub struct Given {
+    pub id: Uuid,
+    pub node_id: Uuid,
+    pub name: String,
+    pub kind: NodeKind,
+    pub email: String,
+    pub access: Access,
+    pub in_trash: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "postgres", derive(sqlx::FromRow))]
+pub struct Received {
+    pub id: Uuid,
+    pub name: String,
+    pub kind: NodeKind,
+    pub access: Access,
+    pub owner_email: String,
+    pub owner_name: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NewGrant {
+    pub path: String,
+    pub email: String,
+    pub access: Access,
 }
 
 #[cfg(test)]
