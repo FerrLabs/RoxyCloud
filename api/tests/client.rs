@@ -105,3 +105,57 @@ database_test!(the_client_empties_the_trash, harness, {
 
     assert!(harness.trashed(owner.id).await.is_empty());
 });
+
+database_test!(the_client_lists_downloads_and_restores_versions, harness, {
+    let owner = harness.account("versions@example.com", Role::Member).await;
+    harness
+        .write(owner.id, "notes/plan.md", b"the first plan")
+        .await;
+    harness
+        .write(owner.id, "notes/plan.md", b"the plan that replaced it")
+        .await;
+    let remote = connect(&harness, &owner).await;
+
+    let versions = remote
+        .list_versions("notes/plan.md")
+        .await
+        .expect("listing the versions");
+    assert_eq!(versions.len(), 1);
+    assert_eq!(versions[0].size, 14);
+
+    let destination = tempfile::NamedTempFile::new().expect("a scratch file");
+    remote
+        .download_version("notes/plan.md", versions[0].id, destination.path())
+        .await
+        .expect("downloading the version");
+    assert_eq!(
+        std::fs::read(destination.path()).expect("reading it back"),
+        b"the first plan"
+    );
+
+    let restored = remote
+        .restore_version("notes/plan.md", versions[0].id)
+        .await
+        .expect("restoring the version");
+    assert_eq!(restored.size, 14);
+    assert_eq!(
+        remote
+            .read("notes/plan.md")
+            .await
+            .expect("reading the file"),
+        &b"the first plan"[..]
+    );
+});
+
+database_test!(a_version_of_another_file_is_not_found, harness, {
+    let owner = harness.account("elsewhere@example.com", Role::Member).await;
+    harness.write(owner.id, "a.txt", b"one").await;
+    harness.write(owner.id, "a.txt", b"two").await;
+    harness.write(owner.id, "b.txt", b"unrelated").await;
+    let remote = connect(&harness, &owner).await;
+    let versions = remote.list_versions("a.txt").await.expect("listing");
+
+    let wrong = remote.restore_version("b.txt", versions[0].id).await;
+
+    assert!(matches!(wrong, Err(RemoteError::NotFound(_))));
+});

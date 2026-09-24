@@ -59,7 +59,7 @@ export interface Platform {
   receivedGrants?(): Promise<Received[]>;
   withdrawGrant?(id: string): Promise<void>;
   listVersions?(path: string): Promise<Version[]>;
-  downloadVersion?(path: string, id: string, name: string): Promise<void>;
+  downloadVersion?(path: string, id: string, name: string): Promise<string | null>;
   restoreVersion?(path: string, id: string): Promise<Node>;
   listTrash?(): Promise<Trashed[]>;
   restoreFromTrash?(id: string): Promise<Node>;
@@ -225,6 +225,7 @@ function browserPlatform(baseUrl: string): Platform {
     downloadVersion: async (path, id, name) => {
       const address = `/v1/version/${encodeURIComponent(id)}${encodePath(path)}`;
       save(await (await call(address)).blob(), name);
+      return null;
     },
     restoreVersion: (path, id) =>
       json<Node>(`/v1/version/${encodeURIComponent(id)}${encodePath(path)}`, { method: 'POST' }),
@@ -355,6 +356,9 @@ function desktopPlatform(fallback: string): Platform {
     restoreFromTrash: (id) => command<Node>('restore_from_trash', { id }),
     purgeFromTrash: (id) => command<void>('purge_from_trash', { id }),
     emptyTrash: () => command<void>('empty_trash'),
+    listVersions: (path) => command<Version[]>('list_versions', { path }),
+    downloadVersion: (path, id) => command<string>('download_version', { path, id }),
+    restoreVersion: (path, id) => command<Node>('restore_version', { path, id }),
   };
 }
 

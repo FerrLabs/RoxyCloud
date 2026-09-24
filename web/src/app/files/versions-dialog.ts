@@ -56,8 +56,13 @@ export class VersionsDialog {
       return;
     }
     await this.attempt(async () => {
-      await get(this.path(), version.id, this.node().name);
-      this.announcement.set(`Downloaded the version from ${formatMoment(version.created_at)}.`);
+      const saved = await get(this.path(), version.id, this.node().name);
+      const when = formatMoment(version.created_at);
+      this.announcement.set(
+        saved === null
+          ? `Downloaded the version from ${when}.`
+          : `Saved the version from ${when} to ${saved}.`,
+      );
     });
   }
 
