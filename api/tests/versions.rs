@@ -252,6 +252,23 @@ database_test!(
     }
 );
 
+database_test!(a_negative_cap_keeps_nothing_rather_than_failing, harness, {
+    let owner = harness.account("negative@example.com", Role::Member).await;
+    harness.write(owner.id, "a.txt", b"kept").await;
+    harness.write(owner.id, "a.txt", b"current").await;
+    let root = harness.root(owner.id).await;
+    let name = "a.txt".parse::<NodeName>().expect("a valid name");
+    let (hash, size) = harness.stage(b"a misconfigured save").await;
+
+    let mut tx = harness.state.db.begin().await.expect("begin");
+    db::put_file(&mut tx, owner.id, &root, &name, hash, size, -1)
+        .await
+        .expect("VERSIONS_KEPT=-1 must not turn every overwrite into an error");
+    tx.commit().await.expect("commit");
+
+    assert_eq!(version_count(&harness, owner.id, "a.txt").await, 0);
+});
+
 database_test!(versions_count_against_the_quota, harness, {
     let owner = harness.account("count@example.com", Role::Member).await;
 

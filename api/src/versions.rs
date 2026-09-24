@@ -121,7 +121,7 @@ pub(crate) async fn prune_beyond(
          RETURNING blob_hash, size",
     )
     .bind(node_id)
-    .bind(kept)
+    .bind(kept.max(0))
     .fetch_all(&mut **tx)
     .await?;
     let freed = release(tx, dropped).await?;
