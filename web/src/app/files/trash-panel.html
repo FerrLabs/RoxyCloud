@@ -1,0 +1,70 @@
+<section class="panel" aria-labelledby="rx-trash-heading">
+  <div class="bar">
+    <h2 id="rx-trash-heading">Trash</h2>
+    <button type="button" class="ghost" (click)="closed.emit()">Close</button>
+  </div>
+
+  @if (failure(); as message) {
+    <p class="failure" role="alert">{{ message }}</p>
+  }
+  <p class="announcement" role="status" aria-live="polite">{{ announcement() }}</p>
+
+  @if (trashed.isLoading() && !trashed.hasValue()) {
+    <p class="state" aria-busy="true">Loading the trash</p>
+  } @else if (trashed.error(); as error) {
+    <div class="state">
+      <p>The trash did not load.</p>
+      <p class="detail">{{ error }}</p>
+      <button type="button" (click)="trashed.reload()">Try again</button>
+    </div>
+  } @else if ((trashed.value() ?? []).length === 0) {
+    <p class="state">The trash is empty.</p>
+  } @else {
+    <ul class="listing">
+      @for (node of trashed.value() ?? []; track node.id) {
+        <li>
+          <span class="what">
+            <span class="name">{{ node.name }}</span>
+            <span class="detail">{{ describe(node) }}</span>
+          </span>
+          @if (canChange()) {
+            <span class="buttons">
+              <button
+                type="button"
+                class="ghost"
+                [disabled]="busy()"
+                [attr.aria-label]="'Restore ' + node.name"
+                (click)="restore(node)"
+              >
+                Restore
+              </button>
+              <button
+                type="button"
+                class="ghost danger"
+                [disabled]="busy()"
+                [attr.aria-label]="'Delete ' + node.name + ' for good'"
+                (click)="doomed.set(node)"
+              >
+                Delete forever
+              </button>
+            </span>
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+@if (doomed(); as node) {
+  <rx-confirm
+    [heading]="'Delete ' + node.name + ' for good?'"
+    [body]="
+      node.kind === 'directory'
+        ? 'The folder and everything in it are deleted, with their versions. This cannot be undone.'
+        : 'The file is deleted, with its versions. This cannot be undone.'
+    "
+    action="Delete forever"
+    (accepted)="purge(node)"
+    (dismissed)="doomed.set(null)"
+  />
+}

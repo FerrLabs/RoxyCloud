@@ -253,6 +253,10 @@ leaves the rest of that folder in the trash, listed on its own. Only a purge rel
 which is what makes it the one irreversible call, and purging a folder takes everything trashed
 under it, including what was deleted before it.
 
+In the web app a Trash button next to Sharing lists what the account deleted, with when and how
+large, and offers Restore and Delete forever to an account that can write. Deleting forever asks
+first. The desktop app does not show the trash yet.
+
 Overwriting is reversible too. Every write that replaces a file's content, whether through
 `PUT /v1/files`, a resumable upload or WebDAV, keeps what it replaced as a version, up to
 `VERSIONS_KEPT` per file, oldest first out. A version is a reference to a blob that already exists,

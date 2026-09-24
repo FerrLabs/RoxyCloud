@@ -22,6 +22,7 @@ import { Breadcrumb } from './breadcrumb';
 import { Preview } from './preview';
 import { ShareDialog } from './share-dialog';
 import { SharesPanel } from './shares-panel';
+import { TrashPanel } from './trash-panel';
 import { UploadTarget } from './upload-target';
 import { VersionsDialog } from './versions-dialog';
 
@@ -34,6 +35,7 @@ import { VersionsDialog } from './versions-dialog';
     Prompt,
     ShareDialog,
     SharesPanel,
+    TrashPanel,
     UploadTarget,
     VersionsDialog,
   ],
@@ -101,6 +103,7 @@ export class FileBrowser {
     () => this.platform.withdrawGrant !== undefined && this.where().kind === 'shelf',
   );
   protected readonly canSeeLinks = computed(() => this.platform.listShares !== undefined);
+  protected readonly canSeeTrash = this.platform.listTrash !== undefined;
   protected readonly canSeeVersions = this.platform.listVersions !== undefined;
   protected readonly canRestore = computed(
     () => this.platform.restoreVersion !== undefined && this.canChange(),
@@ -116,6 +119,8 @@ export class FileBrowser {
   protected readonly sharing = signal<Node | null>(null);
   protected readonly versioning = signal<Node | null>(null);
   protected readonly showingLinks = signal(false);
+  protected readonly showingTrash = signal(false);
+  protected readonly trashed = signal(0);
   protected readonly published = signal(0);
 
   protected readonly size = formatSize;
@@ -211,6 +216,7 @@ export class FileBrowser {
     await this.attempt(`deleting ${node.name}`, async () => {
       await this.platform.remove(childOf(this.path(), node.name));
       this.announcement.set(`Moved ${node.name} to the trash`);
+      this.trashed.update((count) => count + 1);
       this.listing.reload();
     });
   }
