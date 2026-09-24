@@ -259,7 +259,8 @@ under it, including what was deleted before it. `DELETE /v1/trash` purges all of
 
 With `TRASH_RETENTION_DAYS` set, the background sweep deletes for good whatever has been in the
 trash longer than that, and `GET /v1/trash` adds an `expires_at` to each entry so nothing goes
-unannounced. It runs with the sweep, so it needs `BLOB_SWEEP_INTERVAL_SECONDS` above `0`.
+unannounced. It runs with the sweep, so the API refuses to start with a retention set and
+`BLOB_SWEEP_INTERVAL_SECONDS=0` rather than promise dates nothing would keep.
 
 In the web app a Trash button next to Sharing lists what the account deleted, with when and how
 large, when it goes for good if a retention is set, and offers Restore, Delete forever and Empty

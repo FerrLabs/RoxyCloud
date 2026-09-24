@@ -178,6 +178,45 @@ database_test!(
     }
 );
 
+database_test!(
+    a_root_that_cannot_be_purged_does_not_hold_up_the_rest,
+    harness,
+    {
+        let owner = harness.account("stuck@example.com", Role::Member).await;
+        let older = harness
+            .write(owner.id, "older.txt", b"expired, behind the stuck one")
+            .await;
+        let stuck = harness
+            .write(owner.id, "stuck.txt", b"expired, cannot go")
+            .await;
+        harness.trash(&older).await;
+        harness.trash(&stuck).await;
+        age(&harness, owner.id, "older.txt", TimeDelta::days(40)).await;
+        age(&harness, owner.id, "stuck.txt", TimeDelta::days(35)).await;
+        for statement in [
+            "CREATE FUNCTION refuse_stuck() RETURNS trigger AS $$
+             BEGIN
+                 IF OLD.name = 'stuck.txt' THEN RAISE EXCEPTION 'stuck'; END IF;
+                 RETURN OLD;
+             END $$ LANGUAGE plpgsql",
+            "CREATE TRIGGER refuse_stuck BEFORE DELETE ON nodes
+             FOR EACH ROW EXECUTE FUNCTION refuse_stuck()",
+        ] {
+            sqlx::query(statement)
+                .execute(&harness.state.db)
+                .await
+                .expect("installing the trigger");
+        }
+
+        let purged = trash::expire(&harness.state.db, TimeDelta::days(30))
+            .await
+            .expect("a root that fails is logged and passed over, not the end of the run");
+
+        assert_eq!(purged, 1);
+        assert_eq!(harness.trashed(owner.id).await, ["stuck.txt"]);
+    }
+);
+
 database_test!(the_trash_is_emptied_over_http_by_a_writer_only, harness, {
     let member = harness.account("writer@example.com", Role::Member).await;
     let reader = harness.account("reader@example.com", Role::Reader).await;

@@ -149,7 +149,8 @@ pub async fn expire(pool: &PgPool, retention: TimeDelta) -> Result<u64, ApiError
     let due = sqlx::query_as::<_, (Uuid, Uuid)>(
         "SELECT owner_id, id FROM nodes
          WHERE trash_root_id = id AND deleted_at < $1
-         ORDER BY deleted_at DESC",
+         ORDER BY deleted_at DESC
+         LIMIT 10000",
     )
     .bind(Utc::now() - retention)
     .fetch_all(pool)
@@ -164,7 +165,10 @@ pub async fn expire(pool: &PgPool, retention: TimeDelta) -> Result<u64, ApiError
                 purged += 1;
             }
             Err(ApiError::NotFound) => tx.rollback().await?,
-            Err(other) => return Err(other),
+            Err(error) => {
+                tx.rollback().await?;
+                tracing::error!(%error, %owner_id, %id, "could not purge an expired trash root");
+            }
         }
     }
     Ok(purged)

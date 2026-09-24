@@ -73,6 +73,10 @@ const DEFAULT_BLOB_GRACE_PERIOD_SECONDS: u64 = 24 * 60 * 60;
 impl Config {
     pub fn from_env() -> Result<Self, ConfigError> {
         let backend = blobs()?;
+        let blob_sweep_interval_seconds = parse_or(
+            "BLOB_SWEEP_INTERVAL_SECONDS",
+            DEFAULT_BLOB_SWEEP_INTERVAL_SECONDS,
+        )?;
         Ok(Self {
             port: parse_or("PORT", 3001)?,
             database_url: required("DATABASE_URL")?,
@@ -89,12 +93,12 @@ impl Config {
                 .collect(),
             default_quota_bytes: parse_or("DEFAULT_QUOTA_BYTES", DEFAULT_QUOTA_BYTES)?,
             versions_kept: parse_or("VERSIONS_KEPT", VERSIONS_KEPT)?,
-            trash_retention_days: parse_or("TRASH_RETENTION_DAYS", 0)?,
-            session_ttl_seconds: parse_or("SESSION_TTL_SECONDS", DEFAULT_SESSION_TTL_SECONDS)?,
-            blob_sweep_interval_seconds: parse_or(
-                "BLOB_SWEEP_INTERVAL_SECONDS",
-                DEFAULT_BLOB_SWEEP_INTERVAL_SECONDS,
+            trash_retention_days: trash_retention(
+                parse_or("TRASH_RETENTION_DAYS", 0)?,
+                blob_sweep_interval_seconds,
             )?,
+            session_ttl_seconds: parse_or("SESSION_TTL_SECONDS", DEFAULT_SESSION_TTL_SECONDS)?,
+            blob_sweep_interval_seconds,
             blob_grace_period_seconds: parse_or(
                 "BLOB_GRACE_PERIOD_SECONDS",
                 DEFAULT_BLOB_GRACE_PERIOD_SECONDS,
@@ -123,6 +127,16 @@ fn upload_root(blobs: &BlobBackend) -> Result<PathBuf, ConfigError> {
 /// Local disk unless `BLOB_BACKEND=s3`. An unknown value is refused rather than quietly falling
 /// back, because a deployment that meant S3 and got local disk loses every upload when the pod
 /// restarts.
+fn trash_retention(days: u32, sweep_interval_seconds: u64) -> Result<u32, ConfigError> {
+    if days > 0 && sweep_interval_seconds == 0 {
+        return Err(ConfigError::Invalid {
+            name: "TRASH_RETENTION_DAYS",
+            reason: "needs BLOB_SWEEP_INTERVAL_SECONDS above 0, which is what purges it",
+        });
+    }
+    Ok(days)
+}
+
 fn blobs() -> Result<BlobBackend, ConfigError> {
     match optional("BLOB_BACKEND").as_deref() {
         None | Some("local") => Ok(BlobBackend::Local {
@@ -183,5 +197,27 @@ fn parse_or<T: std::str::FromStr>(name: &'static str, fallback: T) -> Result<T, 
             name,
             reason: "not a number",
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_retention_nothing_would_honour_is_refused() {
+        assert!(matches!(
+            trash_retention(30, 0),
+            Err(ConfigError::Invalid {
+                name: "TRASH_RETENTION_DAYS",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn a_retention_with_a_sweep_or_no_retention_at_all_is_accepted() {
+        assert!(matches!(trash_retention(30, 3600), Ok(30)));
+        assert!(matches!(trash_retention(0, 0), Ok(0)));
     }
 }
