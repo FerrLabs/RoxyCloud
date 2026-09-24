@@ -43,6 +43,13 @@ pub fn spawn(state: AppState, every: Duration, grace: Duration) {
                 Ok(_) => {}
                 Err(error) => error!(%error, "dropping orphaned thumbnails failed"),
             }
+            if let Some(retention) = state.trash_retention {
+                match crate::trash::expire(&state.db, retention).await {
+                    Ok(purged) if purged > 0 => info!(purged, "purged expired trash"),
+                    Ok(_) => {}
+                    Err(error) => error!(%error, "purging expired trash failed"),
+                }
+            }
             match sweep_uploads(&state).await {
                 Ok(cleared) if cleared > 0 => info!(uploads = cleared, "dropped expired uploads"),
                 Ok(_) => {}

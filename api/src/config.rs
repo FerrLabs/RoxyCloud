@@ -28,6 +28,7 @@ pub struct Config {
     pub cors_allowed_origins: Vec<String>,
     pub default_quota_bytes: i64,
     pub versions_kept: i64,
+    pub trash_retention_days: u32,
     pub session_ttl_seconds: i64,
     pub blob_sweep_interval_seconds: u64,
     pub blob_grace_period_seconds: u64,
@@ -88,6 +89,7 @@ impl Config {
                 .collect(),
             default_quota_bytes: parse_or("DEFAULT_QUOTA_BYTES", DEFAULT_QUOTA_BYTES)?,
             versions_kept: parse_or("VERSIONS_KEPT", VERSIONS_KEPT)?,
+            trash_retention_days: parse_or("TRASH_RETENTION_DAYS", 0)?,
             session_ttl_seconds: parse_or("SESSION_TTL_SECONDS", DEFAULT_SESSION_TTL_SECONDS)?,
             blob_sweep_interval_seconds: parse_or(
                 "BLOB_SWEEP_INTERVAL_SECONDS",

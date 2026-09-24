@@ -65,7 +65,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/v1/uploads/{id}/finish", post(uploads::finish))
         .route("/v1/move", post(files::rename))
-        .route("/v1/trash", get(trash::list))
+        .route("/v1/trash", get(trash::list).delete(trash::empty))
         .route("/v1/trash/{id}", delete(trash::purge))
         .route("/v1/trash/{id}/restore", post(trash::restore))
         .route("/v1/versions/{*path}", get(versions::list))

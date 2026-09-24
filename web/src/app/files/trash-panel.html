@@ -1,7 +1,19 @@
 <section class="panel" aria-labelledby="rx-trash-heading">
   <div class="bar">
     <h2 id="rx-trash-heading">Trash</h2>
-    <button type="button" class="ghost" (click)="closed.emit()">Close</button>
+    <span class="buttons">
+      @if (canChange() && (trashed.value() ?? []).length > 0) {
+        <button
+          type="button"
+          class="ghost danger"
+          [disabled]="busy()"
+          (click)="emptying.set(true)"
+        >
+          Empty the trash
+        </button>
+      }
+      <button type="button" class="ghost" (click)="closed.emit()">Close</button>
+    </span>
   </div>
 
   @if (failure(); as message) {
@@ -54,6 +66,16 @@
     </ul>
   }
 </section>
+
+@if (emptying()) {
+  <rx-confirm
+    heading="Empty the trash?"
+    body="Everything in it is deleted for good, with its versions. This cannot be undone."
+    action="Empty the trash"
+    (accepted)="empty()"
+    (dismissed)="emptying.set(false)"
+  />
+}
 
 @if (doomed(); as node) {
   <rx-confirm

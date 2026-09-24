@@ -3,7 +3,7 @@ import type { Account, Role } from './account';
 import type { AppPassword, MintedPassword } from './account/app-password';
 import type { ManagedAccount, NewAccount } from './accounts/managed';
 import type { Given, NewGrant, Received } from './grant';
-import type { Node } from './node';
+import type { Node, Trashed } from './node';
 import type { Minted, NewShare, Share } from './share';
 import type { SyncCommand, Syncing } from './sync/syncing';
 import type { Version } from './version';
@@ -61,9 +61,10 @@ export interface Platform {
   listVersions?(path: string): Promise<Version[]>;
   downloadVersion?(path: string, id: string, name: string): Promise<void>;
   restoreVersion?(path: string, id: string): Promise<Node>;
-  listTrash?(): Promise<Node[]>;
+  listTrash?(): Promise<Trashed[]>;
   restoreFromTrash?(id: string): Promise<Node>;
   purgeFromTrash?(id: string): Promise<void>;
+  emptyTrash?(): Promise<void>;
 }
 
 export const PLATFORM = new InjectionToken<Platform>('RoxyCloud platform');
@@ -227,11 +228,14 @@ function browserPlatform(baseUrl: string): Platform {
     },
     restoreVersion: (path, id) =>
       json<Node>(`/v1/version/${encodeURIComponent(id)}${encodePath(path)}`, { method: 'POST' }),
-    listTrash: () => json<Node[]>('/v1/trash'),
+    listTrash: () => json<Trashed[]>('/v1/trash'),
     restoreFromTrash: (id) =>
       json<Node>(`/v1/trash/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
     purgeFromTrash: async (id) => {
       await call(`/v1/trash/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    },
+    emptyTrash: async () => {
+      await call('/v1/trash', { method: 'DELETE' });
     },
   };
 }

@@ -13,6 +13,8 @@ export type Node = {
   deleted_at?: string;
 };
 
+export type Trashed = Node & { expires_at?: string };
+
 const UNITS = ['B', 'kB', 'MB', 'GB', 'TB'] as const;
 
 export function formatSize(bytes: number): string {
