@@ -224,6 +224,34 @@ database_test!(the_history_stops_at_the_cap, harness, {
     );
 });
 
+database_test!(
+    turning_versions_off_drains_a_file_at_its_next_write,
+    harness,
+    {
+        let owner = harness.account("drain@example.com", Role::Member).await;
+        let kept = [b"version one", b"version two"];
+        for contents in kept {
+            harness.write(owner.id, "a.txt", contents).await;
+        }
+        harness.write(owner.id, "a.txt", b"version 3!!").await;
+        assert_eq!(version_count(&harness, owner.id, "a.txt").await, 2);
+
+        harness
+            .write_without_versions(owner.id, "a.txt", b"version 4!!")
+            .await;
+
+        assert_eq!(version_count(&harness, owner.id, "a.txt").await, 0);
+        assert_eq!(
+            harness.used_bytes(owner.id).await,
+            11,
+            "only the current content is left to count"
+        );
+        for contents in kept {
+            assert_eq!(harness.blob(hash_of(contents)).await, Some((0, true)));
+        }
+    }
+);
+
 database_test!(versions_count_against_the_quota, harness, {
     let owner = harness.account("count@example.com", Role::Member).await;
 

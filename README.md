@@ -129,7 +129,7 @@ Migrations run on boot. Configuration is environment only:
 | `WEB_ROOT` | unset | Directory holding the built web app, served alongside the API |
 | `CORS_ALLOWED_ORIGINS` | empty | Comma-separated origins for the SPA, not needed when `WEB_ROOT` serves it |
 | `DEFAULT_QUOTA_BYTES` | 10 GiB | Quota granted on first write |
-| `VERSIONS_KEPT` | `10` | Previous versions kept per file; `0` keeps none |
+| `VERSIONS_KEPT` | `10` | Previous versions kept per file; lowering it, or `0`, trims a file's history at its next write |
 | `SESSION_TTL_SECONDS` | 12 h | Session token lifetime |
 | `BLOB_SWEEP_INTERVAL_SECONDS` | 1 h | How often orphaned blobs are collected, `0` disables it |
 | `BLOB_GRACE_PERIOD_SECONDS` | 24 h | How long an unreferenced blob is kept before collection |

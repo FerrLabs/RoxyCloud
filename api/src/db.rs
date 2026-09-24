@@ -266,10 +266,10 @@ pub async fn put_file(
     if let Some((node_id, previous_hash, previous_size)) = previous {
         if versioned {
             versions::keep(tx, node_id, previous_hash, previous_size).await?;
-            versions::prune_beyond(tx, owner_id, node_id, versions_kept).await?;
         } else {
             release_blob(tx, previous_hash).await?;
         }
+        versions::prune_beyond(tx, owner_id, node_id, versions_kept).await?;
     }
 
     let etag = etag_for_file(hash);
