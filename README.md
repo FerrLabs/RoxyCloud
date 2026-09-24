@@ -120,7 +120,7 @@ Migrations run on boot. Configuration is environment only:
 | `UPLOAD_ROOT` | beside `BLOB_ROOT` | Scratch space for resumable uploads in flight; refused at startup if unset when the backend is `s3` |
 | `BLOB_ROOT` | `./data` | Local blob store root, when the backend is `local` |
 | `S3_BUCKET` | | Required when the backend is `s3` |
-| `S3_ENDPOINT` | | MinIO or Garage URL; leave unset for AWS |
+| `S3_ENDPOINT` | | MinIO, RustFS or Garage URL; leave unset for AWS |
 | `S3_REGION` | | Region, when the endpoint needs one |
 | `S3_PREFIX` | | Key prefix, for sharing a bucket |
 | `S3_ACCESS_KEY_ID` | | Omit to use the credentials the environment provides |

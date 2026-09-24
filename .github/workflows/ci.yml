@@ -34,12 +34,12 @@ jobs:
 
       - name: An object store, so the S3 backend is exercised rather than assumed
         run: |
-          docker run -d --name minio -p 9000:9000 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin quay.io/minio/minio:latest server /data
+          docker run -d --name s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=minioadmin -e RUSTFS_SECRET_KEY=minioadmin rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
           for _ in $(seq 1 30); do
-            curl -fsS http://localhost:9000/minio/health/live > /dev/null && exit 0
+            curl -fsS http://localhost:9000/health > /dev/null && exit 0
             sleep 1
           done
-          echo "MinIO never came up" >&2
+          echo "The object store never came up" >&2
           exit 1
 
       - name: Tauri needs a webview and a tray at build time
