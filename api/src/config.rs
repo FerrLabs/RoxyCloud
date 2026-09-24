@@ -124,9 +124,6 @@ fn upload_root(blobs: &BlobBackend) -> Result<PathBuf, ConfigError> {
     }
 }
 
-/// Local disk unless `BLOB_BACKEND=s3`. An unknown value is refused rather than quietly falling
-/// back, because a deployment that meant S3 and got local disk loses every upload when the pod
-/// restarts.
 fn trash_retention(days: u32, sweep_interval_seconds: u64) -> Result<u32, ConfigError> {
     if days > 0 && sweep_interval_seconds == 0 {
         return Err(ConfigError::Invalid {
@@ -137,6 +134,9 @@ fn trash_retention(days: u32, sweep_interval_seconds: u64) -> Result<u32, Config
     Ok(days)
 }
 
+/// Local disk unless `BLOB_BACKEND=s3`. An unknown value is refused rather than quietly falling
+/// back, because a deployment that meant S3 and got local disk loses every upload when the pod
+/// restarts.
 fn blobs() -> Result<BlobBackend, ConfigError> {
     match optional("BLOB_BACKEND").as_deref() {
         None | Some("local") => Ok(BlobBackend::Local {
