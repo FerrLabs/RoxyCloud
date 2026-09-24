@@ -51,12 +51,13 @@ export class VersionsDialog {
   }
 
   protected async download(version: Version): Promise<void> {
-    const fetch = this.platform.downloadVersion;
-    if (fetch === undefined) {
+    const get = this.platform.downloadVersion;
+    if (get === undefined) {
       return;
     }
     await this.attempt(async () => {
-      await fetch(this.path(), version.id, this.node().name);
+      await get(this.path(), version.id, this.node().name);
+      this.announcement.set(`Downloaded the version from ${formatMoment(version.created_at)}.`);
     });
   }
 
