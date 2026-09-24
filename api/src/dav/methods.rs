@@ -415,7 +415,16 @@ async fn put(state: AppState, caller: DavCaller, request: Request) -> Result<Res
         Some(node) => locks::allows(&mut tx, node, &submitted).await?,
         None => locks::allows(&mut tx, &parent, &submitted).await?,
     }
-    let node = db::put_file(&mut tx, parent.owner_id, &parent, &name, written.hash, size).await?;
+    let node = db::put_file(
+        &mut tx,
+        parent.owner_id,
+        &parent,
+        &name,
+        written.hash,
+        size,
+        state.versions_kept,
+    )
+    .await?;
     tx.commit().await?;
     state.blobs.settle(&written).await?;
 

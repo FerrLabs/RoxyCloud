@@ -13,6 +13,7 @@ use crate::error::ApiError;
 use crate::state::AppState;
 use crate::storage;
 use crate::trash;
+use roxycloud_core::blob::BlobHash;
 use roxycloud_core::name::parse_path;
 use roxycloud_core::node::{Node, NodeKind};
 
@@ -45,7 +46,16 @@ pub async fn put(
         state.default_quota_bytes,
     )
     .await?;
-    let node = db::put_file(&mut tx, parent.owner_id, &parent, &name, written.hash, size).await?;
+    let node = db::put_file(
+        &mut tx,
+        parent.owner_id,
+        &parent,
+        &name,
+        written.hash,
+        size,
+        state.versions_kept,
+    )
+    .await?;
     tx.commit().await?;
     state.blobs.settle(&written).await?;
 
@@ -69,16 +79,23 @@ pub(crate) async fn bytes_of(state: &AppState, node: &Node) -> Result<Response, 
     let (NodeKind::File, Some(hash)) = (node.kind, node.blob_hash) else {
         return Err(ApiError::WrongKind { expected: "file" });
     };
+    blob_bytes(state, hash, node.size, etag_header(node)?).await
+}
 
+pub(crate) async fn blob_bytes(
+    state: &AppState,
+    hash: BlobHash,
+    size: i64,
+    etag: HeaderValue,
+) -> Result<Response, ApiError> {
     let file = state.blobs.read(hash).await?;
-    let etag = etag_header(node)?;
 
     Ok((
         [
             (header::ETAG, etag),
             (
                 header::CONTENT_LENGTH,
-                HeaderValue::from(u64::try_from(node.size).unwrap_or(0)),
+                HeaderValue::from(u64::try_from(size).unwrap_or(0)),
             ),
         ],
         never_rendered(),

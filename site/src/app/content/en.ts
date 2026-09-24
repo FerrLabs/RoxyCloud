@@ -43,6 +43,7 @@ export const en: SiteContent = {
         'S3-compatible object storage as well as local disk, which is what lets the chart run more than one replica',
         'Folder sync from the desktop window or the command line, keeping both copies when a file changed on both sides',
         'Installers for Windows and Linux on every release, and updates installed from inside the app',
+        'Previous versions of a file, kept on every overwrite and restorable, counted against the quota',
       ],
       plannedHeading: 'Not written yet',
       planned: [

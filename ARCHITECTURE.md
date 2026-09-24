@@ -224,6 +224,8 @@ addressed by BLAKE3 digest. Two users uploading the same file produce two nodes 
 ```mermaid
 erDiagram
     NODE ||--o| BLOB : "file nodes reference"
+    NODE ||--o{ VERSION : "keeps what an overwrite replaced"
+    VERSION }o--|| BLOB : references
     NODE ||--o{ NODE : "parent of"
     USER ||--o{ NODE : owns
     USER ||--o{ APP_PASSWORD : mints
@@ -246,10 +248,20 @@ erDiagram
         bigint ref_count
         text backend_key
     }
+    VERSION {
+        uuid id PK "UUIDv7, so newest first is id order"
+        uuid node_id FK
+        bytea blob_hash FK
+        bigint size
+    }
 ```
 
+A blob has two kinds of holder: the file node that shows it now, and the versions that keep what
+earlier writes replaced. `ref_count` counts both. An overwrite moves the reference it would have
+released from the node to a new version, so keeping history copies nothing and costs one row.
+
 Trashing a node does not touch `blob.ref_count`, or the bytes would be collectable while the node is
-still restorable. Purging it does, and a blob reaching zero is not deleted inline: a sweeper collects
+still restorable. Purging it does, for the node and for every version under it, and a blob reaching zero is not deleted inline: a sweeper collects
 it after a grace period, so a delete followed by a re-upload of the same content does not race the
 collector. The sweep reads the collectable rows, then deletes each one under a second check in the
 same statement, so a reference taken between the read and the delete keeps the blob.

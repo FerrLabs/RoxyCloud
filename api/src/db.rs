@@ -3,6 +3,7 @@ use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::error::ApiError;
+use crate::versions;
 use roxycloud_core::blob::BlobHash;
 use roxycloud_core::name::NodeName;
 use roxycloud_core::node::{Node, NodeKind, etag_for_directory, etag_for_file};
@@ -82,6 +83,25 @@ pub async fn child(
         node_columns!(),
         " FROM nodes
          WHERE parent_id = $1 AND name = $2 AND deleted_at IS NULL"
+    ))
+    .bind(parent_id)
+    .bind(name.as_str())
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(Into::into)
+}
+
+async fn child_for_update(
+    tx: &mut Transaction<'_, Postgres>,
+    parent_id: Uuid,
+    name: &NodeName,
+) -> Result<Option<Node>, ApiError> {
+    sqlx::query_as::<_, Node>(concat!(
+        "SELECT ",
+        node_columns!(),
+        " FROM nodes
+         WHERE parent_id = $1 AND name = $2 AND deleted_at IS NULL
+         FOR UPDATE"
     ))
     .bind(parent_id)
     .bind(name.as_str())
@@ -210,6 +230,7 @@ pub async fn put_file(
     name: &NodeName,
     hash: BlobHash,
     size: i64,
+    versions_kept: i64,
 ) -> Result<Node, ApiError> {
     sqlx::query("INSERT INTO blobs (hash, size) VALUES ($1, $2) ON CONFLICT DO NOTHING")
         .bind(hash)
@@ -217,19 +238,38 @@ pub async fn put_file(
         .execute(&mut **tx)
         .await?;
 
-    let existing = child(tx, parent.id, name).await?;
+    let existing = child_for_update(tx, parent.id, name).await?;
     if let Some(node) = &existing
         && node.kind == NodeKind::Directory
     {
         return Err(ApiError::Conflict(name.to_string()));
     }
 
-    let previous_size = existing.as_ref().map_or(0, |node| node.size);
-    charge_quota(tx, owner_id, size - previous_size).await?;
+    let previous = existing.as_ref().and_then(|node| {
+        node.blob_hash
+            .map(|previous| (node.id, previous, node.size))
+    });
+    let versioned = match previous {
+        Some((node_id, previous_hash, previous_size))
+            if versions_kept > 0 && previous_size > 0 && previous_hash != hash =>
+        {
+            versions::make_room(tx, owner_id, node_id, size, previous_size).await?
+        }
+        _ => {
+            let previous_size = previous.map_or(0, |(_, _, previous_size)| previous_size);
+            charge_quota(tx, owner_id, size - previous_size).await?;
+            false
+        }
+    };
 
     acquire_blob(tx, hash).await?;
-    if let Some(previous) = existing.as_ref().and_then(|node| node.blob_hash) {
-        release_blob(tx, previous).await?;
+    if let Some((node_id, previous_hash, previous_size)) = previous {
+        if versioned {
+            versions::keep(tx, node_id, previous_hash, previous_size).await?;
+        } else {
+            release_blob(tx, previous_hash).await?;
+        }
+        versions::prune_beyond(tx, owner_id, node_id, versions_kept).await?;
     }
 
     let etag = etag_for_file(hash);
