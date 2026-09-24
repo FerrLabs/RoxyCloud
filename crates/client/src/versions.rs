@@ -4,7 +4,7 @@ use roxycloud_core::node::Node;
 use roxycloud_core::version::Version;
 use uuid::Uuid;
 
-use crate::remote::{Remote, RemoteError, check};
+use crate::remote::{Remote, RemoteError, answered, check};
 use crate::transfer::save;
 
 impl Remote {
@@ -45,7 +45,6 @@ impl Remote {
             .bearer_auth(self.token())
             .send()
             .await?;
-        check(response.status(), path)?;
-        Ok(response.json().await?)
+        Ok(answered(response, path).await?.json().await?)
     }
 }

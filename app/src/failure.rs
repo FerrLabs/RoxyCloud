@@ -16,6 +16,15 @@ impl From<RemoteError> for Failure {
     }
 }
 
+impl From<String> for Failure {
+    fn from(message: String) -> Self {
+        Self {
+            status: None,
+            message,
+        }
+    }
+}
+
 impl From<&str> for Failure {
     fn from(message: &str) -> Self {
         Self {

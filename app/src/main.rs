@@ -164,13 +164,10 @@ fn into_downloads(app: &AppHandle, path: &str) -> Result<std::path::PathBuf, Str
 }
 
 #[tauri::command]
-async fn list_versions(desktop: State<'_, Desktop>, path: String) -> Result<Vec<Version>, String> {
+async fn list_versions(desktop: State<'_, Desktop>, path: String) -> Result<Vec<Version>, Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote
-        .list_versions(&path)
-        .await
-        .map_err(|error| format!("{path}: {error}"))
+    Ok(remote.list_versions(&path).await?)
 }
 
 #[tauri::command]
@@ -179,15 +176,12 @@ async fn download_version(
     desktop: State<'_, Desktop>,
     path: String,
     id: Uuid,
-) -> Result<String, String> {
+) -> Result<String, Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
     let destination = into_downloads(&app, &path)?;
 
-    remote
-        .download_version(&path, id, &destination)
-        .await
-        .map_err(|error| format!("{path}: {error}"))?;
+    remote.download_version(&path, id, &destination).await?;
     Ok(destination.to_string_lossy().into_owned())
 }
 
@@ -196,13 +190,10 @@ async fn restore_version(
     desktop: State<'_, Desktop>,
     path: String,
     id: Uuid,
-) -> Result<Node, String> {
+) -> Result<Node, Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote
-        .restore_version(&path, id)
-        .await
-        .map_err(|error| format!("{path}: {error}"))
+    Ok(remote.restore_version(&path, id).await?)
 }
 
 #[tauri::command]
