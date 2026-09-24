@@ -4,6 +4,7 @@ import type { AppPassword, MintedPassword } from './account/app-password';
 import type { ManagedAccount, NewAccount } from './accounts/managed';
 import type { Given, NewGrant, Received } from './grant';
 import type { Node, Trashed } from './node';
+import { baseName, type Dropping, type Outgoing } from './outgoing';
 import type { Minted, NewShare, Share } from './share';
 import type { SyncCommand, Syncing } from './sync/syncing';
 import type { Version } from './version';
@@ -51,6 +52,8 @@ export interface Platform {
   remove(path: string): Promise<void>;
   rename(from: string, to: string): Promise<Node>;
   upload?(path: string, file: File): Promise<void>;
+  pickUploads?(): Promise<Outgoing[]>;
+  watchDrops?(listener: (dropping: Dropping) => void): Promise<() => void>;
   listShares?(): Promise<Share[]>;
   share?(request: NewShare): Promise<Minted>;
   revokeShare?(id: string): Promise<void>;
@@ -366,6 +369,24 @@ function desktopPlatform(fallback: string): Platform {
     grant: (request) => command<Given>('grant', { request }),
     receivedGrants: () => command<Received[]>('received_grants'),
     withdrawGrant: (id) => command<void>('withdraw_grant', { id }),
+    pickUploads: async () => fromPaths(await command<string[]>('pick_uploads')),
+    watchDrops: async (listener) => {
+      const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+      return getCurrentWebview().onDragDropEvent(({ payload }) => {
+        switch (payload.type) {
+          case 'enter':
+          case 'over':
+            listener({ kind: 'over' });
+            break;
+          case 'leave':
+            listener({ kind: 'leave' });
+            break;
+          case 'drop':
+            listener({ kind: 'drop', items: fromPaths(payload.paths) });
+            break;
+        }
+      });
+    },
   };
 }
 
@@ -386,6 +407,15 @@ function failureFrom(cause: unknown): Error {
   return typeof status === 'number'
     ? new RequestFailed(status, String(message))
     : new Error(String(message));
+}
+
+function fromPaths(paths: string[]): Outgoing[] {
+  return paths.map((source) => ({
+    name: baseName(source),
+    send: async (destination) => {
+      await command<Node>('upload_file', { path: destination, source });
+    },
+  }));
 }
 
 function addressOf(server: string): string {

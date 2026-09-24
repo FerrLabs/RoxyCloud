@@ -40,7 +40,10 @@ uploads, and WebDAV with locking, which is what lets macOS Finder and Windows Ex
 Overwriting a file keeps what it replaced as a version, which can be downloaded or restored.
 
 The desktop app asks which instance to sign in to and remembers it, so one build works against
-any server, and keeps a folder in sync from its own window as well as from `roxy sync`.
+any server, and keeps a folder in sync from its own window as well as from `roxy sync`. It uploads
+from the system's file picker or from files dragged onto its window, streaming each one from disk
+rather than loading it into the window first. A dropped folder is refused with a note to sync it
+instead.
 
 ## Layout
 

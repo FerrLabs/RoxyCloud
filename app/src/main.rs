@@ -1,6 +1,8 @@
 mod failure;
 mod sync;
 
+use std::path::PathBuf;
+
 use roxycloud_client::sync::watch::Session as SyncSession;
 use roxycloud_client::{Remote, free_path};
 use roxycloud_core::grant::{Given, NewGrant, Received};
@@ -9,6 +11,7 @@ use roxycloud_core::share::{Minted, NewShare, Share};
 use roxycloud_core::user::User;
 use roxycloud_core::version::Version;
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::Mutex;
 
@@ -156,7 +159,7 @@ async fn download_file(
     Ok(destination.to_string_lossy().into_owned())
 }
 
-fn into_downloads(app: &AppHandle, path: &str) -> Result<std::path::PathBuf, String> {
+fn into_downloads(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
     let directory = app
         .path()
         .download_dir()
@@ -295,6 +298,46 @@ async fn withdraw_grant(desktop: State<'_, Desktop>, id: Uuid) -> Result<(), Fai
     Ok(remote.withdraw_grant(id).await?)
 }
 
+#[tauri::command]
+async fn pick_uploads(app: AppHandle) -> Result<Vec<PathBuf>, String> {
+    let (chosen, answer) = tokio::sync::oneshot::channel();
+    app.dialog().file().pick_files(move |files| {
+        let _ = chosen.send(files);
+    });
+
+    let files = answer
+        .await
+        .map_err(|_| "the file picker went away".to_owned())?
+        .unwrap_or_default();
+    files
+        .into_iter()
+        .map(|file| {
+            file.into_path()
+                .map_err(|error| format!("that file is not one this computer can open: {error}"))
+        })
+        .collect()
+}
+
+#[tauri::command]
+async fn upload_file(
+    desktop: State<'_, Desktop>,
+    path: String,
+    source: PathBuf,
+) -> Result<Node, String> {
+    if source.is_dir() {
+        return Err(format!(
+            "{} is a folder; upload the files inside it, or sync the folder",
+            source.display()
+        ));
+    }
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    remote
+        .upload(&path, &source)
+        .await
+        .map_err(|error| format!("{path}: {error}"))
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -323,6 +366,8 @@ fn main() {
             grant,
             received_grants,
             withdraw_grant,
+            pick_uploads,
+            upload_file,
             sync::pick_folder,
             sync::start_sync,
             sync::sync_control,
