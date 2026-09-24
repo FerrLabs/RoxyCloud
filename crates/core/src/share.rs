@@ -22,11 +22,39 @@ pub struct Minted {
     pub token: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct NewShare {
     pub path: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
+}
+
+impl std::fmt::Debug for NewShare {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("NewShare")
+            .field("path", &self.path)
+            .field("expires_at", &self.expires_at)
+            .field("password", &self.password.as_ref().map(|_| "redacted"))
+            .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_share_password_never_reaches_a_log_line() {
+        let request = NewShare {
+            path: "photos".to_owned(),
+            expires_at: None,
+            password: Some("correct horse battery".to_owned()),
+        };
+        let printed = format!("{request:?}");
+        assert!(!printed.contains("correct horse battery"));
+        assert!(printed.contains("redacted"));
+    }
 }

@@ -251,10 +251,13 @@ database_test!(
         let again = remote.grant(&request).await;
 
         match again {
-            Err(RemoteError::Refused(message)) => assert_eq!(
-                message,
-                "this address already reaches this through another share"
-            ),
+            Err(RemoteError::Refused { status, message }) => {
+                assert_eq!(status, StatusCode::CONFLICT);
+                assert_eq!(
+                    message,
+                    "this address already reaches this through another share"
+                );
+            }
             other => panic!("expected the server's own words, got {other:?}"),
         }
     }

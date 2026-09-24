@@ -34,7 +34,8 @@ impl Remote {
             .bearer_auth(self.token())
             .send()
             .await?;
-        check(response.status(), &id.to_string())
+        answered(response, &id.to_string()).await?;
+        Ok(())
     }
 
     pub async fn list_grants(&self) -> Result<Vec<Given>, RemoteError> {
@@ -66,6 +67,7 @@ impl Remote {
             .bearer_auth(self.token())
             .send()
             .await?;
-        check(response.status(), &id.to_string())
+        answered(response, &id.to_string()).await?;
+        Ok(())
     }
 }

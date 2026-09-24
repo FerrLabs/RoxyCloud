@@ -247,70 +247,52 @@ async fn empty_trash(desktop: State<'_, Desktop>) -> Result<(), Failure> {
 }
 
 #[tauri::command]
-async fn list_shares(desktop: State<'_, Desktop>) -> Result<Vec<Share>, String> {
+async fn list_shares(desktop: State<'_, Desktop>) -> Result<Vec<Share>, Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote
-        .list_shares()
-        .await
-        .map_err(|error| error.to_string())
+    Ok(remote.list_shares().await?)
 }
 
 #[tauri::command]
-async fn share(desktop: State<'_, Desktop>, request: NewShare) -> Result<Minted, String> {
+async fn share(desktop: State<'_, Desktop>, request: NewShare) -> Result<Minted, Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote
-        .share(&request)
-        .await
-        .map_err(|error| error.to_string())
+    Ok(remote.share(&request).await?)
 }
 
 #[tauri::command]
-async fn revoke_share(desktop: State<'_, Desktop>, id: Uuid) -> Result<(), String> {
+async fn revoke_share(desktop: State<'_, Desktop>, id: Uuid) -> Result<(), Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote
-        .revoke_share(id)
-        .await
-        .map_err(|error| error.to_string())
+    Ok(remote.revoke_share(id).await?)
 }
 
 #[tauri::command]
-async fn list_grants(desktop: State<'_, Desktop>) -> Result<Vec<Given>, String> {
+async fn list_grants(desktop: State<'_, Desktop>) -> Result<Vec<Given>, Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote
-        .list_grants()
-        .await
-        .map_err(|error| error.to_string())
+    Ok(remote.list_grants().await?)
 }
 
 #[tauri::command]
-async fn grant(desktop: State<'_, Desktop>, request: NewGrant) -> Result<Given, String> {
+async fn grant(desktop: State<'_, Desktop>, request: NewGrant) -> Result<Given, Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote
-        .grant(&request)
-        .await
-        .map_err(|error| error.to_string())
+    Ok(remote.grant(&request).await?)
 }
 
 #[tauri::command]
-async fn received_grants(desktop: State<'_, Desktop>) -> Result<Vec<Received>, String> {
+async fn received_grants(desktop: State<'_, Desktop>) -> Result<Vec<Received>, Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote.received().await.map_err(|error| error.to_string())
+    Ok(remote.received().await?)
 }
 
 #[tauri::command]
-async fn withdraw_grant(desktop: State<'_, Desktop>, id: Uuid) -> Result<(), String> {
+async fn withdraw_grant(desktop: State<'_, Desktop>, id: Uuid) -> Result<(), Failure> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-    remote
-        .withdraw_grant(id)
-        .await
-        .map_err(|error| error.to_string())
+    Ok(remote.withdraw_grant(id).await?)
 }
 
 fn main() {
