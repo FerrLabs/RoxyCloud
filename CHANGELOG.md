@@ -4,6 +4,13 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.0] - 2026-09-24
+
+### Features
+
+- feat(web): list, download and restore the versions of a file (#192)
+- feat(api): keep the previous versions of a file when it is overwritten (#191)
+
 ## [0.28.1] - 2026-09-24
 
 ### Bug Fixes
