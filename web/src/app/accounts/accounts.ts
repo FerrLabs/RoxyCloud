@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { Session, describeRole, type Role } from '../account';
+import { linkTo } from '../folder';
 import { PLATFORM } from '../platform';
 import { Confirm } from '../shared/confirm';
 import { AccountPassword } from './account-password';
@@ -51,7 +52,7 @@ export class Accounts {
     effect(() => {
       const account = this.session.account();
       if (account !== null && account.role !== 'admin') {
-        void this.router.navigate(['/']);
+        void this.router.navigate(linkTo(''));
       }
     });
   }

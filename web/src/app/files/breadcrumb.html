@@ -4,7 +4,7 @@
       @if (segments().length === 0) {
         <span aria-current="page">All files</span>
       } @else {
-        <a routerLink="/">All files</a>
+        <a [routerLink]="link('')">All files</a>
       }
     </li>
     @for (segment of segments(); track segment.path; let last = $last) {
@@ -12,7 +12,7 @@
         @if (last) {
           <span aria-current="page">{{ segment.name }}</span>
         } @else {
-          <a [routerLink]="'/' + segment.path">{{ segment.name }}</a>
+          <a [routerLink]="link(segment.path)">{{ segment.name }}</a>
         }
       </li>
     }

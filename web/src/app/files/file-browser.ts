@@ -12,7 +12,7 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, type UrlSegment } from '@angular/router';
 import { Session } from '../account';
-import { childOf } from '../folder';
+import { childOf, linkTo } from '../folder';
 import { SHARED_WITH_ME, describeOrigin, whereIs, type Received } from '../grant';
 import { byKindThenName, formatDate, formatSize, type Node } from '../node';
 import { PLATFORM } from '../platform';
@@ -178,7 +178,7 @@ export class FileBrowser {
 
   protected open(node: Node): void {
     if (node.kind === 'directory') {
-      void this.router.navigate(['/', ...this.path().split('/').filter(Boolean), node.name]);
+      void this.router.navigate(linkTo(this.pathOf(node)));
       return;
     }
     this.opened.set(node);
