@@ -1,0 +1,75 @@
+<dialog #dialog (cancel)="dismiss()">
+  <h2>Versions of {{ node().name }}</h2>
+  <p class="hint">
+    Each time the file is replaced, what it held before is kept here. The oldest go first when the
+    list is full or the account runs out of room.
+  </p>
+
+  @if (versions.isLoading()) {
+    <p class="state" aria-busy="true">Loading the versions</p>
+  } @else if (versions.error(); as error) {
+    <div class="state">
+      <p>The versions did not load.</p>
+      <p class="detail">{{ error }}</p>
+      <button type="button" class="ghost" (click)="versions.reload()">Try again</button>
+    </div>
+  } @else if ((versions.value() ?? []).length === 0) {
+    <p class="state">No earlier versions. This file has not been replaced yet.</p>
+  } @else {
+    <ul class="versions">
+      @for (version of versions.value() ?? []; track version.id) {
+        <li>
+          <span class="when">
+            <span>{{ moment(version.created_at) }}</span>
+            <span class="detail">{{ size(version.size) }}</span>
+          </span>
+          <span class="buttons">
+            <button
+              type="button"
+              class="ghost"
+              [disabled]="busy()"
+              [attr.aria-label]="'Download the version from ' + moment(version.created_at)"
+              (click)="download(version)"
+            >
+              Download
+            </button>
+            @if (canRestore()) {
+              <button
+                type="button"
+                class="ghost"
+                [disabled]="busy()"
+                [attr.aria-label]="'Restore the version from ' + moment(version.created_at)"
+                (click)="restoring.set(version)"
+              >
+                Restore
+              </button>
+            }
+          </span>
+        </li>
+      }
+    </ul>
+  }
+
+  @if (failure(); as message) {
+    <p class="failure" role="alert">{{ message }}</p>
+  }
+  <p class="announcement" role="status" aria-live="polite">{{ announcement() }}</p>
+
+  <div class="actions">
+    <button type="button" class="primary" (click)="dismiss()">Done</button>
+  </div>
+</dialog>
+
+@if (restoring(); as version) {
+  <rx-confirm
+    [heading]="'Restore ' + node().name + '?'"
+    [body]="
+      'It goes back to the version from ' +
+      moment(version.created_at) +
+      '. The current content is kept as a version, so this can be undone.'
+    "
+    action="Restore"
+    (accepted)="restore(version)"
+    (dismissed)="restoring.set(null)"
+  />
+}

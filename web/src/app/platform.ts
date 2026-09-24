@@ -6,6 +6,7 @@ import type { Given, NewGrant, Received } from './grant';
 import type { Node } from './node';
 import type { Minted, NewShare, Share } from './share';
 import type { SyncCommand, Syncing } from './sync/syncing';
+import type { Version } from './version';
 
 export type PlatformKind = 'browser' | 'desktop';
 
@@ -57,6 +58,9 @@ export interface Platform {
   grant?(request: NewGrant): Promise<Given>;
   receivedGrants?(): Promise<Received[]>;
   withdrawGrant?(id: string): Promise<void>;
+  listVersions?(path: string): Promise<Version[]>;
+  downloadVersion?(path: string, id: string, name: string): Promise<void>;
+  restoreVersion?(path: string, id: string): Promise<Node>;
 }
 
 export const PLATFORM = new InjectionToken<Platform>('RoxyCloud platform');
@@ -180,13 +184,7 @@ function browserPlatform(baseUrl: string): Platform {
       await call(`/v1/files${encodePath(path)}`, { method: 'PUT', body: file });
     },
     download: async (path, name) => {
-      const blob = await (await call(`/v1/files${encodePath(path)}`)).blob();
-      const href = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = href;
-      link.download = name;
-      link.click();
-      URL.revokeObjectURL(href);
+      save(await (await call(`/v1/files${encodePath(path)}`)).blob(), name);
       return null;
     },
     remove: async (path) => {
@@ -219,7 +217,23 @@ function browserPlatform(baseUrl: string): Platform {
     withdrawGrant: async (id) => {
       await call(`/v1/grants/${encodeURIComponent(id)}`, { method: 'DELETE' });
     },
+    listVersions: (path) => json<Version[]>(`/v1/versions${encodePath(path)}`),
+    downloadVersion: async (path, id, name) => {
+      const address = `/v1/version/${encodeURIComponent(id)}${encodePath(path)}`;
+      save(await (await call(address)).blob(), name);
+    },
+    restoreVersion: (path, id) =>
+      json<Node>(`/v1/version/${encodeURIComponent(id)}${encodePath(path)}`, { method: 'POST' }),
   };
+}
+
+function save(blob: Blob, name: string): void {
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = href;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(href);
 }
 
 async function messageFor(response: Response): Promise<string> {

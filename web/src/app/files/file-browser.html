@@ -141,6 +141,34 @@
                 </svg>
               </button>
             }
+            @if (canSeeVersions && node.kind === 'file') {
+              <button
+                type="button"
+                class="icon"
+                [attr.aria-label]="'Versions of ' + node.name"
+                [title]="'Versions of ' + node.name"
+                (click)="versioning.set(node)"
+              >
+                <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
+                  <path
+                    d="M3.8 10a6.2 6.2 0 1 0 1.8-4.4M3.5 3.5v3h3"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M10 6.5V10l2.4 1.6"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+            }
             @if (mayShare(node)) {
               <button
                 type="button"
@@ -282,5 +310,15 @@
     [path]="pathOf(node)"
     (created)="notePublished()"
     (dismissed)="sharing.set(null)"
+  />
+}
+
+@if (versioning(); as node) {
+  <rx-versions-dialog
+    [node]="node"
+    [path]="pathOf(node)"
+    [canRestore]="canRestore()"
+    (restored)="listing.reload()"
+    (dismissed)="versioning.set(null)"
   />
 }

@@ -1,0 +1,97 @@
+dialog {
+  width: min(32rem, calc(100vw - 2rem));
+  padding: 1.75rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+dialog::backdrop {
+  background: rgb(8 15 26 / 55%);
+}
+
+h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  margin: 0 0 1rem;
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.state {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.state p {
+  margin: 0 0 0.5rem;
+}
+
+.versions {
+  max-height: 50vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.versions li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.55rem 0.8rem;
+}
+
+.versions li + li {
+  border-top: 1px solid var(--rule-soft);
+}
+
+.when {
+  display: grid;
+}
+
+.buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.detail {
+  color: var(--ink-faint);
+  font-size: 0.8rem;
+}
+
+.failure {
+  margin: 1rem 0 0;
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius);
+  background: var(--danger-wash);
+  color: var(--danger-ink);
+  font-size: 0.9rem;
+}
+
+.announcement:empty {
+  display: none;
+}
+
+.announcement {
+  margin: 1rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}

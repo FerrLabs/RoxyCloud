@@ -23,10 +23,20 @@ import { Preview } from './preview';
 import { ShareDialog } from './share-dialog';
 import { SharesPanel } from './shares-panel';
 import { UploadTarget } from './upload-target';
+import { VersionsDialog } from './versions-dialog';
 
 @Component({
   selector: 'rx-file-browser',
-  imports: [Breadcrumb, Confirm, Preview, Prompt, ShareDialog, SharesPanel, UploadTarget],
+  imports: [
+    Breadcrumb,
+    Confirm,
+    Preview,
+    Prompt,
+    ShareDialog,
+    SharesPanel,
+    UploadTarget,
+    VersionsDialog,
+  ],
   templateUrl: './file-browser.html',
   styleUrl: './file-browser.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -91,6 +101,10 @@ export class FileBrowser {
     () => this.platform.withdrawGrant !== undefined && this.where().kind === 'shelf',
   );
   protected readonly canSeeLinks = computed(() => this.platform.listShares !== undefined);
+  protected readonly canSeeVersions = this.platform.listVersions !== undefined;
+  protected readonly canRestore = computed(
+    () => this.platform.restoreVersion !== undefined && this.canChange(),
+  );
   protected readonly dragging = signal(false);
   protected readonly pending = signal(0);
   protected readonly announcement = signal<string | null>(null);
@@ -100,6 +114,7 @@ export class FileBrowser {
   protected readonly renaming = signal<Node | null>(null);
   protected readonly opened = signal<Node | null>(null);
   protected readonly sharing = signal<Node | null>(null);
+  protected readonly versioning = signal<Node | null>(null);
   protected readonly showingLinks = signal(false);
   protected readonly published = signal(0);
 
@@ -114,6 +129,7 @@ export class FileBrowser {
       this.opened.set(null);
       this.renaming.set(null);
       this.sharing.set(null);
+      this.versioning.set(null);
     });
   }
 
