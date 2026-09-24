@@ -26,6 +26,16 @@
           Sharing
         </button>
       }
+      @if (canSeeTrash) {
+        <button
+          type="button"
+          class="ghost"
+          [attr.aria-expanded]="showingTrash()"
+          (click)="showingTrash.set(!showingTrash())"
+        >
+          Trash
+        </button>
+      }
       @if (canUpload()) {
         <rx-upload-target [pending]="pending()" (chosen)="upload($event)" />
       }
@@ -34,6 +44,15 @@
 
   @if (showingLinks()) {
     <rx-shares-panel [version]="published()" (closed)="showingLinks.set(false)" />
+  }
+
+  @if (showingTrash()) {
+    <rx-trash-panel
+      [version]="trashed()"
+      [canChange]="canWrite()"
+      (restored)="listing.reload()"
+      (closed)="showingTrash.set(false)"
+    />
   }
 
   @if (received.error()) {
@@ -269,8 +288,8 @@
     [heading]="'Delete ' + node.name + '?'"
     [body]="
       node.kind === 'directory'
-        ? 'The folder and everything in it move to the trash.'
-        : 'The file moves to the trash.'
+        ? 'The folder and everything in it move to the trash, where you can restore them.'
+        : 'The file moves to the trash, where you can restore it.'
     "
     action="Delete"
     (accepted)="remove(node)"
