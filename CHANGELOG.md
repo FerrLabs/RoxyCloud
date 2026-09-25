@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.31.2] - 2026-09-25
+
+### Bug Fixes
+
+- fix(desktop): let the window's CSP show image and PDF previews (#211)
+
 ## [0.31.1] - 2026-09-25
 
 ### Bug Fixes
