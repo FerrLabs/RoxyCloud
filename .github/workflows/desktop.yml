@@ -62,11 +62,11 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          package-manager-cache: false
+      - name: Install from the lockfile with no restored cache, since this job signs what it builds
+        run: pnpm install --frozen-lockfile
 
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Sign the Windows installer when Azure Artifact Signing is fully configured, never when half of it is
         id: signing
@@ -171,14 +171,19 @@ jobs:
           EXTRA: ${{ matrix.extra }}
           SIGN_COMMAND: ${{ steps.signing.outputs.command }}
 
-      - name: Refuse a Windows installer that does not carry a valid Authenticode signature
+      - name: Refuse a Windows installer unless it carries a valid Authenticode signature from the expected publisher
         if: steps.signing.outputs.enabled == 'true'
         shell: pwsh
+        env:
+          PUBLISHER: ${{ vars.AZURE_SIGNING_PUBLISHER }}
         run: |
           $installers = @(Get-ChildItem -Path target/release/bundle/nsis -Filter *.exe)
           if ($installers.Count -eq 0) {
             Write-Error 'the bundle produced no installer'
             exit 1
+          }
+          if (-not $env:PUBLISHER) {
+            Write-Host '::warning title=Publisher not pinned::AZURE_SIGNING_PUBLISHER is empty, so any trusted signer passes. Set it to the subject printed below.'
           }
           foreach ($installer in $installers) {
             $signature = Get-AuthenticodeSignature -FilePath $installer.FullName
@@ -186,7 +191,12 @@ jobs:
               Write-Error "$($installer.Name): $($signature.Status), $($signature.StatusMessage)"
               exit 1
             }
-            Write-Host "$($installer.Name) signed by $($signature.SignerCertificate.Subject)"
+            $subject = $signature.SignerCertificate.Subject
+            if ($env:PUBLISHER -and $subject -cne $env:PUBLISHER) {
+              Write-Error "$($installer.Name) is signed by '$subject', expected '$env:PUBLISHER'"
+              exit 1
+            }
+            Write-Host "$($installer.Name) signed by $subject"
           }
 
       # target/ is at the root of the repository, not under app/: every crate in
