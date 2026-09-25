@@ -68,15 +68,126 @@ jobs:
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
+      - name: Sign the Windows installer when Azure Artifact Signing is fully configured, never when half of it is
+        id: signing
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+        run: |
+          set -euo pipefail
+          names=(AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_SIGNING_ENDPOINT AZURE_SIGNING_ACCOUNT AZURE_SIGNING_PROFILE)
+          missing=()
+          for name in "${names[@]}"; do
+            [ -n "${!name:-}" ] || missing+=("$name")
+          done
+
+          if [ ${#missing[@]} -eq ${#names[@]} ]; then
+            message="Azure Artifact Signing is not configured, so this installer is unsigned and SmartScreen will warn on it."
+            echo "::warning title=Unsigned Windows installer::$message"
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ ${#missing[@]} -gt 0 ]; then
+            echo "::error title=Half-configured signing::missing ${missing[*]}"
+            exit 1
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "command=artifact-signing-cli -e $AZURE_SIGNING_ENDPOINT -a $AZURE_SIGNING_ACCOUNT -c $AZURE_SIGNING_PROFILE %1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Put the newest x64 signtool from the Windows SDK on PATH
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $roots = @(
+            (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin'),
+            (Join-Path $env:ProgramFiles 'Windows Kits/10/bin')
+          )
+          $found = foreach ($root in $roots) {
+            if (Test-Path $root) {
+              Get-ChildItem -Path $root -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+                Where-Object { $_.Directory.Name -eq 'x64' } |
+                ForEach-Object {
+                  $parsed = [version]'0.0.0.0'
+                  if ([version]::TryParse($_.Directory.Parent.Name, [ref]$parsed)) {
+                    [pscustomobject]@{ Version = $parsed; Dir = $_.Directory.FullName }
+                  }
+                }
+            }
+          }
+          $best = $found | Sort-Object Version -Descending | Select-Object -First 1
+          if (-not $best) {
+            Write-Error "no x64 signtool.exe under $($roots -join ' or ')"
+            exit 1
+          }
+          Write-Host "signtool $($best.Version) at $($best.Dir)"
+          Add-Content -Path $env:GITHUB_PATH -Value $best.Dir
+
+      - name: Fetch artifact-signing-cli and refuse it unless its SHA-256 is the pinned one
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          SIGNING_CLI_VERSION: '0.11.0'
+          SIGNING_CLI_SHA256: 'ddc6f6ef68631bf367ad051d7d37109e58d46095406e1fbba60d553b10f94393'
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          $dir = Join-Path $env:RUNNER_TEMP 'artifact-signing-cli'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $exe = Join-Path $dir 'artifact-signing-cli.exe'
+          $url = "https://github.com/Levminer/artifact-signing-cli/releases/download/$env:SIGNING_CLI_VERSION/artifact-signing-cli.exe"
+          Invoke-WebRequest -Uri $url -OutFile $exe
+          $actual = (Get-FileHash -Path $exe -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $env:SIGNING_CLI_SHA256) {
+            Write-Error "artifact-signing-cli $env:SIGNING_CLI_VERSION has SHA-256 $actual, expected $env:SIGNING_CLI_SHA256"
+            exit 1
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $dir
+
       # The CLI reads both names itself. createUpdaterArtifacts is on, so a
       # missing key fails the bundle rather than quietly shipping a release that
       # no installed copy would accept as an update.
       - name: Bundle
         working-directory: app
-        run: pnpm exec tauri build ${{ matrix.extra }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra extra <<< "$EXTRA"
+          if [ -z "$SIGN_COMMAND" ]; then
+            pnpm exec tauri build "${extra[@]}"
+          else
+            pnpm exec tauri build "${extra[@]}" --config "$(jq -nc --arg sign "$SIGN_COMMAND" '{bundle: {windows: {signCommand: $sign}}}')"
+          fi
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          AZURE_TENANT_ID: ${{ steps.signing.outputs.enabled == 'true' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ steps.signing.outputs.enabled == 'true' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ steps.signing.outputs.enabled == 'true' && secrets.AZURE_CLIENT_SECRET || '' }}
+          EXTRA: ${{ matrix.extra }}
+          SIGN_COMMAND: ${{ steps.signing.outputs.command }}
+
+      - name: Refuse a Windows installer that does not carry a valid Authenticode signature
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem -Path target/release/bundle/nsis -Filter *.exe)
+          if ($installers.Count -eq 0) {
+            Write-Error 'the bundle produced no installer'
+            exit 1
+          }
+          foreach ($installer in $installers) {
+            $signature = Get-AuthenticodeSignature -FilePath $installer.FullName
+            if ($signature.Status -ne 'Valid') {
+              Write-Error "$($installer.Name): $($signature.Status), $($signature.StatusMessage)"
+              exit 1
+            }
+            Write-Host "$($installer.Name) signed by $($signature.SignerCertificate.Subject)"
+          }
 
       # target/ is at the root of the repository, not under app/: every crate in
       # the workspace shares one output directory.
@@ -95,8 +206,8 @@ jobs:
             exit 1
           fi
 
-          # The Windows installer is unsigned, so the digest is the only thing
-          # a careful person can check it against.
+          # The digest lets a careful person check a download before running
+          # it, and it is the only check an unsigned Windows installer offers.
           for bundle in "${bundles[@]}"; do
             (cd "$(dirname "$bundle")" && sha256sum "$(basename "$bundle")" > "$(basename "$bundle").sha256")
           done
