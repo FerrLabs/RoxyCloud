@@ -183,7 +183,7 @@ jobs:
             exit 1
           }
           if (-not $env:PUBLISHER) {
-            $message = 'AZURE_SIGNING_PUBLISHER is empty, so any trusted signer passes. Set it to the subject printed below.'
+            $message = 'AZURE_SIGNING_PUBLISHER is empty, so any trusted signer passes. Set it to the certificate subject this step prints in the job log.'
             Write-Host "::warning title=Publisher not pinned::$message"
             Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $message
           }
