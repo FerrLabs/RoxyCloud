@@ -99,7 +99,7 @@ Authenticode signing reads three secrets, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` a
 `AZURE_SIGNING_PROFILE`. With none of them the Desktop workflow builds an unsigned installer and
 says so in the run summary; with only some of them it fails, since half a signing setup is a
 mistake rather than a choice. A signed build then refuses any installer whose Authenticode
-signature Windows does not report as valid. A seventh variable, `AZURE_SIGNING_PUBLISHER`, pins who
+signature Windows does not report as valid. A fourth variable, `AZURE_SIGNING_PUBLISHER`, pins who
 signed it: set it to the certificate subject the first signed build prints, and any other signer
 fails the build. Left empty, every trusted signer passes and the run says so.
 
