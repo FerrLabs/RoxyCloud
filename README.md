@@ -61,9 +61,11 @@ Every release carries an installer: `RoxyCloud_<version>_x64-setup.exe` for Wind
 [releases page](https://github.com/FerrLabs/RoxyCloud/releases/latest). The app asks for the address
 of the instance on first launch, so it works against any server, not only a particular one.
 
-The Windows installer is not signed with an Authenticode certificate yet, so SmartScreen shows
-"Windows protected your PC" on first run. "More info" then "Run anyway" gets past it. Each installer
-is published with its SHA-256 beside it, so the download can be checked before it is run:
+The Windows installer is signed through Azure Artifact Signing once the repository carries its
+credentials, and until then it is not: SmartScreen then shows "Windows protected your PC" on first
+run, and "More info" then "Run anyway" gets past it. A signed installer names its publisher in the
+UAC prompt instead. Each installer is published with its SHA-256 beside it, so the download can be
+checked before it is run:
 
 ```bash
 sha256sum -c RoxyCloud_0.26.0_x64-setup.exe.sha256
@@ -91,6 +93,13 @@ A release only reaches installed copies if it carries the `.sig` files and `late
 Desktop workflow produces from `TAURI_SIGNING_PRIVATE_KEY`. Losing that key means no installed copy
 accepts any later version, so it belongs in the repository secrets and in a backup, not only on one
 machine.
+
+Authenticode signing reads three secrets, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` and
+`AZURE_CLIENT_SECRET`, and three variables, `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT` and
+`AZURE_SIGNING_PROFILE`. With none of them the Desktop workflow builds an unsigned installer and
+says so in the run summary; with only some of them it fails, since half a signing setup is a
+mistake rather than a choice. A signed build then refuses any installer whose Authenticode
+signature Windows does not report as valid.
 
 To build it yourself, from a checkout:
 
