@@ -8,7 +8,8 @@
     "dev": "ng serve",
     "build": "ng build",
     "preview": "ng serve --configuration production",
-    "lint": "tsc -p tsconfig.app.json --noEmit"
+    "lint": "tsc -p tsconfig.app.json --noEmit",
+    "check:csp": "node scripts/csp-check.mjs"
   },
   "dependencies": {
     "@angular/common": "^22.0.0",
@@ -25,6 +26,7 @@
     "@angular/cli": "^22.0.0",
     "@angular/compiler": "^22.0.0",
     "@angular/compiler-cli": "^22.0.0",
+    "playwright": "^1.63.0",
     "typescript": "~6.0.0"
   }
 }
