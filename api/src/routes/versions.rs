@@ -10,9 +10,10 @@ use crate::db;
 use crate::error::ApiError;
 use crate::routes::files::blob_bytes;
 use crate::state::AppState;
-use crate::versions::{self, Version};
+use crate::versions;
 use roxycloud_core::name::{NodeName, parse_path};
 use roxycloud_core::node::{Node, NodeKind, etag_for_file};
+use roxycloud_core::version::Version;
 
 pub async fn list(
     State(state): State<AppState>,

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use futures::StreamExt;
 use reqwest::Body;
@@ -20,6 +20,40 @@ use roxycloud_core::user::User;
 pub struct Received {
     pub name: String,
     pub access: Access,
+}
+
+#[must_use]
+pub fn free_path(directory: &Path, name: &str) -> PathBuf {
+    let wanted = directory.join(name);
+    if !wanted.exists() {
+        return wanted;
+    }
+    let numbered = |n: u32| match name.rsplit_once('.') {
+        Some((stem, extension)) if !stem.is_empty() => format!("{stem} ({n}).{extension}"),
+        _ => format!("{name} ({n})"),
+    };
+    (1..u32::MAX)
+        .map(|n| directory.join(numbered(n)))
+        .find(|candidate| !candidate.exists())
+        .unwrap_or(wanted)
+}
+
+pub(crate) async fn save(
+    response: reqwest::Response,
+    destination: &Path,
+) -> Result<(), RemoteError> {
+    let mut file = fs::File::create(destination)
+        .await
+        .map_err(|source| RemoteError::io(destination, source))?;
+    let mut chunks = response.bytes_stream();
+    while let Some(chunk) = chunks.next().await {
+        file.write_all(&chunk?)
+            .await
+            .map_err(|source| RemoteError::io(destination, source))?;
+    }
+    file.flush()
+        .await
+        .map_err(|source| RemoteError::io(destination, source))
 }
 
 impl Remote {
@@ -73,19 +107,7 @@ impl Remote {
             .send()
             .await?;
         check(response.status(), path)?;
-
-        let mut file = fs::File::create(destination)
-            .await
-            .map_err(|source| RemoteError::io(destination, source))?;
-        let mut chunks = response.bytes_stream();
-        while let Some(chunk) = chunks.next().await {
-            file.write_all(&chunk?)
-                .await
-                .map_err(|source| RemoteError::io(destination, source))?;
-        }
-        file.flush()
-            .await
-            .map_err(|source| RemoteError::io(destination, source))
+        save(response, destination).await
     }
 
     pub async fn received(&self) -> Result<Vec<Received>, RemoteError> {
@@ -183,6 +205,47 @@ fn held_from(received: Result<Vec<Received>, RemoteError>) -> Result<Held, Remot
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn scratch(name: &str) -> PathBuf {
+        let directory = std::env::temp_dir().join(format!("roxycloud-free-{name}"));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).expect("scratch directory");
+        directory
+    }
+
+    fn touch(directory: &Path, name: &str) {
+        std::fs::write(directory.join(name), b"already here").expect("writing a file");
+    }
+
+    #[test]
+    fn a_name_nothing_holds_is_used_as_it_is() {
+        let directory = scratch("unused");
+        assert_eq!(free_path(&directory, "a.txt"), directory.join("a.txt"));
+    }
+
+    #[test]
+    fn a_taken_name_gets_the_first_free_number_before_its_extension() {
+        let directory = scratch("taken");
+        touch(&directory, "report.pdf");
+        touch(&directory, "report (1).pdf");
+        assert_eq!(
+            free_path(&directory, "report.pdf"),
+            directory.join("report (2).pdf"),
+            "a download never overwrites what is already in the folder"
+        );
+    }
+
+    #[test]
+    fn a_name_with_no_extension_or_only_a_leading_dot_is_numbered_at_the_end() {
+        let directory = scratch("bare");
+        touch(&directory, "Makefile");
+        touch(&directory, ".env");
+        assert_eq!(
+            free_path(&directory, "Makefile"),
+            directory.join("Makefile (1)")
+        );
+        assert_eq!(free_path(&directory, ".env"), directory.join(".env (1)"));
+    }
 
     #[test]
     fn a_server_older_than_shares_holds_nothing_back() {

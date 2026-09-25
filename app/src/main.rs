@@ -1,10 +1,11 @@
 mod failure;
 mod sync;
 
-use roxycloud_client::Remote;
 use roxycloud_client::sync::watch::Session as SyncSession;
+use roxycloud_client::{Remote, free_path};
 use roxycloud_core::node::{Node, Trashed};
 use roxycloud_core::user::User;
+use roxycloud_core::version::Version;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::Mutex;
@@ -144,21 +145,55 @@ async fn download_file(
 ) -> Result<String, String> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
-
-    let directory = app
-        .path()
-        .download_dir()
-        .map_err(|error| error.to_string())?;
-    let name = path
-        .rsplit_once('/')
-        .map_or(path.as_str(), |(_, name)| name);
-    let destination = directory.join(name);
+    let destination = into_downloads(&app, &path)?;
 
     remote
         .download(&path, &destination)
         .await
         .map_err(|error| format!("{path}: {error}"))?;
     Ok(destination.to_string_lossy().into_owned())
+}
+
+fn into_downloads(app: &AppHandle, path: &str) -> Result<std::path::PathBuf, String> {
+    let directory = app
+        .path()
+        .download_dir()
+        .map_err(|error| error.to_string())?;
+    let name = path.rsplit_once('/').map_or(path, |(_, name)| name);
+    Ok(free_path(&directory, name))
+}
+
+#[tauri::command]
+async fn list_versions(desktop: State<'_, Desktop>, path: String) -> Result<Vec<Version>, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.list_versions(&path).await?)
+}
+
+#[tauri::command]
+async fn download_version(
+    app: AppHandle,
+    desktop: State<'_, Desktop>,
+    path: String,
+    id: Uuid,
+) -> Result<String, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    let destination = into_downloads(&app, &path)?;
+
+    remote.download_version(&path, id, &destination).await?;
+    Ok(destination.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+async fn restore_version(
+    desktop: State<'_, Desktop>,
+    path: String,
+    id: Uuid,
+) -> Result<Node, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.restore_version(&path, id).await?)
 }
 
 #[tauri::command]
@@ -227,6 +262,9 @@ fn main() {
             restore_from_trash,
             purge_from_trash,
             empty_trash,
+            list_versions,
+            download_version,
+            restore_version,
             sync::pick_folder,
             sync::start_sync,
             sync::sync_control,

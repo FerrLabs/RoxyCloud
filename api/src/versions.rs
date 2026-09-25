@@ -1,25 +1,15 @@
-use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::{FromRow, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::db::{charge_quota, release_blob};
 use crate::error::ApiError;
 use roxycloud_core::blob::BlobHash;
-
-#[derive(Debug, Clone, Serialize, FromRow)]
-pub struct Version {
-    pub id: Uuid,
-    #[serde(skip)]
-    pub blob_hash: BlobHash,
-    pub size: i64,
-    pub created_at: DateTime<Utc>,
-}
+use roxycloud_core::version::Version;
 
 #[derive(FromRow)]
-struct Held {
-    blob_hash: BlobHash,
-    size: i64,
+pub struct Held {
+    pub blob_hash: BlobHash,
+    pub size: i64,
 }
 
 pub async fn list(
@@ -27,7 +17,7 @@ pub async fn list(
     node_id: Uuid,
 ) -> Result<Vec<Version>, ApiError> {
     sqlx::query_as::<_, Version>(
-        "SELECT id, blob_hash, size, created_at FROM versions WHERE node_id = $1 ORDER BY id DESC",
+        "SELECT id, size, created_at FROM versions WHERE node_id = $1 ORDER BY id DESC",
     )
     .bind(node_id)
     .fetch_all(&mut **tx)
@@ -39,15 +29,13 @@ pub async fn find(
     tx: &mut Transaction<'_, Postgres>,
     node_id: Uuid,
     id: Uuid,
-) -> Result<Version, ApiError> {
-    sqlx::query_as::<_, Version>(
-        "SELECT id, blob_hash, size, created_at FROM versions WHERE node_id = $1 AND id = $2",
-    )
-    .bind(node_id)
-    .bind(id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .ok_or(ApiError::NotFound)
+) -> Result<Held, ApiError> {
+    sqlx::query_as::<_, Held>("SELECT blob_hash, size FROM versions WHERE node_id = $1 AND id = $2")
+        .bind(node_id)
+        .bind(id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or(ApiError::NotFound)
 }
 
 pub async fn take(
@@ -55,10 +43,10 @@ pub async fn take(
     owner_id: Uuid,
     node_id: Uuid,
     id: Uuid,
-) -> Result<Version, ApiError> {
-    let taken = sqlx::query_as::<_, Version>(
+) -> Result<Held, ApiError> {
+    let taken = sqlx::query_as::<_, Held>(
         "DELETE FROM versions WHERE node_id = $1 AND id = $2
-         RETURNING id, blob_hash, size, created_at",
+         RETURNING blob_hash, size",
     )
     .bind(node_id)
     .bind(id)

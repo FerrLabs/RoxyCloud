@@ -283,8 +283,9 @@ always has, when the new content alone does not fit. A trashed file takes its ve
 quota with it, a restore brings them back, and a purge releases them.
 
 In the web app a history button on each file opens its versions with their date and size, to
-download one or restore it. Restore shows only where the file can be written. The desktop app does
-not offer versions yet.
+download one or restore it. Restore shows only where the file can be written. The desktop app has
+the same dialog, and saves a downloaded version, like a downloaded file, to the Downloads folder
+under a free name: `report (1).pdf` rather than over a `report.pdf` already there.
 
 Releasing a blob does not delete it. A background sweep collects blobs nothing points at once they
 have been unreferenced for `BLOB_GRACE_PERIOD_SECONDS`, which is what keeps a delete followed by a
