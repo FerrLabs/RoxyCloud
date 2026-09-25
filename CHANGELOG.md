@@ -4,6 +4,15 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.32.0] - 2026-09-25
+
+### Features
+
+- feat(desktop): upload from the file picker and from files dropped on the window (#206)
+- feat(desktop): share by link and with other accounts (#205)
+- feat(desktop): list, download and restore the versions of a file (#204)
+- feat(desktop): the trash, and a harness that drives the client against the real API (#203)
+
 ## [0.31.2] - 2026-09-25
 
 ### Bug Fixes
