@@ -7,7 +7,15 @@ const web = fileURLToPath(new URL('..', import.meta.url));
 const dist = join(web, 'dist');
 
 const tauri = JSON.parse(await readFile(join(web, '..', 'app', 'tauri.conf.json'), 'utf8'));
-const csp = tauri.app.security.csp;
+const { csp, dangerousDisableAssetCspModification: unmodified } = tauri.app.security;
+if (typeof csp !== 'string' || csp.length === 0) {
+  throw new Error('app/tauri.conf.json has no app.security.csp string, so this check would prove nothing.');
+}
+if (unmodified !== true && !(Array.isArray(unmodified) && unmodified.includes('style-src'))) {
+  throw new Error(
+    "app/tauri.conf.json no longer exempts style-src from Tauri's CSP modification, so the window gets hash sources there and ignores 'unsafe-inline'. This check serves the configured string as written and would not see it.",
+  );
+}
 
 const angular = JSON.parse(await readFile(join(web, 'angular.json'), 'utf8'));
 const [project] = Object.values(angular.projects);
@@ -113,7 +121,13 @@ try {
 
   await page.locator('button.entry', { hasText: 'manual.pdf' }).click();
   await page.locator('dialog iframe').waitFor();
-  await page.waitForTimeout(2_000);
+  await page.waitForFunction(
+    () => document.querySelector('dialog iframe')?.contentWindow?.location.protocol === 'blob:',
+    null,
+    { timeout: 10_000 },
+  ).catch(() => {
+    throw new Error('The PDF preview never loaded its blob into the iframe.');
+  });
 } catch (error) {
   failure = error;
 } finally {
