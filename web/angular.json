@@ -42,9 +42,7 @@
                 }
               ],
               "optimization": {
-                "scripts": true,
-                "styles": { "minify": true, "inlineCritical": false },
-                "fonts": true
+                "styles": { "inlineCritical": false }
               },
               "outputHashing": "all"
             },
