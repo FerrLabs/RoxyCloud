@@ -99,7 +99,13 @@ Authenticode signing reads three secrets, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` a
 `AZURE_SIGNING_PROFILE`. With none of them the Desktop workflow builds an unsigned installer and
 says so in the run summary; with only some of them it fails, since half a signing setup is a
 mistake rather than a choice. A signed build then refuses any installer whose Authenticode
-signature Windows does not report as valid.
+signature Windows does not report as valid. A seventh variable, `AZURE_SIGNING_PUBLISHER`, pins who
+signed it: set it to the certificate subject the first signed build prints, and any other signer
+fails the build. Left empty, every trusted signer passes and the run says so.
+
+The job that builds the installers restores no cache, pnpm's or Cargo's, so a poisoned cache cannot
+end up in a signed installer that every copy would accept as an update. A release build takes a few
+minutes longer for it.
 
 To build it yourself, from a checkout:
 
