@@ -183,7 +183,9 @@ jobs:
             exit 1
           }
           if (-not $env:PUBLISHER) {
-            Write-Host '::warning title=Publisher not pinned::AZURE_SIGNING_PUBLISHER is empty, so any trusted signer passes. Set it to the subject printed below.'
+            $message = 'AZURE_SIGNING_PUBLISHER is empty, so any trusted signer passes. Set it to the subject printed below.'
+            Write-Host "::warning title=Publisher not pinned::$message"
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $message
           }
           foreach ($installer in $installers) {
             $signature = Get-AuthenticodeSignature -FilePath $installer.FullName
