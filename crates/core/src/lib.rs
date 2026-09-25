@@ -3,5 +3,6 @@ pub mod grant;
 pub mod name;
 pub mod node;
 pub mod role;
+pub mod share;
 pub mod user;
 pub mod version;

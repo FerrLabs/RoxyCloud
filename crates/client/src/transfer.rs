@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use futures::StreamExt;
 use reqwest::Body;
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
@@ -12,15 +13,9 @@ use crate::sync::held::Held;
 use crate::sync::path::RelPath;
 use crate::sync::snapshot::{Entry, Snapshot};
 use crate::sync::transport::Transport;
-use roxycloud_core::grant::Access;
+use roxycloud_core::grant::{Access, Received};
 use roxycloud_core::node::{Node, NodeKind};
 use roxycloud_core::user::User;
-
-#[derive(Debug, Deserialize)]
-pub struct Received {
-    pub name: String,
-    pub access: Access,
-}
 
 #[must_use]
 pub fn free_path(directory: &Path, name: &str) -> PathBuf {
@@ -111,6 +106,10 @@ impl Remote {
     }
 
     pub async fn received(&self) -> Result<Vec<Received>, RemoteError> {
+        self.grants_received().await
+    }
+
+    async fn grants_received<T: DeserializeOwned>(&self) -> Result<Vec<T>, RemoteError> {
         let url = format!("{}/v1/grants/received", self.base());
         let response = self
             .http()
@@ -188,11 +187,17 @@ impl Transport for Remote {
     }
 
     async fn held(&self) -> Result<Held, Self::Error> {
-        held_from(self.received().await)
+        held_from(self.grants_received().await)
     }
 }
 
-fn held_from(received: Result<Vec<Received>, RemoteError>) -> Result<Held, RemoteError> {
+#[derive(Debug, Deserialize)]
+struct Mount {
+    name: String,
+    access: Access,
+}
+
+fn held_from(received: Result<Vec<Mount>, RemoteError>) -> Result<Held, RemoteError> {
     match received {
         Ok(mounts) => Ok(Held::from_mounts(
             mounts.into_iter().map(|mount| (mount.name, mount.access)),
@@ -260,8 +265,16 @@ mod tests {
     }
 
     #[test]
+    fn sync_reads_a_received_share_from_its_name_and_access_alone() {
+        let mounts: Vec<Mount> = serde_json::from_str(r#"[{"name":"archive","access":"read"}]"#)
+            .expect("a server that sends less than the full row still syncs");
+        assert_eq!(mounts[0].name, "archive");
+        assert_eq!(mounts[0].access, Access::Read);
+    }
+
+    #[test]
     fn received_shares_become_what_is_held() {
-        let held = held_from(Ok(vec![Received {
+        let held = held_from(Ok(vec![Mount {
             name: "archive".to_owned(),
             access: Access::Read,
         }]))

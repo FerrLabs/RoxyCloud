@@ -3,28 +3,22 @@ use axum::extract::{Path, State};
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::access::{self, Place};
 use crate::auth::{Caller, Writer};
 use crate::db;
 use crate::error::ApiError;
-use crate::shares::{self, Minted, Share};
+use crate::shares;
 use crate::state::AppState;
 use roxycloud_core::name::{NodeName, parse_path};
 use roxycloud_core::node::{Node, NodeKind};
+use roxycloud_core::share::{Minted, NewShare, Share};
 
 /// A person choosing the password types it, so it cannot ride in the URL where it would land in
 /// proxy logs and browser history alongside the token it protects.
 pub const PASSWORD_HEADER: &str = "x-share-password";
-
-#[derive(Deserialize)]
-pub struct NewShare {
-    path: String,
-    expires_at: Option<DateTime<Utc>>,
-    password: Option<String>,
-}
 
 /// What an anonymous visitor is told about a node: enough to show a listing and start a download,
 /// and nothing that identifies the account behind the link or names a row elsewhere in the API.

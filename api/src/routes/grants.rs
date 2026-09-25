@@ -1,24 +1,16 @@
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::access::{self, Place};
 use crate::auth::{Caller, Writer};
 use crate::error::ApiError;
-use crate::grants::{self, Given, Received};
+use crate::grants;
 use crate::state::AppState;
-use roxycloud_core::grant::Access;
+use roxycloud_core::grant::{Given, NewGrant, Received};
 use roxycloud_core::name::parse_path;
 use roxycloud_core::user::Email;
-
-#[derive(Deserialize)]
-pub struct NewGrant {
-    path: String,
-    email: String,
-    access: Access,
-}
 
 pub async fn create(
     State(state): State<AppState>,

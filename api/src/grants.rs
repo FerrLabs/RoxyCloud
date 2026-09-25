@@ -1,14 +1,13 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::error::DatabaseError;
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::db::{contains, live_node, node_columns};
 use crate::error::ApiError;
-use roxycloud_core::grant::Access;
+use roxycloud_core::grant::{Access, Given, Received};
 use roxycloud_core::name::{MAX_NAME_LEN, NodeName};
-use roxycloud_core::node::{Node, NodeKind};
+use roxycloud_core::node::Node;
 use roxycloud_core::user::{Email, User};
 
 const ONCE_PER_ADDRESS: &str = "grants_once_per_address";
@@ -19,29 +18,6 @@ pub struct Mount {
     pub node_id: Uuid,
     pub access: Access,
     pub mount_name: String,
-}
-
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct Given {
-    pub id: Uuid,
-    pub node_id: Uuid,
-    pub name: String,
-    pub kind: NodeKind,
-    pub email: String,
-    pub access: Access,
-    pub in_trash: bool,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct Received {
-    pub id: Uuid,
-    pub name: String,
-    pub kind: NodeKind,
-    pub access: Access,
-    pub owner_email: String,
-    pub owner_name: String,
-    pub created_at: DateTime<Utc>,
 }
 
 pub async fn give(

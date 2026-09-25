@@ -350,7 +350,8 @@ it shares with other accounts. The token appears
 once, in the dialog that mints it, because the server keeps only a fingerprint and cannot show it
 again. A link opens at `/#/s/{token}`, which is a page with none of the app's chrome on it: whoever
 follows it has no account, is never shown a sign-in form, and no request that page makes carries a
-session.
+session. The desktop app offers the same dialog and panel, and builds the link from the server it is
+signed in to, since its own window has no address anyone else could open.
 
 Publishing is a write. A reader may download every file in the account and still gets 403 from
 `POST /v1/shares`, because handing bytes to anyone holding a URL is not reading them. Revoking is

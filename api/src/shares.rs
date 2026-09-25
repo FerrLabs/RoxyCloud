@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
@@ -8,27 +7,9 @@ use crate::db::node_columns;
 use crate::error::ApiError;
 use crate::password;
 use roxycloud_core::node::Node;
+use roxycloud_core::share::{Minted, Share};
 
 const TOKEN_BYTES: usize = 32;
-
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct Share {
-    pub id: Uuid,
-    pub node_id: Uuid,
-    pub name: String,
-    pub has_password: bool,
-    pub expires_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub last_used_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Minted {
-    #[serde(flatten)]
-    pub share: Share,
-    /// The only time the token exists outside the link that will carry it.
-    pub token: String,
-}
 
 pub async fn mint(
     tx: &mut Transaction<'_, Postgres>,

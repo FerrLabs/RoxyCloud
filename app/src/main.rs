@@ -3,7 +3,9 @@ mod sync;
 
 use roxycloud_client::sync::watch::Session as SyncSession;
 use roxycloud_client::{Remote, free_path};
+use roxycloud_core::grant::{Given, NewGrant, Received};
 use roxycloud_core::node::{Node, Trashed};
+use roxycloud_core::share::{Minted, NewShare, Share};
 use roxycloud_core::user::User;
 use roxycloud_core::version::Version;
 use tauri::{AppHandle, Manager, State};
@@ -244,6 +246,55 @@ async fn empty_trash(desktop: State<'_, Desktop>) -> Result<(), Failure> {
     Ok(remote.empty_trash().await?)
 }
 
+#[tauri::command]
+async fn list_shares(desktop: State<'_, Desktop>) -> Result<Vec<Share>, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.list_shares().await?)
+}
+
+#[tauri::command]
+async fn share(desktop: State<'_, Desktop>, request: NewShare) -> Result<Minted, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.share(&request).await?)
+}
+
+#[tauri::command]
+async fn revoke_share(desktop: State<'_, Desktop>, id: Uuid) -> Result<(), Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.revoke_share(id).await?)
+}
+
+#[tauri::command]
+async fn list_grants(desktop: State<'_, Desktop>) -> Result<Vec<Given>, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.list_grants().await?)
+}
+
+#[tauri::command]
+async fn grant(desktop: State<'_, Desktop>, request: NewGrant) -> Result<Given, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.grant(&request).await?)
+}
+
+#[tauri::command]
+async fn received_grants(desktop: State<'_, Desktop>) -> Result<Vec<Received>, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.received().await?)
+}
+
+#[tauri::command]
+async fn withdraw_grant(desktop: State<'_, Desktop>, id: Uuid) -> Result<(), Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.withdraw_grant(id).await?)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -265,6 +316,13 @@ fn main() {
             list_versions,
             download_version,
             restore_version,
+            list_shares,
+            share,
+            revoke_share,
+            list_grants,
+            grant,
+            received_grants,
+            withdraw_grant,
             sync::pick_folder,
             sync::start_sync,
             sync::sync_control,

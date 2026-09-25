@@ -4,7 +4,9 @@ use chrono::TimeDelta;
 use reqwest::StatusCode;
 use roxycloud_client::Remote;
 use roxycloud_client::remote::RemoteError;
+use roxycloud_core::grant::{Access, NewGrant};
 use roxycloud_core::role::Role;
+use roxycloud_core::share::NewShare;
 use roxycloud_core::user::User;
 
 use common::{Harness, serve};
@@ -159,3 +161,104 @@ database_test!(a_version_of_another_file_is_not_found, harness, {
 
     assert!(matches!(wrong, Err(RemoteError::NotFound(_))));
 });
+
+database_test!(the_client_publishes_lists_and_revokes_a_link, harness, {
+    let owner = harness.account("links@example.com", Role::Member).await;
+    harness.write(owner.id, "photos/beach.jpg", b"sand").await;
+    let remote = connect(&harness, &owner).await;
+
+    let minted = remote
+        .share(&NewShare {
+            path: "photos".to_owned(),
+            expires_at: None,
+            password: None,
+        })
+        .await
+        .expect("publishing a link");
+    assert!(!minted.token.is_empty(), "the token comes back once");
+    assert_eq!(minted.share.name, "photos");
+
+    let listed = remote.list_shares().await.expect("listing links");
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].id, minted.share.id);
+
+    remote
+        .revoke_share(minted.share.id)
+        .await
+        .expect("revoking");
+    assert!(
+        remote
+            .list_shares()
+            .await
+            .expect("listing links")
+            .is_empty()
+    );
+});
+
+database_test!(
+    the_client_shares_with_an_account_and_withdraws_it,
+    harness,
+    {
+        let owner = harness.account("giver@example.com", Role::Member).await;
+        let guest = harness.account("guest@example.com", Role::Member).await;
+        harness
+            .write(owner.id, "project/plan.md", b"the plan")
+            .await;
+        let giving = connect(&harness, &owner).await;
+        let receiving = connect(&harness, &guest).await;
+
+        let given = giving
+            .grant(&NewGrant {
+                path: "project".to_owned(),
+                email: "guest@example.com".to_owned(),
+                access: Access::Write,
+            })
+            .await
+            .expect("sharing with the guest");
+        assert_eq!(given.email, "guest@example.com");
+        assert_eq!(giving.list_grants().await.expect("listing").len(), 1);
+
+        let received = receiving.received().await.expect("what the guest received");
+        assert_eq!(received.len(), 1);
+        assert_eq!(received[0].name, "project");
+        assert_eq!(received[0].owner_email, "giver@example.com");
+
+        receiving
+            .withdraw_grant(received[0].id)
+            .await
+            .expect("the guest leaves");
+        assert!(receiving.received().await.expect("listing").is_empty());
+    }
+);
+
+database_test!(
+    sharing_twice_with_the_same_address_carries_the_server_explanation,
+    harness,
+    {
+        let owner = harness.account("twice@example.com", Role::Member).await;
+        harness.account("once@example.com", Role::Member).await;
+        harness
+            .write(owner.id, "project/plan.md", b"the plan")
+            .await;
+        let remote = connect(&harness, &owner).await;
+        let request = NewGrant {
+            path: "project".to_owned(),
+            email: "once@example.com".to_owned(),
+            access: Access::Read,
+        };
+        remote.grant(&request).await.expect("the first grant");
+
+        let again = remote.grant(&request).await;
+
+        match again {
+            Err(RemoteError::Refused { status, message }) => {
+                assert_eq!(status, StatusCode::CONFLICT);
+                assert_eq!(
+                    message,
+                    "this address already reaches this through another share"
+                );
+            }
+            other => panic!("expected the server's own words, got {other:?}"),
+        }
+    }
+);

@@ -359,6 +359,13 @@ function desktopPlatform(fallback: string): Platform {
     listVersions: (path) => command<Version[]>('list_versions', { path }),
     downloadVersion: (path, id) => command<string>('download_version', { path, id }),
     restoreVersion: (path, id) => command<Node>('restore_version', { path, id }),
+    listShares: () => command<Share[]>('list_shares'),
+    share: (request) => command<Minted>('share', { request }),
+    revokeShare: (id) => command<void>('revoke_share', { id }),
+    listGrants: () => command<Given[]>('list_grants'),
+    grant: (request) => command<Given>('grant', { request }),
+    receivedGrants: () => command<Received[]>('received_grants'),
+    withdrawGrant: (id) => command<void>('withdraw_grant', { id }),
   };
 }
 
