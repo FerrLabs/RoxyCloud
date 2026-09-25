@@ -1,6 +1,8 @@
 mod failure;
 mod sync;
 
+use std::path::PathBuf;
+
 use roxycloud_client::sync::watch::Session as SyncSession;
 use roxycloud_client::{Remote, free_path};
 use roxycloud_core::grant::{Given, NewGrant, Received};
@@ -9,6 +11,7 @@ use roxycloud_core::share::{Minted, NewShare, Share};
 use roxycloud_core::user::User;
 use roxycloud_core::version::Version;
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::Mutex;
 
@@ -156,7 +159,7 @@ async fn download_file(
     Ok(destination.to_string_lossy().into_owned())
 }
 
-fn into_downloads(app: &AppHandle, path: &str) -> Result<std::path::PathBuf, String> {
+fn into_downloads(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
     let directory = app
         .path()
         .download_dir()
@@ -295,6 +298,67 @@ async fn withdraw_grant(desktop: State<'_, Desktop>, id: Uuid) -> Result<(), Fai
     Ok(remote.withdraw_grant(id).await?)
 }
 
+#[derive(serde::Serialize)]
+struct Picked {
+    name: String,
+    source: PathBuf,
+}
+
+impl From<PathBuf> for Picked {
+    fn from(source: PathBuf) -> Self {
+        let name = source.file_name().map_or_else(
+            || source.to_string_lossy().into_owned(),
+            |name| name.to_string_lossy().into_owned(),
+        );
+        Self { name, source }
+    }
+}
+
+#[tauri::command]
+async fn pick_uploads(app: AppHandle) -> Result<Vec<Picked>, Failure> {
+    let (chosen, answer) = tokio::sync::oneshot::channel();
+    app.dialog().file().pick_files(move |files| {
+        let _ = chosen.send(files);
+    });
+
+    let files = answer
+        .await
+        .map_err(|_| "the file picker went away")?
+        .unwrap_or_default();
+    files
+        .into_iter()
+        .map(|file| {
+            file.into_path().map(Picked::from).map_err(|error| {
+                Failure::from(format!(
+                    "that file is not one this computer can open: {error}"
+                ))
+            })
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn describe_drops(paths: Vec<PathBuf>) -> Vec<Picked> {
+    paths.into_iter().map(Picked::from).collect()
+}
+
+#[tauri::command]
+async fn upload_file(
+    desktop: State<'_, Desktop>,
+    path: String,
+    source: PathBuf,
+) -> Result<Node, Failure> {
+    if source.is_dir() {
+        return Err(Failure::from(format!(
+            "{} is a folder; upload the files inside it, or sync the folder",
+            source.display()
+        )));
+    }
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.upload(&path, &source).await?)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -323,6 +387,9 @@ fn main() {
             grant,
             received_grants,
             withdraw_grant,
+            pick_uploads,
+            describe_drops,
+            upload_file,
             sync::pick_folder,
             sync::start_sync,
             sync::sync_control,

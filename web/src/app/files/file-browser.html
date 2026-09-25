@@ -37,7 +37,11 @@
         </button>
       }
       @if (canUpload()) {
-        <rx-upload-target [pending]="pending()" (chosen)="upload($event)" />
+        <rx-upload-target
+          [pending]="pending()"
+          (chosen)="upload($event)"
+          (failed)="failure.set('choosing files failed: ' + $event)"
+        />
       }
     </span>
   </div>

@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   computed,
   effect,
@@ -15,6 +16,7 @@ import { Session } from '../account';
 import { childOf, linkTo } from '../folder';
 import { SHARED_WITH_ME, describeOrigin, whereIs, type Received } from '../grant';
 import { byKindThenName, formatDate, formatSize, type Node } from '../node';
+import { fromFiles, type Dropping, type Outgoing } from '../outgoing';
 import { PLATFORM } from '../platform';
 import { Confirm } from '../shared/confirm';
 import { Prompt } from '../shared/prompt';
@@ -94,7 +96,9 @@ export class FileBrowser {
     return this.canWrite() && allowed;
   });
   protected readonly canUpload = computed(
-    () => this.platform.upload !== undefined && this.canChange(),
+    () =>
+      (this.platform.upload !== undefined || this.platform.pickUploads !== undefined) &&
+      this.canChange(),
   );
   protected readonly canShare = computed(
     () => this.platform.share !== undefined && this.canWrite() && this.where().kind === 'own',
@@ -136,6 +140,23 @@ export class FileBrowser {
       this.sharing.set(null);
       this.versioning.set(null);
     });
+
+    const watchDrops = this.platform.watchDrops;
+    if (watchDrops !== undefined) {
+      let stop: (() => void) | null = null;
+      let gone = false;
+      void watchDrops((dropping) => this.onNativeDrop(dropping)).then((unlisten) => {
+        if (gone) {
+          unlisten();
+        } else {
+          stop = unlisten;
+        }
+      });
+      inject(DestroyRef).onDestroy(() => {
+        gone = true;
+        stop?.();
+      });
+    }
   }
 
   protected isShelf(node: Node): boolean {
@@ -221,17 +242,12 @@ export class FileBrowser {
     });
   }
 
-  protected async upload(files: File[]): Promise<void> {
-    const send = this.platform.upload;
-    if (send === undefined) {
-      return;
-    }
-
-    this.pending.set(files.length);
+  protected async upload(items: Outgoing[]): Promise<void> {
+    this.pending.set(items.length);
     let sent = 0;
-    for (const file of files) {
-      const done = await this.attempt(`uploading ${file.name}`, async () => {
-        await send(childOf(this.path(), file.name), file);
+    for (const item of items) {
+      const done = await this.attempt(`uploading ${item.name}`, async () => {
+        await item.send(childOf(this.path(), item.name));
       });
       if (done) {
         sent += 1;
@@ -264,8 +280,29 @@ export class FileBrowser {
     event.preventDefault();
     this.dragging.set(false);
     const files = Array.from(event.dataTransfer?.files ?? []);
-    if (files.length > 0) {
-      void this.upload(files);
+    const upload = this.platform.upload;
+    if (upload !== undefined && files.length > 0) {
+      void this.upload(fromFiles(upload, files));
+    }
+  }
+
+  private onNativeDrop(dropping: Dropping): void {
+    if (!this.canUpload()) {
+      return;
+    }
+    switch (dropping.kind) {
+      case 'over':
+        this.dragging.set(true);
+        break;
+      case 'leave':
+        this.dragging.set(false);
+        break;
+      case 'drop':
+        this.dragging.set(false);
+        if (dropping.items.length > 0) {
+          void this.upload(dropping.items);
+        }
+        break;
     }
   }
 
