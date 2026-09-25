@@ -7,7 +7,7 @@ const web = fileURLToPath(new URL('..', import.meta.url));
 const dist = join(web, 'dist');
 
 const tauri = JSON.parse(await readFile(join(web, '..', 'app', 'tauri.conf.json'), 'utf8'));
-const { csp, dangerousDisableAssetCspModification: unmodified } = tauri.app.security;
+const { csp, dangerousDisableAssetCspModification: unmodified } = tauri.app?.security ?? {};
 if (typeof csp !== 'string' || csp.length === 0) {
   throw new Error('app/tauri.conf.json has no app.security.csp string, so this check would prove nothing.');
 }
@@ -121,13 +121,15 @@ try {
 
   await page.locator('button.entry', { hasText: 'manual.pdf' }).click();
   await page.locator('dialog iframe').waitFor();
-  await page.waitForFunction(
-    () => document.querySelector('dialog iframe')?.contentWindow?.location.protocol === 'blob:',
-    null,
-    { timeout: 10_000 },
-  ).catch(() => {
-    throw new Error('The PDF preview never loaded its blob into the iframe.');
-  });
+  await page
+    .waitForFunction(
+      () => document.querySelector('dialog iframe')?.contentWindow?.location.protocol === 'blob:',
+      null,
+      { timeout: 10_000 },
+    )
+    .catch((cause) => {
+      throw new Error('The PDF preview never loaded its blob into the iframe.', { cause });
+    });
 } catch (error) {
   failure = error;
 } finally {
