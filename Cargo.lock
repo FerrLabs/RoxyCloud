@@ -4529,6 +4529,7 @@ dependencies = [
  "percent-encoding",
  "quick-xml",
  "reqwest",
+ "roxycloud-client",
  "roxycloud-core",
  "serde",
  "serde_json",
@@ -4558,6 +4559,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-updater",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

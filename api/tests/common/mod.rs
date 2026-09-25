@@ -620,6 +620,16 @@ impl Harness {
     }
 }
 
+pub async fn serve(state: AppState) -> String {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("a free port");
+    let address = listener.local_addr().expect("a bound address");
+    let router = roxycloud_api::build_router(state, &[], None);
+    tokio::spawn(async move { axum::serve(listener, router).await.expect("serving") });
+    format!("http://{address}")
+}
+
 fn with_database(url: &str, database: &str) -> String {
     let (base, query) = match url.split_once('?') {
         Some((base, query)) => (base, Some(query)),

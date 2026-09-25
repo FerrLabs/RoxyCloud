@@ -1,12 +1,16 @@
+mod failure;
 mod sync;
 
 use roxycloud_client::Remote;
 use roxycloud_client::sync::watch::Session as SyncSession;
-use roxycloud_core::node::Node;
+use roxycloud_core::node::{Node, Trashed};
 use roxycloud_core::user::User;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::Mutex;
+
+use failure::Failure;
+use uuid::Uuid;
 
 #[derive(Clone)]
 struct Credentials {
@@ -177,6 +181,34 @@ async fn delete_node(desktop: State<'_, Desktop>, path: String) -> Result<(), St
         .map_err(|error| format!("{path}: {error}"))
 }
 
+#[tauri::command]
+async fn list_trash(desktop: State<'_, Desktop>) -> Result<Vec<Trashed>, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.trash().await?)
+}
+
+#[tauri::command]
+async fn restore_from_trash(desktop: State<'_, Desktop>, id: Uuid) -> Result<Node, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.restore(id).await?)
+}
+
+#[tauri::command]
+async fn purge_from_trash(desktop: State<'_, Desktop>, id: Uuid) -> Result<(), Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.purge(id).await?)
+}
+
+#[tauri::command]
+async fn empty_trash(desktop: State<'_, Desktop>) -> Result<(), Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.empty_trash().await?)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -191,6 +223,10 @@ fn main() {
             download_file,
             move_node,
             delete_node,
+            list_trash,
+            restore_from_trash,
+            purge_from_trash,
+            empty_trash,
             sync::pick_folder,
             sync::start_sync,
             sync::sync_control,

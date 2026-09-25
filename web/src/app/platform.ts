@@ -351,7 +351,30 @@ function desktopPlatform(fallback: string): Platform {
       const { invoke } = await core();
       return invoke<Node>('move_node', { from, to });
     },
+    listTrash: () => command<Trashed[]>('list_trash'),
+    restoreFromTrash: (id) => command<Node>('restore_from_trash', { id }),
+    purgeFromTrash: (id) => command<void>('purge_from_trash', { id }),
+    emptyTrash: () => command<void>('empty_trash'),
   };
+}
+
+async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  try {
+    return await invoke<T>(name, args);
+  } catch (cause: unknown) {
+    throw failureFrom(cause);
+  }
+}
+
+function failureFrom(cause: unknown): Error {
+  if (typeof cause !== 'object' || cause === null || !('message' in cause)) {
+    return new Error(String(cause));
+  }
+  const { status, message } = cause as { status?: unknown; message: unknown };
+  return typeof status === 'number'
+    ? new RequestFailed(status, String(message))
+    : new Error(String(message));
 }
 
 function addressOf(server: string): string {

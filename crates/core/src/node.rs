@@ -34,6 +34,14 @@ pub struct Node {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Trashed {
+    #[serde(flatten)]
+    pub node: Node,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
 impl Node {
     #[must_use]
     pub fn is_trashed(&self) -> bool {

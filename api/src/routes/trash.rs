@@ -1,23 +1,13 @@
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use chrono::{DateTime, Utc};
-use serde::Serialize;
 use uuid::Uuid;
 
 use crate::auth::{Caller, Writer};
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::trash;
-use roxycloud_core::node::Node;
-
-#[derive(Serialize)]
-pub struct Trashed {
-    #[serde(flatten)]
-    node: Node,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    expires_at: Option<DateTime<Utc>>,
-}
+use roxycloud_core::node::{Node, Trashed};
 
 pub async fn list(
     State(state): State<AppState>,

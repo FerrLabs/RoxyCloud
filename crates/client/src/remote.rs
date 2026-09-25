@@ -3,7 +3,7 @@ use std::path::Path;
 use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 use reqwest::{Client, StatusCode};
 use roxycloud_core::name::{InvalidNodeName, parse_path};
-use roxycloud_core::node::Node;
+use roxycloud_core::node::{Node, Trashed};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -30,6 +30,8 @@ pub enum RemoteError {
     NotFound(String),
     #[error("{0} clashes with something already on the server")]
     Conflict(String),
+    #[error("{message}")]
+    Refused { status: StatusCode, message: String },
     #[error("the server answered {0}")]
     Status(StatusCode),
     #[error("talking to the server failed")]
@@ -43,6 +45,17 @@ pub enum RemoteError {
 }
 
 impl RemoteError {
+    #[must_use]
+    pub fn status(&self) -> Option<StatusCode> {
+        match self {
+            Self::Refused { status, .. } | Self::Status(status) => Some(*status),
+            Self::Unauthenticated => Some(StatusCode::UNAUTHORIZED),
+            Self::NotFound(_) => Some(StatusCode::NOT_FOUND),
+            Self::Conflict(_) => Some(StatusCode::CONFLICT),
+            Self::Path(_) | Self::Transport(_) | Self::Io { .. } => None,
+        }
+    }
+
     pub(crate) fn io(path: &Path, source: std::io::Error) -> Self {
         Self::Io {
             path: path.to_path_buf(),
@@ -144,7 +157,7 @@ impl Remote {
         Ok(response.json().await?)
     }
 
-    pub async fn trash(&self) -> Result<Vec<Node>, RemoteError> {
+    pub async fn trash(&self) -> Result<Vec<Trashed>, RemoteError> {
         let response = self
             .http
             .get(format!("{}/v1/trash", self.base))
@@ -162,11 +175,7 @@ impl Remote {
             .bearer_auth(&self.token)
             .send()
             .await?;
-        if response.status() == StatusCode::CONFLICT {
-            return Err(RemoteError::Conflict(id.to_string()));
-        }
-        check(response.status(), &id.to_string())?;
-        Ok(response.json().await?)
+        Ok(answered(response, &id.to_string()).await?.json().await?)
     }
 
     pub async fn purge(&self, id: Uuid) -> Result<(), RemoteError> {
@@ -176,7 +185,19 @@ impl Remote {
             .bearer_auth(&self.token)
             .send()
             .await?;
-        check(response.status(), &id.to_string())
+        answered(response, &id.to_string()).await?;
+        Ok(())
+    }
+
+    pub async fn empty_trash(&self) -> Result<(), RemoteError> {
+        let response = self
+            .http
+            .delete(format!("{}/v1/trash", self.base))
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
+        answered(response, "the trash").await?;
+        Ok(())
     }
 
     pub async fn delete(&self, path: &str) -> Result<(), RemoteError> {
@@ -187,7 +208,40 @@ impl Remote {
             .bearer_auth(&self.token)
             .send()
             .await?;
-        check(response.status(), path)
+        answered(response, path).await?;
+        Ok(())
+    }
+}
+
+#[derive(Deserialize)]
+struct Explained {
+    error: String,
+}
+
+pub(crate) async fn explanation(response: reqwest::Response) -> String {
+    let status = response.status();
+    response.json::<Explained>().await.map_or_else(
+        |_| format!("the server answered {status}"),
+        |body| body.error,
+    )
+}
+
+pub(crate) async fn answered(
+    response: reqwest::Response,
+    subject: &str,
+) -> Result<reqwest::Response, RemoteError> {
+    match response.status() {
+        status @ (StatusCode::BAD_REQUEST
+        | StatusCode::FORBIDDEN
+        | StatusCode::CONFLICT
+        | StatusCode::UNPROCESSABLE_ENTITY) => Err(RemoteError::Refused {
+            status,
+            message: explanation(response).await,
+        }),
+        status => {
+            check(status, subject)?;
+            Ok(response)
+        }
     }
 }
 

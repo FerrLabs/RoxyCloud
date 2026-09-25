@@ -57,6 +57,7 @@ aws-smithy-types = { version = "1", features = ["rt-tokio"] }
 aws-credential-types = "1"
 
 [dev-dependencies]
+roxycloud-client = { workspace = true }
 tempfile = "3"
 tokio = { workspace = true, features = ["test-util"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
