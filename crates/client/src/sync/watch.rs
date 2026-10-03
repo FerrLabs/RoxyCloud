@@ -9,12 +9,12 @@ use tokio::task::JoinHandle;
 
 use super::debounce::Debounce;
 use super::engine::{Engine, Report, SyncError};
-use super::state::STATE_FILE_NAME;
+use super::state::is_state_file;
 use super::transport::Transport;
 
 const STATUS_BUFFER: usize = 64;
-const PARTIAL_EXTENSION: &str = "roxypart";
-const STATE_TEMP_NAME: &str = ".roxycloud-sync.tmp";
+const PARTIAL_EXTENSIONS: [&str; 2] = ["stashpart", "roxypart"];
+const STATE_TEMP_NAMES: [&str; 2] = [".stashden-sync.tmp", ".roxycloud-sync.tmp"];
 
 #[derive(Debug, thiserror::Error)]
 pub enum WatchError {
@@ -155,8 +155,8 @@ fn interesting(event: &notify::Event) -> bool {
 fn is_ours(path: &Path) -> bool {
     let name = path.file_name().and_then(|name| name.to_str());
     let extension = path.extension().and_then(|extension| extension.to_str());
-    matches!(name, Some(STATE_FILE_NAME | STATE_TEMP_NAME))
-        || matches!(extension, Some(PARTIAL_EXTENSION))
+    name.is_some_and(|name| is_state_file(name) || STATE_TEMP_NAMES.contains(&name))
+        || extension.is_some_and(|extension| PARTIAL_EXTENSIONS.contains(&extension))
 }
 
 fn describe(error: &SyncError) -> String {
@@ -185,13 +185,20 @@ mod tests {
 
     #[test]
     fn the_state_file_does_not_trigger_another_run() {
+        assert!(!interesting(&event("/folder/.stashden-sync.json")));
+        assert!(!interesting(&event("/folder/.stashden-sync.tmp")));
+    }
+
+    #[test]
+    fn the_state_file_an_older_version_left_does_not_trigger_a_run_either() {
         assert!(!interesting(&event("/folder/.roxycloud-sync.json")));
         assert!(!interesting(&event("/folder/.roxycloud-sync.tmp")));
+        assert!(!interesting(&event("/folder/photos/x.jpg.roxypart")));
     }
 
     #[test]
     fn a_partial_download_does_not_trigger_another_run() {
-        assert!(!interesting(&event("/folder/photos/x.jpg.roxypart")));
+        assert!(!interesting(&event("/folder/photos/x.jpg.stashpart")));
     }
 
     #[test]
@@ -201,7 +208,7 @@ mod tests {
 
     #[test]
     fn an_event_touching_both_is_still_worth_a_run() {
-        let mut both = event("/folder/.roxycloud-sync.json");
+        let mut both = event("/folder/.stashden-sync.json");
         both.paths.push(PathBuf::from("/folder/a.txt"));
         assert!(interesting(&both));
     }

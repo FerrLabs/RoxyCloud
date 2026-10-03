@@ -81,8 +81,28 @@ export class RequestFailed extends Error {
   }
 }
 
-const TOKEN_KEY = 'roxycloud.token';
-const SERVER_KEY = 'roxycloud.server';
+const TOKEN_KEY = 'stashden.token';
+const SERVER_KEY = 'stashden.server';
+const KEY_PREFIX = 'stashden.';
+const LEGACY_KEY_PREFIX = 'roxycloud.';
+
+function adoptLegacyKeys(): void {
+  try {
+    const legacyKeys = Array.from({ length: localStorage.length }, (_, index) =>
+      localStorage.key(index),
+    ).filter((key): key is string => key?.startsWith(LEGACY_KEY_PREFIX) ?? false);
+    for (const legacy of legacyKeys) {
+      const current = KEY_PREFIX + legacy.slice(LEGACY_KEY_PREFIX.length);
+      const value = localStorage.getItem(legacy);
+      if (value !== null && localStorage.getItem(current) === null) {
+        localStorage.setItem(current, value);
+      }
+      localStorage.removeItem(legacy);
+    }
+  } catch {
+    return;
+  }
+}
 
 const isDesktop = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -436,6 +456,7 @@ export function encodePath(path: string): string {
 }
 
 export function resolvePlatform(baseUrl: string): Platform {
+  adoptLegacyKeys();
   return isDesktop() ? desktopPlatform(baseUrl) : browserPlatform(baseUrl);
 }
 

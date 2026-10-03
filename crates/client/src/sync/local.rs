@@ -8,7 +8,7 @@ use roxycloud_core::blob::BlobHash;
 
 use super::path::RelPath;
 use super::snapshot::Entry;
-use super::state::{STATE_FILE_NAME, SyncState};
+use super::state::{SyncState, is_state_file};
 
 const READ_CHUNK: usize = 64 * 1024;
 
@@ -70,7 +70,7 @@ fn walk(
             scan.skipped.push(entry.path());
             continue;
         };
-        if name == STATE_FILE_NAME {
+        if is_state_file(name) {
             continue;
         }
 
@@ -170,6 +170,7 @@ pub fn mtime_of(path: &Path) -> Option<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sync::state::{LEGACY_STATE_FILE_NAME, STATE_FILE_NAME};
 
     fn scratch(name: &str) -> PathBuf {
         let directory = std::env::temp_dir().join(format!("roxycloud-scan-{name}"));
@@ -219,6 +220,7 @@ mod tests {
     fn its_own_state_file_is_not_part_of_the_folder() {
         let root = scratch("state-file");
         write(&root, STATE_FILE_NAME, b"{}");
+        write(&root, LEGACY_STATE_FILE_NAME, b"{}");
         write(&root, "a.txt", b"one");
 
         let scan = scan(&root, &SyncState::default()).expect("scans");
