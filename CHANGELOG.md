@@ -4,6 +4,19 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.33.0] - 2026-10-03
+
+### Features
+
+- feat: call the product Stashden in the app, the site and the docs (#251)
+- feat(desktop): ship as Stashden and replace an installed RoxyCloud instead of sitting beside it (#250)
+- feat(cli): answer to stashden and STASHDEN_*, still reading ROXYCLOUD_* with a warning (#247)
+- feat(sync): write state under the Stashden names and carry the old ones over (#246)
+
+### Refactoring
+
+- refactor: rename crates, modules, npm scope and build constants to Stashden (#248)
+
 ## [0.32.0] - 2026-09-25
 
 ### Features
