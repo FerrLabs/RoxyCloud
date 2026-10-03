@@ -12,7 +12,7 @@ use uuid::Uuid;
 #[derive(Parser)]
 #[command(name = "stashden", version, about = "Command-line client for Stashden")]
 struct Cli {
-    #[arg(long, env = "STASHDEN_URL")]
+    #[arg(long, env = "STASHDEN_URL", help = SERVER_HELP)]
     server: Option<String>,
 
     #[arg(long, env = "STASHDEN_TOKEN", hide_env_values = true)]
@@ -59,8 +59,10 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let server = legacy::settle(cli.server.clone(), "STASHDEN_URL", "ROXYCLOUD_URL")
         .unwrap_or_else(|| DEFAULT_SERVER.to_owned());
-    let token = legacy::settle(cli.token.clone(), "STASHDEN_TOKEN", "ROXYCLOUD_TOKEN");
-    let connect = || connect(&server, token.as_deref());
+    let connect = || {
+        let token = legacy::settle(cli.token.clone(), "STASHDEN_TOKEN", "ROXYCLOUD_TOKEN");
+        remote(&server, token.as_deref())
+    };
 
     match &cli.command {
         Command::Login { email, password } => {
@@ -116,8 +118,9 @@ async fn main() -> Result<()> {
 }
 
 const DEFAULT_SERVER: &str = "http://localhost:3001";
+const SERVER_HELP: &str = "Server to talk to [default: http://localhost:3001]";
 
-fn connect(server: &str, token: Option<&str>) -> Result<Remote> {
+fn remote(server: &str, token: Option<&str>) -> Result<Remote> {
     let Some(token) = token.filter(|token| !token.is_empty()) else {
         anyhow::bail!("no session token; run `stashden login` or set STASHDEN_TOKEN");
     };
