@@ -19,7 +19,7 @@ permissions:
 
 env:
   REGISTRY: oci://ghcr.io/ferrlabs/charts
-  CHART: ghcr.io/ferrlabs/charts/roxycloud
+  CHART: ghcr.io/ferrlabs/charts/stashden
 
 jobs:
   publish:
@@ -47,8 +47,8 @@ jobs:
 
           helm registry login ghcr.io -u "$REGISTRY_USER" --password-stdin <<< "$GITHUB_TOKEN"
           cosign login ghcr.io -u "$REGISTRY_USER" --password-stdin <<< "$GITHUB_TOKEN"
-          helm package deploy/helm/roxycloud --version "$VERSION" --app-version "$VERSION"
-          helm push "roxycloud-${VERSION}.tgz" "$REGISTRY" 2>&1 | tee push.log
+          helm package deploy/helm/stashden --version "$VERSION" --app-version "$VERSION"
+          helm push "stashden-${VERSION}.tgz" "$REGISTRY" 2>&1 | tee push.log
 
           DIGEST=$(grep -oE 'sha256:[0-9a-f]{64}' push.log | head -1)
           if [ -z "$DIGEST" ]; then
@@ -58,4 +58,4 @@ jobs:
 
           cosign sign --yes "${CHART}@${DIGEST}"
 
-          echo "Pushed and signed \`${REGISTRY}/roxycloud:${VERSION}\` at \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Pushed and signed \`${REGISTRY}/stashden:${VERSION}\` at \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"

@@ -15,7 +15,7 @@
         { "path": "app/tauri.conf.json", "format": "json" },
         { "path": "web/package.json", "format": "json" },
         { "path": "site/package.json", "format": "json" },
-        { "path": "deploy/helm/roxycloud/Chart.yaml", "format": "helm" }
+        { "path": "deploy/helm/stashden/Chart.yaml", "format": "helm" }
       ],
       "hooks": {
         "postBump": "cargo update --workspace"

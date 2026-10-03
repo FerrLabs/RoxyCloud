@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/ferrlabs/roxycloud-api
+  repository: ghcr.io/ferrlabs/stashden-api
   # Defaults to the chart's appVersion.
   tag: ""
   pullPolicy: IfNotPresent

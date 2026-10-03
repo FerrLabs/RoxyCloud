@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "roxycloud.fullname" . }}
+  name: {{ include "stashden.fullname" . }}
   labels:
-    {{- include "roxycloud.labels" . | nindent 4 }}
+    {{- include "stashden.labels" . | nindent 4 }}
   {{- if .Values.persistence.retain }}
   annotations:
     helm.sh/resource-policy: keep

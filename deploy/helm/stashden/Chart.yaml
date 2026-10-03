@@ -1,6 +1,6 @@
 apiVersion: v2
-name: roxycloud
-description: RoxyCloud API, the server behind the web app, the desktop shell and folder sync
+name: stashden
+description: Stashden API, the server behind the web app, the desktop shell and folder sync
 type: application
 version: 0.32.0
 appVersion: "0.32.0"

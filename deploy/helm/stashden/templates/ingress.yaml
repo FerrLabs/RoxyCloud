@@ -5,9 +5,9 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "roxycloud.fullname" . }}
+  name: {{ include "stashden.fullname" . }}
   labels:
-    {{- include "roxycloud.labels" . | nindent 4 }}
+    {{- include "stashden.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -30,7 +30,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ include "roxycloud.fullname" . }}
+                name: {{ include "stashden.fullname" . }}
                 port:
                   number: {{ .Values.service.port }}
 {{- end }}
