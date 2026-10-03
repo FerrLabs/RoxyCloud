@@ -9,7 +9,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [[bin]]
-name = "roxy"
+name = "stashden"
 path = "src/main.rs"
 
 [dependencies]

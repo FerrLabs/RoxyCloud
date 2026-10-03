@@ -1,3 +1,4 @@
+mod legacy;
 mod sync;
 
 use std::path::PathBuf;
@@ -9,18 +10,13 @@ use roxycloud_core::node::{NodeKind, Trashed};
 use uuid::Uuid;
 
 #[derive(Parser)]
-#[command(name = "roxy", version, about = "Command-line client for RoxyCloud")]
+#[command(name = "stashden", version, about = "Command-line client for Stashden")]
 struct Cli {
-    #[arg(long, env = "ROXYCLOUD_URL", default_value = "http://localhost:3001")]
-    server: String,
+    #[arg(long, env = "STASHDEN_URL", help = SERVER_HELP)]
+    server: Option<String>,
 
-    #[arg(
-        long,
-        env = "ROXYCLOUD_TOKEN",
-        hide_env_values = true,
-        default_value = ""
-    )]
-    token: String,
+    #[arg(long, env = "STASHDEN_TOKEN", hide_env_values = true)]
+    token: Option<String>,
 
     #[command(subcommand)]
     command: Command,
@@ -31,8 +27,8 @@ enum Command {
     /// Exchange an email and password for a session token
     Login {
         email: String,
-        #[arg(long, env = "ROXYCLOUD_PASSWORD", hide_env_values = true)]
-        password: String,
+        #[arg(long, env = "STASHDEN_PASSWORD", hide_env_values = true)]
+        password: Option<String>,
     },
     /// List a remote directory
     Ls {
@@ -61,16 +57,25 @@ enum Command {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    let server = legacy::settle(cli.server.clone(), "STASHDEN_URL", "ROXYCLOUD_URL")
+        .unwrap_or_else(|| DEFAULT_SERVER.to_owned());
+    let connect = || {
+        let token = legacy::settle(cli.token.clone(), "STASHDEN_TOKEN", "ROXYCLOUD_TOKEN");
+        remote(&server, token.as_deref())
+    };
 
     match &cli.command {
         Command::Login { email, password } => {
-            let (_, session) = Remote::login(&cli.server, email, password)
+            let password =
+                legacy::settle(password.clone(), "STASHDEN_PASSWORD", "ROXYCLOUD_PASSWORD")
+                    .context("a password is needed: pass --password or set STASHDEN_PASSWORD")?;
+            let (_, session) = Remote::login(&server, email, &password)
                 .await
                 .context("logging in")?;
             println!("{}", session.token);
         }
         Command::Ls { path } => {
-            for node in connect(&cli)?.list(path).await? {
+            for node in connect()?.list(path).await? {
                 let marker = match node.kind {
                     NodeKind::Directory => "/",
                     NodeKind::File => "",
@@ -79,13 +84,13 @@ async fn main() -> Result<()> {
             }
         }
         Command::Mv { from, to } => {
-            connect(&cli)?.rename(from, to).await?;
+            connect()?.rename(from, to).await?;
         }
         Command::Rm { path } => {
-            connect(&cli)?.delete(path).await?;
+            connect()?.delete(path).await?;
         }
         Command::Trash => {
-            for Trashed { node, .. } in connect(&cli)?.trash().await? {
+            for Trashed { node, .. } in connect()?.trash().await? {
                 let deleted = node
                     .deleted_at
                     .map(|at| at.format("%Y-%m-%d %H:%M").to_string())
@@ -94,14 +99,14 @@ async fn main() -> Result<()> {
             }
         }
         Command::Restore { id } => {
-            connect(&cli)?.restore(*id).await?;
+            connect()?.restore(*id).await?;
         }
         Command::Purge { id } => {
-            connect(&cli)?.purge(*id).await?;
+            connect()?.purge(*id).await?;
         }
         Command::Sync { folder, watch } => {
             let mut engine =
-                Engine::open(folder.as_path(), connect(&cli)?).context("reading the sync state")?;
+                Engine::open(folder.as_path(), connect()?).context("reading the sync state")?;
             if *watch {
                 sync::keep_watching(engine).await?;
             } else {
@@ -112,9 +117,12 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn connect(cli: &Cli) -> Result<Remote> {
-    if cli.token.is_empty() {
-        anyhow::bail!("no session token; run `roxy login` or set ROXYCLOUD_TOKEN");
-    }
-    Remote::new(&cli.server, cli.token.clone()).context("building the API client")
+const DEFAULT_SERVER: &str = "http://localhost:3001";
+const SERVER_HELP: &str = "Server to talk to [default: http://localhost:3001]";
+
+fn remote(server: &str, token: Option<&str>) -> Result<Remote> {
+    let Some(token) = token.filter(|token| !token.is_empty()) else {
+        anyhow::bail!("no session token; run `stashden login` or set STASHDEN_TOKEN");
+    };
+    Remote::new(server, token.to_owned()).context("building the API client")
 }
