@@ -4,10 +4,10 @@ use uuid::Uuid;
 use crate::db;
 use crate::error::ApiError;
 use crate::grants::{self, Mount};
-use roxycloud_core::grant::{Access, SHARED_WITH_ME};
-use roxycloud_core::name::NodeName;
-use roxycloud_core::node::{Node, NodeKind};
-use roxycloud_core::user::User;
+use stashden_core::grant::{Access, SHARED_WITH_ME};
+use stashden_core::name::NodeName;
+use stashden_core::node::{Node, NodeKind};
+use stashden_core::user::User;
 
 #[derive(Debug)]
 pub enum Place {

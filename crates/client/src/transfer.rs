@@ -13,9 +13,9 @@ use crate::sync::held::Held;
 use crate::sync::path::RelPath;
 use crate::sync::snapshot::{Entry, Snapshot};
 use crate::sync::transport::Transport;
-use roxycloud_core::grant::{Access, Received};
-use roxycloud_core::node::{Node, NodeKind};
-use roxycloud_core::user::User;
+use stashden_core::grant::{Access, Received};
+use stashden_core::node::{Node, NodeKind};
+use stashden_core::user::User;
 
 #[must_use]
 pub fn free_path(directory: &Path, name: &str) -> PathBuf {
@@ -212,7 +212,7 @@ mod tests {
     use super::*;
 
     fn scratch(name: &str) -> PathBuf {
-        let directory = std::env::temp_dir().join(format!("roxycloud-free-{name}"));
+        let directory = std::env::temp_dir().join(format!("stashden-free-{name}"));
         let _ = std::fs::remove_dir_all(&directory);
         std::fs::create_dir_all(&directory).expect("scratch directory");
         directory

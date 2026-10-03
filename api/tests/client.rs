@@ -2,12 +2,12 @@ mod common;
 
 use chrono::TimeDelta;
 use reqwest::StatusCode;
-use roxycloud_client::Remote;
-use roxycloud_client::remote::RemoteError;
-use roxycloud_core::grant::{Access, NewGrant};
-use roxycloud_core::role::Role;
-use roxycloud_core::share::NewShare;
-use roxycloud_core::user::User;
+use stashden_client::Remote;
+use stashden_client::remote::RemoteError;
+use stashden_core::grant::{Access, NewGrant};
+use stashden_core::role::Role;
+use stashden_core::share::NewShare;
+use stashden_core::user::User;
 
 use common::{Harness, serve};
 

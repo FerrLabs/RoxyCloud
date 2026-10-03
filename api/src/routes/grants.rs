@@ -8,9 +8,9 @@ use crate::auth::{Caller, Writer};
 use crate::error::ApiError;
 use crate::grants;
 use crate::state::AppState;
-use roxycloud_core::grant::{Given, NewGrant, Received};
-use roxycloud_core::name::parse_path;
-use roxycloud_core::user::Email;
+use stashden_core::grant::{Given, NewGrant, Received};
+use stashden_core::name::parse_path;
+use stashden_core::user::Email;
 
 pub async fn create(
     State(state): State<AppState>,

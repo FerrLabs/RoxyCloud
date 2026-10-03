@@ -11,9 +11,9 @@ use crate::error::ApiError;
 use crate::routes::files::blob_bytes;
 use crate::state::AppState;
 use crate::versions;
-use roxycloud_core::name::{NodeName, parse_path};
-use roxycloud_core::node::{Node, NodeKind, etag_for_file};
-use roxycloud_core::version::Version;
+use stashden_core::name::{NodeName, parse_path};
+use stashden_core::node::{Node, NodeKind, etag_for_file};
+use stashden_core::version::Version;
 
 pub async fn list(
     State(state): State<AppState>,

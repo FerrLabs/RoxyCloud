@@ -9,7 +9,7 @@ use bytes::{Bytes, BytesMut};
 use futures::StreamExt;
 
 use super::{BlobStore, Reader, StorageError, Upload, Written, is_recent, shards};
-use roxycloud_core::blob::BlobHash;
+use stashden_core::blob::BlobHash;
 
 /// S3 refuses a part below five mebibytes unless it is the last one, and ten thousand parts is the
 /// ceiling. Eight gives a comfortable margin on the floor and still allows an eighty gigabyte

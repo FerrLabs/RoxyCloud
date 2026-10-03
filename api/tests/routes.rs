@@ -3,8 +3,8 @@ mod common;
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
-use roxycloud_api::build_router;
-use roxycloud_core::role::Role;
+use stashden_api::build_router;
+use stashden_core::role::Role;
 use tower::ServiceExt;
 
 use common::Harness;

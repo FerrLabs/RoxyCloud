@@ -1,6 +1,6 @@
-use roxycloud_core::role::Role;
-use roxycloud_core::user::{Email, User};
 use sqlx::{PgPool, Postgres, Transaction};
+use stashden_core::role::Role;
+use stashden_core::user::{Email, User};
 use uuid::Uuid;
 
 use crate::error::ApiError;

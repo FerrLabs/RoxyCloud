@@ -13,7 +13,7 @@ use crate::{oidc, settings};
 /// Ties a flow to the browser that started it. Without it, whoever holds a live `code` and `state`
 /// pair can finish the flow in somebody else's browser, and that somebody is then signed in as the
 /// attacker with their uploads filed into the attacker's account.
-const FLOW_COOKIE: &str = "roxycloud_oidc";
+const FLOW_COOKIE: &str = "stashden_oidc";
 
 #[derive(Serialize)]
 pub struct Beginning {

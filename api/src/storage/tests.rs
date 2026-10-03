@@ -87,7 +87,7 @@ pub(super) async fn s3_store() -> Option<S3Fixture> {
     let endpoint = std::env::var("S3_TEST_ENDPOINT")
         .ok()
         .filter(|e| !e.is_empty())?;
-    let bucket = std::env::var("S3_TEST_BUCKET").unwrap_or_else(|_| "roxycloud-test".to_owned());
+    let bucket = std::env::var("S3_TEST_BUCKET").unwrap_or_else(|_| "stashden-test".to_owned());
     let key = std::env::var("S3_TEST_ACCESS_KEY_ID").unwrap_or_else(|_| "minioadmin".to_owned());
     let secret =
         std::env::var("S3_TEST_SECRET_ACCESS_KEY").unwrap_or_else(|_| "minioadmin".to_owned());
@@ -95,7 +95,7 @@ pub(super) async fn s3_store() -> Option<S3Fixture> {
     let config = aws_sdk_s3::Config::builder()
         .behavior_version(BehaviorVersion::latest())
         .region(Region::new("us-east-1"))
-        .credentials_provider(Credentials::new(key, secret, None, None, "roxycloud-test"))
+        .credentials_provider(Credentials::new(key, secret, None, None, "stashden-test"))
         .endpoint_url(&endpoint)
         .force_path_style(true)
         .build();
@@ -124,7 +124,7 @@ fn unreachable_store() -> S3BlobStore {
     let config = aws_sdk_s3::Config::builder()
         .behavior_version(BehaviorVersion::latest())
         .region(Region::new("us-east-1"))
-        .credentials_provider(Credentials::new("k", "s", None, None, "roxycloud-test"))
+        .credentials_provider(Credentials::new("k", "s", None, None, "stashden-test"))
         .endpoint_url("http://127.0.0.1:1")
         .force_path_style(true)
         .retry_config(RetryConfig::disabled())

@@ -1,11 +1,11 @@
 {
-  "name": "roxycloud",
+  "name": "stashden",
   "private": true,
   "packageManager": "pnpm@12.8.1",
   "scripts": {
     "build": "pnpm -r build",
-    "dev": "pnpm --filter @roxycloud/web dev",
-    "dev:site": "pnpm --filter @roxycloud/site dev",
+    "dev": "pnpm --filter @stashden/web dev",
+    "dev:site": "pnpm --filter @stashden/site dev",
     "lint": "pnpm -r lint",
     "tauri": "tauri"
   },

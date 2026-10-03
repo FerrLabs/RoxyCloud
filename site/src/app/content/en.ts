@@ -117,7 +117,7 @@ curl --fail http://localhost:3001/health`,
           caption: 'Run the API against a local Postgres',
           code: `DATABASE_URL=postgres://localhost/roxycloud \\
 JWT_SECRET=dev-secret \\
-cargo run -p roxycloud-api`,
+cargo run -p stashden-api`,
         },
       ],
     },
@@ -166,7 +166,7 @@ cargo run -p roxycloud-api`,
       blocks: [
         {
           caption: 'Log in from the command line',
-          code: `cargo run -p roxycloud-cli -- login you@example.com --password '...'`,
+          code: `cargo run -p stashden-cli -- login you@example.com --password '...'`,
         },
       ],
     },
@@ -177,9 +177,9 @@ cargo run -p roxycloud-api`,
         {
           caption: 'Build the browser interface for a host of your own',
           code: `pnpm install
-pnpm --filter @roxycloud/web build \\
-  --define ROXYCLOUD_API_URL="'https://files.example.com'" \\
-  --define ROXYCLOUD_SOURCE_URL="'https://git.example.com/roxycloud'"`,
+pnpm --filter @stashden/web build \\
+  --define STASHDEN_API_URL="'https://files.example.com'" \\
+  --define STASHDEN_SOURCE_URL="'https://git.example.com/roxycloud'"`,
         },
       ],
     },

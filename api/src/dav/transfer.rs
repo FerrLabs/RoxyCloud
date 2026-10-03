@@ -13,7 +13,7 @@ use crate::db;
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::trash;
-use roxycloud_core::name::{NodeName, parse_path};
+use stashden_core::name::{NodeName, parse_path};
 
 pub(super) async fn run(
     state: AppState,

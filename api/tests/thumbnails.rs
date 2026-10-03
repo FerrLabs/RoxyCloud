@@ -3,8 +3,8 @@ mod common;
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode, header};
 use http_body_util::BodyExt;
-use roxycloud_api::build_router;
-use roxycloud_core::role::Role;
+use stashden_api::build_router;
+use stashden_core::role::Role;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -218,7 +218,7 @@ database_test!(a_deleted_photo_does_not_keep_its_thumbnails, harness, {
 
     harness.trash(&node).await;
     harness.purge(id, node.id).await;
-    let dropped = roxycloud_api::thumbnails::forget_orphans(&harness.state.db)
+    let dropped = stashden_api::thumbnails::forget_orphans(&harness.state.db)
         .await
         .expect("forgetting");
 

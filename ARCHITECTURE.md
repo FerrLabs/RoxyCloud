@@ -366,7 +366,7 @@ flowchart LR
         TR[Traefik]
     end
     subgraph Private
-        API[roxycloud-api]
+        API[stashden-api]
         PG[(Postgres)]
         BS[(Blob store)]
     end

@@ -31,13 +31,13 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_USER: roxy
-          POSTGRES_PASSWORD: roxy
-          POSTGRES_DB: roxycloud
+          POSTGRES_USER: stashden
+          POSTGRES_PASSWORD: stashden
+          POSTGRES_DB: stashden
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U roxy"
+          --health-cmd "pg_isready -U stashden"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 12
@@ -48,7 +48,7 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-tarpaulin
-      # roxycloud-app is excluded: it has no tests, and building it would need
+      # stashden-app is excluded: it has no tests, and building it would need
       # both the webview toolchain and a built web/dist for generate_context!.
       #
       # The llvm engine rather than the default ptrace one, which segfaults on a test binary that
@@ -60,9 +60,9 @@ jobs:
       # attempts takes 81s on the runner and dav 56s, each test creating a database, running the
       # migrations, and hashing with Argon2id where a login is involved. 600 leaves room for a
       # slower runner without letting a hung run sit there.
-      - run: cargo tarpaulin --workspace --exclude roxycloud-app --engine llvm --out xml --skip-clean --timeout 600
+      - run: cargo tarpaulin --workspace --exclude stashden-app --engine llvm --out xml --skip-clean --timeout 600
         env:
-          DATABASE_URL: postgres://roxy:roxy@localhost:5432/roxycloud
+          DATABASE_URL: postgres://stashden:stashden@localhost:5432/stashden
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-cobertura

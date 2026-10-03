@@ -8,7 +8,7 @@ export type AppPassword = {
 export type MintedPassword = AppPassword & { secret: string };
 
 export function davUrl(): string {
-  const base = ROXYCLOUD_API_URL.length > 0 ? ROXYCLOUD_API_URL : location.origin;
+  const base = STASHDEN_API_URL.length > 0 ? STASHDEN_API_URL : location.origin;
   return `${base.replace(/\/$/, '')}/dav`;
 }
 

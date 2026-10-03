@@ -3,9 +3,9 @@ mod common;
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
-use roxycloud_api::build_router;
-use roxycloud_core::grant::Access;
-use roxycloud_core::role::Role;
+use stashden_api::build_router;
+use stashden_core::grant::Access;
+use stashden_core::role::Role;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -14,7 +14,7 @@ use common::Harness;
 async fn credential(harness: &Harness, email: &str, role: Role) -> (Uuid, String) {
     let user = harness.account(email, role).await;
     let mut tx = harness.state.db.begin().await.expect("begin");
-    let minted = roxycloud_api::app_passwords::mint(&mut tx, user.id, "a client")
+    let minted = stashden_api::app_passwords::mint(&mut tx, user.id, "a client")
         .await
         .expect("minting");
     tx.commit().await.expect("commit");
@@ -923,7 +923,7 @@ database_test!(the_sweep_removes_what_has_lapsed, harness, {
     .await
     .expect("ageing one lock");
 
-    let removed = roxycloud_api::dav::locks::purge_expired(&harness.state.db)
+    let removed = stashden_api::dav::locks::purge_expired(&harness.state.db)
         .await
         .expect("purging");
 

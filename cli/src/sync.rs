@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use roxycloud_client::sync::watch::{Status, watch};
-use roxycloud_client::{Debounce, Engine, Remote, Report};
+use stashden_client::sync::watch::{Status, watch};
+use stashden_client::{Debounce, Engine, Remote, Report};
 
 pub async fn once(engine: &mut Engine<Remote>) -> Result<()> {
     let report = engine.sync_once().await.context("syncing the folder")?;

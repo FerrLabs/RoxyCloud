@@ -4,7 +4,7 @@ use image::{ImageFormat, ImageReader, Limits};
 use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::error::ApiError;
-use roxycloud_core::blob::BlobHash;
+use stashden_core::blob::BlobHash;
 
 /// The sizes a caller may ask for. An open integer would let one request decode and re-encode at
 /// any dimension it likes, which is a cheap way to make the server do expensive work.

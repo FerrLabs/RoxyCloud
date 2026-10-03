@@ -33,7 +33,7 @@
               "src/styles.css"
             ],
             "define": {
-              "ROXYCLOUD_SOURCE_URL": "'https://github.com/FerrLabs/RoxyCloud'"
+              "STASHDEN_SOURCE_URL": "'https://github.com/FerrLabs/RoxyCloud'"
             }
           },
           "configurations": {

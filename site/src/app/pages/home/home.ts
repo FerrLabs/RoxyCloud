@@ -15,7 +15,7 @@ import { Localisation } from '../../localisation';
 export class Home {
   private readonly locale = routeLocale(inject(ActivatedRoute));
 
-  protected readonly sourceUrl = ROXYCLOUD_SOURCE_URL;
+  protected readonly sourceUrl = STASHDEN_SOURCE_URL;
   protected readonly content = CONTENT[this.locale].home;
   protected readonly installUrl = withLocale(this.locale, '/install');
 

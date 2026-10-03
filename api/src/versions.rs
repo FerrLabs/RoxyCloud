@@ -3,8 +3,8 @@ use uuid::Uuid;
 
 use crate::db::{charge_quota, release_blob};
 use crate::error::ApiError;
-use roxycloud_core::blob::BlobHash;
-use roxycloud_core::version::Version;
+use stashden_core::blob::BlobHash;
+use stashden_core::version::Version;
 
 #[derive(FromRow)]
 pub struct Held {

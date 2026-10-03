@@ -2,9 +2,9 @@ use std::path::Path;
 
 use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 use reqwest::{Client, StatusCode};
-use roxycloud_core::name::{InvalidNodeName, parse_path};
-use roxycloud_core::node::{Node, Trashed};
 use serde::Deserialize;
+use stashden_core::name::{InvalidNodeName, parse_path};
+use stashden_core::node::{Node, Trashed};
 use uuid::Uuid;
 
 const PATH_SEGMENT: &AsciiSet = &CONTROLS
@@ -260,14 +260,14 @@ mod tests {
     use super::*;
 
     fn remote() -> Remote {
-        Remote::new("https://api.roxycloud.io/", "token").expect("client builds")
+        Remote::new("https://api.stashden.example/", "token").expect("client builds")
     }
 
     #[test]
     fn trailing_slash_on_the_base_url_does_not_double_up() {
         assert_eq!(
             remote().endpoint("files", "a").unwrap(),
-            "https://api.roxycloud.io/v1/files/a"
+            "https://api.stashden.example/v1/files/a"
         );
     }
 
@@ -275,7 +275,7 @@ mod tests {
     fn separators_between_segments_stay_literal() {
         assert_eq!(
             remote().endpoint("files", "photos/summer/x.jpg").unwrap(),
-            "https://api.roxycloud.io/v1/files/photos/summer/x.jpg"
+            "https://api.stashden.example/v1/files/photos/summer/x.jpg"
         );
     }
 
@@ -283,7 +283,7 @@ mod tests {
     fn spaces_and_reserved_characters_are_encoded() {
         assert_eq!(
             remote().endpoint("files", "my docs/a#b?c.txt").unwrap(),
-            "https://api.roxycloud.io/v1/files/my%20docs/a%23b%3Fc.txt"
+            "https://api.stashden.example/v1/files/my%20docs/a%23b%3Fc.txt"
         );
     }
 
@@ -313,7 +313,7 @@ mod tests {
     fn the_root_has_no_trailing_segment() {
         assert_eq!(
             remote().endpoint("folders", "/").unwrap(),
-            "https://api.roxycloud.io/v1/folders"
+            "https://api.stashden.example/v1/folders"
         );
     }
 }

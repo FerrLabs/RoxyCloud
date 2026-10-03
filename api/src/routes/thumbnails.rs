@@ -11,8 +11,8 @@ use crate::auth::Caller;
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::{db, storage, thumbnails};
-use roxycloud_core::name::parse_path;
-use roxycloud_core::node::NodeKind;
+use stashden_core::name::parse_path;
+use stashden_core::node::NodeKind;
 
 #[derive(Deserialize)]
 pub struct Wanted {
@@ -108,7 +108,7 @@ pub async fn get(
 /// all: Chrome refuses to load one when `nosniff` is set and the type is not an image.
 async fn serve(
     state: &AppState,
-    hash: roxycloud_core::blob::BlobHash,
+    hash: stashden_core::blob::BlobHash,
 ) -> Result<Response, ApiError> {
     let file = state.blobs.read(hash).await?;
     Ok((

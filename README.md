@@ -122,7 +122,7 @@ directory.
 Postgres 15 or later, and a Rust toolchain matching `rust-toolchain.toml`.
 
 ```bash
-DATABASE_URL=postgres://localhost/roxycloud JWT_SECRET=dev-secret cargo run -p roxycloud-api
+DATABASE_URL=postgres://localhost/roxycloud JWT_SECRET=dev-secret cargo run -p stashden-api
 ```
 
 Migrations run on boot. Configuration is environment only:
@@ -157,13 +157,13 @@ Migrations run on boot. Configuration is environment only:
 | `BOOTSTRAP_ADMIN_EMAIL` | unset | Creates the first administrator on an empty database |
 | `BOOTSTRAP_ADMIN_PASSWORD` | unset | Required alongside the email, minimum 12 characters |
 
-The web app compiles two values in, `ROXYCLOUD_API_URL` and `ROXYCLOUD_SOURCE_URL`. They default to
+The web app compiles two values in, `STASHDEN_API_URL` and `STASHDEN_SOURCE_URL`. They default to
 a local API and to this repository, and both are overridden at build time. An empty API URL means
 the same origin as the page, which is what the image builds with, since the API serving the app is
 also the API it talks to:
 
 ```bash
-pnpm --filter @roxycloud/web build   --define ROXYCLOUD_API_URL="'https://api.example.com'"   --define ROXYCLOUD_SOURCE_URL="'https://git.example.com/roxycloud'"
+pnpm --filter @stashden/web build   --define STASHDEN_API_URL="'https://api.example.com'"   --define STASHDEN_SOURCE_URL="'https://git.example.com/roxycloud'"
 ```
 
 If you deploy a modified RoxyCloud, point the source URL at your fork: the AGPL requires you to
@@ -180,7 +180,7 @@ POSTGRES_PASSWORD=... JWT_SECRET=... docker compose -f deploy/docker-compose.yml
 
 The image carries the built web app and serves it from the same origin as the API, so there is no
 second deployment and no CORS to configure. Hosting the bundle elsewhere still works: build it with
-`ROXYCLOUD_API_URL` pointing at the API, serve it however you like, and name its origin in
+`STASHDEN_API_URL` pointing at the API, serve it however you like, and name its origin in
 `CORS_ALLOWED_ORIGINS`.
 
 On Kubernetes, `deploy/helm/roxycloud` deploys the API against a database you already run, with a
@@ -556,7 +556,7 @@ On an empty database, set `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD`
 to create the administrator, then log in:
 
 ```bash
-cargo run -p roxycloud-cli -- login you@example.com --password '...'
+cargo run -p stashden-cli -- login you@example.com --password '...'
 ```
 
 ## Syncing a folder
@@ -573,7 +573,7 @@ than asking.
 content, not timestamps: a file is only transferred when its bytes differ from the other side.
 
 ```bash
-ROXYCLOUD_TOKEN=... cargo run -p roxycloud-cli -- sync ~/RoxyCloud
+STASHDEN_TOKEN=... cargo run -p stashden-cli -- sync ~/RoxyCloud
 ```
 
 State lives in `.roxycloud-sync.json` inside the folder, which is what makes a second run cheap and
@@ -587,7 +587,7 @@ overwritten and nothing waits for an answer.
 `--watch` keeps it running instead, syncing as the folder changes:
 
 ```bash
-ROXYCLOUD_TOKEN=... cargo run -p roxycloud-cli -- sync ~/RoxyCloud --watch
+STASHDEN_TOKEN=... cargo run -p stashden-cli -- sync ~/RoxyCloud --watch
 ```
 
 A save is not a sync. Changes are collected until the folder has been quiet for a moment, and a

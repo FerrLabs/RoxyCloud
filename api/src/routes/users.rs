@@ -9,8 +9,8 @@ use crate::auth::{Admin, Caller};
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::{password, users};
-use roxycloud_core::role::Role;
-use roxycloud_core::user::{Email, User};
+use stashden_core::role::Role;
+use stashden_core::user::{Email, User};
 
 #[derive(Deserialize)]
 pub struct NewAccount {

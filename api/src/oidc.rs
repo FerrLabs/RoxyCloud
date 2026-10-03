@@ -4,7 +4,7 @@ use serde::Deserialize;
 use sqlx::PgPool;
 
 use crate::error::ApiError;
-use roxycloud_core::user::{Email, User};
+use stashden_core::user::{Email, User};
 
 /// How long a browser has to come back with the code. Long enough for a person to type a password
 /// and answer a second factor, short enough that abandoned flows do not pile up.
@@ -123,7 +123,7 @@ pub async fn admit(
         &email,
         display,
         &random(),
-        roxycloud_core::role::Role::Member,
+        stashden_core::role::Role::Member,
     )
     .await?;
     tx.commit().await?;

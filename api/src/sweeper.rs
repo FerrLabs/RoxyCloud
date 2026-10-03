@@ -6,7 +6,7 @@ use tracing::{error, info};
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use roxycloud_core::blob::BlobHash;
+use stashden_core::blob::BlobHash;
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Collected {

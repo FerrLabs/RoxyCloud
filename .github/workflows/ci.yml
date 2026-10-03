@@ -19,13 +19,13 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_USER: roxy
-          POSTGRES_PASSWORD: roxy
-          POSTGRES_DB: roxycloud
+          POSTGRES_USER: stashden
+          POSTGRES_PASSWORD: stashden
+          POSTGRES_DB: stashden
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U roxy"
+          --health-cmd "pg_isready -U stashden"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 12
@@ -69,7 +69,7 @@ jobs:
       # a machine with no Postgres.
       - run: cargo test --workspace --locked
         env:
-          DATABASE_URL: postgres://roxy:roxy@localhost:5432/roxycloud
+          DATABASE_URL: postgres://stashden:stashden@localhost:5432/stashden
           S3_TEST_ENDPOINT: http://localhost:9000
 
   desktop-csp:
@@ -82,10 +82,10 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @roxycloud/web build
-      - run: pnpm --filter @roxycloud/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @stashden/web build
+      - run: pnpm --filter @stashden/web exec playwright install --with-deps chromium
       - name: The desktop window's CSP must let the app style itself and show its previews
-        run: pnpm --filter @roxycloud/web check:csp
+        run: pnpm --filter @stashden/web check:csp
 
   chart:
     runs-on: ubuntu-latest

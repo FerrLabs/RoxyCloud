@@ -16,7 +16,7 @@ use tokio::io::AsyncRead;
 pub use local::LocalBlobStore;
 pub use s3::S3BlobStore;
 
-use roxycloud_core::blob::BlobHash;
+use stashden_core::blob::BlobHash;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StorageError {

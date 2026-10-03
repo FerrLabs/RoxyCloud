@@ -12,9 +12,9 @@ use crate::db;
 use crate::error::ApiError;
 use crate::shares;
 use crate::state::AppState;
-use roxycloud_core::name::{NodeName, parse_path};
-use roxycloud_core::node::{Node, NodeKind};
-use roxycloud_core::share::{Minted, NewShare, Share};
+use stashden_core::name::{NodeName, parse_path};
+use stashden_core::node::{Node, NodeKind};
+use stashden_core::share::{Minted, NewShare, Share};
 
 /// A person choosing the password types it, so it cannot ride in the URL where it would land in
 /// proxy logs and browser history alongside the token it protects.

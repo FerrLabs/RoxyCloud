@@ -1,5 +1,5 @@
 [package]
-name = "roxycloud-api"
+name = "stashden-api"
 version.workspace = true
 description = "Self-hosted file storage with WebDAV, over a content-addressed blob store"
 edition.workspace = true
@@ -9,7 +9,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-roxycloud-core = { workspace = true, features = ["postgres"] }
+stashden-core = { workspace = true, features = ["postgres"] }
 
 axum = { version = "0.8", features = ["macros"] }
 tower-http = { version = "0.7", features = ["cors", "fs", "trace"] }
@@ -57,7 +57,7 @@ aws-smithy-types = { version = "1", features = ["rt-tokio"] }
 aws-credential-types = "1"
 
 [dev-dependencies]
-roxycloud-client = { workspace = true }
+stashden-client = { workspace = true }
 tempfile = "3"
 tokio = { workspace = true, features = ["test-util"] }
 image = { version = "0.25", default-features = false, features = ["png"] }

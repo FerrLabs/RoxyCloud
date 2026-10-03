@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use roxycloud_core::user::User;
+use stashden_core::user::User;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {

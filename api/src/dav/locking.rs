@@ -14,9 +14,9 @@ use crate::access;
 use crate::db;
 use crate::error::ApiError;
 use crate::state::AppState;
-use roxycloud_core::name::NodeName;
-use roxycloud_core::node::{Node, NodeKind};
-use roxycloud_core::user::User;
+use stashden_core::name::NodeName;
+use stashden_core::node::{Node, NodeKind};
+use stashden_core::user::User;
 
 pub(super) async fn lock(
     state: AppState,

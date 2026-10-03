@@ -3,8 +3,8 @@ mod common;
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode, header};
 use http_body_util::BodyExt;
-use roxycloud_api::build_router;
-use roxycloud_core::role::Role;
+use stashden_api::build_router;
+use stashden_core::role::Role;
 use tower::ServiceExt;
 
 use common::Harness;
@@ -478,7 +478,7 @@ database_test!(the_sweep_forgets_a_failure_nothing_followed, harness, {
     assert_eq!(harness.attempt_rows().await, 1);
 
     harness.age_attempts(chrono::Duration::hours(25)).await;
-    let removed = roxycloud_api::attempts::purge_expired(&harness.state.db)
+    let removed = stashden_api::attempts::purge_expired(&harness.state.db)
         .await
         .expect("purging");
 

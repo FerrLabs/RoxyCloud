@@ -117,7 +117,7 @@ impl SyncState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use roxycloud_core::blob::BlobHash;
+    use stashden_core::blob::BlobHash;
 
     fn at(input: &str) -> RelPath {
         RelPath::parse(input).expect("valid path")
@@ -129,7 +129,7 @@ mod tests {
     }
 
     fn scratch(name: &str) -> PathBuf {
-        let directory = std::env::temp_dir().join(format!("roxycloud-state-{name}"));
+        let directory = std::env::temp_dir().join(format!("stashden-state-{name}"));
         let _ = fs::remove_dir_all(&directory);
         fs::create_dir_all(&directory).expect("scratch directory");
         directory.join(STATE_FILE_NAME)

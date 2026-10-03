@@ -12,7 +12,7 @@ use crate::auth::{Caller, Writer};
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::{db, storage, uploads};
-use roxycloud_core::name::parse_path;
+use stashden_core::name::parse_path;
 
 /// The offset a client is at, and the one it is told to come back to. Named after the header the
 /// tus protocol uses, since a client that already speaks that shape should find this familiar.

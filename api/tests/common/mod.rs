@@ -5,15 +5,15 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use roxycloud_api::auth::Sessions;
-use roxycloud_api::state::AppState;
-use roxycloud_api::storage::LocalBlobStore;
-use roxycloud_api::{db, trash, users};
-use roxycloud_core::blob::BlobHash;
-use roxycloud_core::node::Node;
-use roxycloud_core::role::Role;
-use roxycloud_core::user::{Email, User};
 use sqlx::{AssertSqlSafe, Executor, PgPool, postgres::PgPoolOptions};
+use stashden_api::auth::Sessions;
+use stashden_api::state::AppState;
+use stashden_api::storage::LocalBlobStore;
+use stashden_api::{db, trash, users};
+use stashden_core::blob::BlobHash;
+use stashden_core::node::Node;
+use stashden_core::role::Role;
+use stashden_core::user::{Email, User};
 use uuid::Uuid;
 
 pub const PASSWORD: &str = "twelve-characters-at-least";
@@ -38,7 +38,7 @@ impl Harness {
             .await
             .expect("connecting to DATABASE_URL");
 
-        let database = format!("roxy_test_{}", Uuid::now_v7().simple());
+        let database = format!("stashden_test_{}", Uuid::now_v7().simple());
         maintenance
             .execute(AssertSqlSafe(format!("CREATE DATABASE \"{database}\"")))
             .await
@@ -55,8 +55,8 @@ impl Harness {
             .await
             .expect("running the migrations");
 
-        let blob_root = std::env::temp_dir().join(format!("roxy-blobs-{database}"));
-        let upload_root = std::env::temp_dir().join(format!("roxy-uploads-{database}"));
+        let blob_root = std::env::temp_dir().join(format!("stashden-blobs-{database}"));
+        let upload_root = std::env::temp_dir().join(format!("stashden-uploads-{database}"));
         let blobs = Arc::new(
             LocalBlobStore::open(&blob_root)
                 .await
@@ -68,7 +68,7 @@ impl Harness {
                 db,
                 blobs: blobs.clone(),
                 staging: Arc::new(
-                    roxycloud_api::uploads::Staging::open(&upload_root)
+                    stashden_api::uploads::Staging::open(&upload_root)
                         .await
                         .expect("opening the upload staging"),
                 ),
@@ -142,7 +142,7 @@ impl Harness {
         owner: Uuid,
         path: &str,
         contents: &[u8],
-    ) -> Result<Node, roxycloud_api::error::ApiError> {
+    ) -> Result<Node, stashden_api::error::ApiError> {
         self.try_write_keeping(owner, path, contents, self.state.versions_kept)
             .await
     }
@@ -153,13 +153,13 @@ impl Harness {
         path: &str,
         contents: &[u8],
         versions_kept: i64,
-    ) -> Result<Node, roxycloud_api::error::ApiError> {
-        let mut segments = roxycloud_core::name::parse_path(path).expect("valid path");
+    ) -> Result<Node, stashden_api::error::ApiError> {
+        let mut segments = stashden_core::name::parse_path(path).expect("valid path");
         let name = segments.pop().expect("a file name");
         let written = self
             .state
             .blobs
-            .write(roxycloud_api::storage::upload(futures::stream::iter([
+            .write(stashden_api::storage::upload(futures::stream::iter([
                 Ok::<_, std::io::Error>(bytes::Bytes::copy_from_slice(contents)),
             ])))
             .await
@@ -187,7 +187,7 @@ impl Harness {
         let written = self
             .state
             .blobs
-            .write(roxycloud_api::storage::upload(futures::stream::iter([
+            .write(stashden_api::storage::upload(futures::stream::iter([
                 Ok::<_, std::io::Error>(bytes::Bytes::copy_from_slice(contents)),
             ])))
             .await
@@ -198,10 +198,10 @@ impl Harness {
         )
     }
 
-    pub async fn stage_kept(&self, contents: &[u8]) -> roxycloud_api::storage::Written {
+    pub async fn stage_kept(&self, contents: &[u8]) -> stashden_api::storage::Written {
         self.state
             .blobs
-            .write(roxycloud_api::storage::upload(futures::stream::iter([
+            .write(stashden_api::storage::upload(futures::stream::iter([
                 Ok::<_, std::io::Error>(bytes::Bytes::copy_from_slice(contents)),
             ])))
             .await
@@ -212,9 +212,9 @@ impl Harness {
         &self,
         owner: Uuid,
         path: &str,
-        written: &roxycloud_api::storage::Written,
+        written: &stashden_api::storage::Written,
     ) -> Node {
-        let mut segments = roxycloud_core::name::parse_path(path).expect("valid path");
+        let mut segments = stashden_core::name::parse_path(path).expect("valid path");
         let name = segments.pop().expect("a file name");
 
         let mut tx = self.state.db.begin().await.expect("begin");
@@ -261,7 +261,7 @@ impl Harness {
     }
 
     pub async fn resolve(&self, owner: Uuid, path: &str) -> Node {
-        let segments = roxycloud_core::name::parse_path(path).expect("valid path");
+        let segments = stashden_core::name::parse_path(path).expect("valid path");
         let mut tx = self.state.db.begin().await.expect("begin");
         let root = db::ensure_root(&mut tx, owner, self.state.default_quota_bytes)
             .await
@@ -284,9 +284,9 @@ impl Harness {
         owner: Uuid,
         from: &str,
         to: &str,
-    ) -> Result<Node, roxycloud_api::error::ApiError> {
-        let source = roxycloud_core::name::parse_path(from).expect("valid path");
-        let mut destination = roxycloud_core::name::parse_path(to).expect("valid path");
+    ) -> Result<Node, stashden_api::error::ApiError> {
+        let source = stashden_core::name::parse_path(from).expect("valid path");
+        let mut destination = stashden_core::name::parse_path(to).expect("valid path");
         let name = destination.pop().expect("a destination name");
 
         let mut tx = self.state.db.begin().await.expect("begin");
@@ -321,7 +321,7 @@ impl Harness {
         &self,
         owner: Uuid,
         id: Uuid,
-    ) -> Result<Node, roxycloud_api::error::ApiError> {
+    ) -> Result<Node, stashden_api::error::ApiError> {
         let mut tx = self.state.db.begin().await.expect("begin");
         let restored = trash::restore(&mut tx, owner, id).await?;
         tx.commit().await.expect("commit");
@@ -369,11 +369,11 @@ impl Harness {
         owner: &User,
         path: &str,
         email: &str,
-        access: roxycloud_core::grant::Access,
+        access: stashden_core::grant::Access,
     ) -> Uuid {
         let node = self.resolve(owner.id, path).await;
         let mut tx = self.state.db.begin().await.expect("begin");
-        let given = roxycloud_api::grants::give(
+        let given = stashden_api::grants::give(
             &mut tx,
             owner,
             &node,
@@ -387,7 +387,7 @@ impl Harness {
     }
 
     pub async fn withdraw(&self, owner: &User, id: Uuid) {
-        roxycloud_api::grants::withdraw(&self.state.db, owner, id)
+        stashden_api::grants::withdraw(&self.state.db, owner, id)
             .await
             .expect("withdrawing the grant");
     }
@@ -625,7 +625,7 @@ pub async fn serve(state: AppState) -> String {
         .await
         .expect("a free port");
     let address = listener.local_addr().expect("a bound address");
-    let router = roxycloud_api::build_router(state, &[], None);
+    let router = stashden_api::build_router(state, &[], None);
     tokio::spawn(async move { axum::serve(listener, router).await.expect("serving") });
     format!("http://{address}")
 }

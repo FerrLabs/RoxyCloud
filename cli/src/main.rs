@@ -5,8 +5,8 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use roxycloud_client::{Engine, Remote};
-use roxycloud_core::node::{NodeKind, Trashed};
+use stashden_client::{Engine, Remote};
+use stashden_core::node::{NodeKind, Trashed};
 use uuid::Uuid;
 
 #[derive(Parser)]

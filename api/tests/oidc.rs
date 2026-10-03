@@ -3,9 +3,9 @@ mod common;
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
-use roxycloud_api::build_router;
-use roxycloud_api::oidc::{self, Claims, Refused, RefusedOrFailed};
-use roxycloud_core::role::Role;
+use stashden_api::build_router;
+use stashden_api::oidc::{self, Claims, Refused, RefusedOrFailed};
+use stashden_core::role::Role;
 use tower::ServiceExt;
 
 use common::Harness;
@@ -20,7 +20,7 @@ fn claims(email: &str, verified: bool) -> Claims {
     }
 }
 
-fn refusal(outcome: Result<roxycloud_core::user::User, RefusedOrFailed>) -> Refused {
+fn refusal(outcome: Result<stashden_core::user::User, RefusedOrFailed>) -> Refused {
     match outcome {
         Err(RefusedOrFailed::Refused(refused)) => refused,
         Err(RefusedOrFailed::Failed(failure)) => panic!("failed rather than refused: {failure}"),
@@ -209,12 +209,12 @@ database_test!(password_login_can_be_turned_off_and_back_on, harness, {
     // Set directly rather than through the route, which refuses this with no provider configured.
     // The branch under test is the one in `auth::login`, and it decides whether an installation is
     // still signable-into at all.
-    roxycloud_api::settings::allow_password_login(&harness.state.db, false)
+    stashden_api::settings::allow_password_login(&harness.state.db, false)
         .await
         .expect("turning it off");
     let off = call(&harness, "POST", "/v1/auth/login", "", &credentials).await;
 
-    roxycloud_api::settings::allow_password_login(&harness.state.db, true)
+    stashden_api::settings::allow_password_login(&harness.state.db, true)
         .await
         .expect("turning it back on");
     let on = call(&harness, "POST", "/v1/auth/login", "", &credentials).await;
