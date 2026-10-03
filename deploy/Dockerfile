@@ -42,7 +42,7 @@ RUN apt-get update \
 COPY --from=builder /build/target/release/stashden-api /usr/local/bin/stashden-api
 COPY --from=web /build/web/dist /srv/stashden-web
 USER stashden
-ENV PORT=3001 BLOB_ROOT=/var/lib/roxycloud WEB_ROOT=/srv/roxycloud-web
+ENV PORT=3001 BLOB_ROOT=/var/lib/roxycloud WEB_ROOT=/srv/stashden-web
 VOLUME /var/lib/roxycloud
 EXPOSE 3001
 ENTRYPOINT ["/usr/local/bin/stashden-api"]

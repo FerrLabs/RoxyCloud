@@ -192,7 +192,7 @@ helm install roxycloud oci://ghcr.io/ferrlabs/charts/roxycloud   --set database.
 ```
 
 The release workflow publishes the chart to `oci://ghcr.io/ferrlabs/charts/roxycloud` and the image
-to `ghcr.io/ferrlabs/stashden-api`, for amd64 and arm64, both under the release version, so the
+to `ghcr.io/ferrlabs/roxycloud-api`, for amd64 and arm64, both under the release version, so the
 chart's default image needs no override.
 
 ## Endpoints
