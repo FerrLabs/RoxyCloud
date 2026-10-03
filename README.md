@@ -183,16 +183,17 @@ second deployment and no CORS to configure. Hosting the bundle elsewhere still w
 `STASHDEN_API_URL` pointing at the API, serve it however you like, and name its origin in
 `CORS_ALLOWED_ORIGINS`.
 
-On Kubernetes, `deploy/helm/roxycloud` deploys the API against a database you already run, with a
+On Kubernetes, `deploy/helm/stashden` deploys the API against a database you already run, with a
 volume for the blobs and an optional ingress. It does not bundle Postgres. It serves the web app,
-since the image carries it. `deploy/helm/roxycloud/README.md` has the values and the reasoning.
+since the image carries it. `deploy/helm/stashden/README.md` has the values and the reasoning, and
+what a release installed from the former `roxycloud` chart needs to upgrade.
 
 ```bash
-helm install roxycloud oci://ghcr.io/ferrlabs/charts/roxycloud   --set database.url='postgres://roxycloud:password@postgres/roxycloud'   --set jwt.secret="$(openssl rand -hex 32)"
+helm install stashden oci://ghcr.io/ferrlabs/charts/stashden   --set database.url='postgres://stashden:password@postgres/stashden'   --set jwt.secret="$(openssl rand -hex 32)"
 ```
 
-The release workflow publishes the chart to `oci://ghcr.io/ferrlabs/charts/roxycloud` and the image
-to `ghcr.io/ferrlabs/roxycloud-api`, for amd64 and arm64, both under the release version, so the
+The release workflow publishes the chart to `oci://ghcr.io/ferrlabs/charts/stashden` and the image
+to `ghcr.io/ferrlabs/stashden-api`, for amd64 and arm64, both under the release version, so the
 chart's default image needs no override.
 
 ## Endpoints
