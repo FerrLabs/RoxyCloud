@@ -1,6 +1,6 @@
-# RoxyCloud chart
+# Stashden chart
 
-Deploys the RoxyCloud API: one replica, one volume for the blobs, and a Secret for the two values
+Deploys the Stashden API: one replica, one volume for the blobs, and a Secret for the two values
 it will not start without.
 
 ## What it does not do
@@ -16,35 +16,37 @@ by default. Point `ingress.host` at it and the app and the API are both there.
 
 ## The image
 
-`ghcr.io/ferrlabs/roxycloud-api` is published by the release workflow, for `linux/amd64` and
-`linux/arm64`, tagged with the exact version, the minor line and `latest`. The chart pins the exact
+`ghcr.io/ferrlabs/stashden-api` is published by the release workflow, for `linux/amd64` and
+`linux/arm64`, tagged with the exact version, the minor line and `latest`. The same image is still
+pushed to `ghcr.io/ferrlabs/roxycloud-api`, the name it had before the project became Stashden, for
+anyone who has not switched yet. The chart pins the exact
 version through `appVersion`, so an upgrade moves the image and the chart together.
 
 Building your own is still one command, which is what you want for a fork or an unreleased commit:
 
 ```bash
-docker build -f deploy/Dockerfile -t your.registry/roxycloud-api:0.13.0 .
-docker push your.registry/roxycloud-api:0.13.0
+docker build -f deploy/Dockerfile -t your.registry/stashden-api:0.13.0 .
+docker push your.registry/stashden-api:0.13.0
 ```
 
 ## Installing
 
-Each release publishes this chart to `oci://ghcr.io/ferrlabs/charts/roxycloud` under the release
+Each release publishes this chart to `oci://ghcr.io/ferrlabs/charts/stashden` under the release
 version, signed with cosign by the release workflow. Add `--version` to pin one instead of taking the
 latest:
 
 ```bash
-helm install roxycloud oci://ghcr.io/ferrlabs/charts/roxycloud \
-  --set database.url='postgres://roxycloud:password@postgres/roxycloud' \
+helm install stashden oci://ghcr.io/ferrlabs/charts/stashden \
+  --set database.url='postgres://stashden:password@postgres/stashden' \
   --set jwt.secret="$(openssl rand -hex 32)"
 ```
 
 From a checkout, with an image you built yourself:
 
 ```bash
-helm install roxycloud deploy/helm/roxycloud \
-  --set image.repository=your.registry/roxycloud-api \
-  --set database.url='postgres://roxycloud:password@postgres/roxycloud' \
+helm install stashden deploy/helm/stashden \
+  --set image.repository=your.registry/stashden-api \
+  --set database.url='postgres://stashden:password@postgres/stashden' \
   --set jwt.secret="$(openssl rand -hex 32)" \
   --set bootstrapAdmin.email=you@example.com \
   --set bootstrapAdmin.password='at least twelve characters'
@@ -55,15 +57,30 @@ in External Secrets or a sealed secret:
 
 ```yaml
 database:
-  existingSecret: roxycloud-database
+  existingSecret: stashden-database
   existingSecretKey: url
 jwt:
-  existingSecret: roxycloud-jwt
+  existingSecret: stashden-jwt
   existingSecretKey: secret
 ```
 
 The bootstrap administrator is created once, on a database with no accounts, and ignored after that.
 Rotating `jwt.secret` invalidates every session token in circulation.
+
+## Upgrading from the roxycloud chart
+
+The chart was called `roxycloud` before the project became Stashden, and the chart name is part of
+every resource name and of the Deployment's selector, which Kubernetes does not let an upgrade
+change. A release installed from the old chart keeps its names by setting `nameOverride`:
+
+```bash
+helm upgrade roxycloud oci://ghcr.io/ferrlabs/charts/stashden \
+  --reuse-values --set nameOverride=roxycloud
+```
+
+Without it, the upgrade fails on the selector, and a fresh install beside it would create an empty
+claim instead of using the one that holds the blobs. The image moves to `stashden-api` on its own,
+since the chart's default now points there and it is the same image.
 
 ## One replica
 
@@ -79,7 +96,7 @@ over a kept claim means telling the chart to adopt it rather than create a secon
 
 ```yaml
 persistence:
-  existingClaim: roxycloud
+  existingClaim: stashden
 ```
 
 Turn `persistence.retain` off if you would rather uninstall took the data with it. Nothing else in
@@ -89,7 +106,7 @@ this chart is capable of deleting the blob store.
 
 | Value | Default | Purpose |
 |---|---|---|
-| `image.repository` | `ghcr.io/ferrlabs/roxycloud-api` | Image to run |
+| `image.repository` | `ghcr.io/ferrlabs/stashden-api` | Image to run |
 | `image.tag` | chart `appVersion` | Tag to run |
 | `database.url` | none | Postgres connection string, required unless `database.existingSecret` is set |
 | `database.existingSecret` | none | Secret already holding the connection string |
@@ -118,10 +135,12 @@ this chart is capable of deleting the blob store.
 | `ingress.tls.enabled` | `false` | Serve the host over TLS |
 | `ingress.tls.secretName` | none | Required when TLS is on |
 | `resources` | none | Container requests and limits |
+| `nameOverride` | chart name | Name used for the resources and the `app.kubernetes.io/name` label |
+| `fullnameOverride` | none | Full resource name, overriding the release and chart names |
 
 ## Checking a change to the chart
 
 ```bash
-helm lint deploy/helm/roxycloud --set database.url=x --set jwt.secret=y
-helm template roxycloud deploy/helm/roxycloud --set database.url=x --set jwt.secret=y | kubeconform -strict -summary
+helm lint deploy/helm/stashden --set database.url=x --set jwt.secret=y
+helm template stashden deploy/helm/stashden --set database.url=x --set jwt.secret=y | kubeconform -strict -summary
 ```

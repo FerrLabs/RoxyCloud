@@ -26,7 +26,8 @@ on:
         type: boolean
 
 env:
-  IMAGE: ghcr.io/ferrlabs/roxycloud-api
+  IMAGE: ghcr.io/ferrlabs/stashden-api
+  LEGACY_IMAGE: ghcr.io/ferrlabs/roxycloud-api
 
 jobs:
   build:
@@ -67,8 +68,8 @@ jobs:
           file: deploy/Dockerfile
           platforms: ${{ matrix.platform }}
           labels: |
-            org.opencontainers.image.title=roxycloud-api
-            org.opencontainers.image.description=The RoxyCloud API
+            org.opencontainers.image.title=stashden-api
+            org.opencontainers.image.description=The Stashden API
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
             org.opencontainers.image.version=${{ inputs.version }}
@@ -118,7 +119,9 @@ jobs:
       - id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
-          images: ${{ env.IMAGE }}
+          images: |
+            ${{ env.IMAGE }}
+            ${{ env.LEGACY_IMAGE }}
           tags: |
             type=semver,pattern={{version}},value=v${{ inputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=v${{ inputs.version }}

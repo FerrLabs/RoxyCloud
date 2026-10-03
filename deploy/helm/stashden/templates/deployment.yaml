@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "roxycloud.fullname" . }}
+  name: {{ include "stashden.fullname" . }}
   labels:
-    {{- include "roxycloud.labels" . | nindent 4 }}
+    {{- include "stashden.labels" . | nindent 4 }}
 {{- $local := eq .Values.blobs.backend "local" }}
 {{- if and $local (gt (int .Values.replicaCount) 1) }}
 {{- fail "blobs.backend=local puts the blobs in one pod's volume, so a second replica would serve half the files; set blobs.backend=s3 to run more than one" }}
@@ -19,7 +19,7 @@ spec:
     {{- end }}
   selector:
     matchLabels:
-      {{- include "roxycloud.selectorLabels" . | nindent 6 }}
+      {{- include "stashden.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -28,7 +28,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "roxycloud.selectorLabels" . | nindent 8 }}
+        {{- include "stashden.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -79,24 +79,24 @@ spec:
             - name: S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "roxycloud.s3Secret" . }}
+                  name: {{ include "stashden.s3Secret" . }}
                   key: {{ .Values.blobs.s3.accessKeyIdKey }}
             - name: S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "roxycloud.s3Secret" . }}
+                  name: {{ include "stashden.s3Secret" . }}
                   key: {{ .Values.blobs.s3.secretAccessKeyKey }}
             {{- end }}
             {{- end }}
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "roxycloud.databaseSecret" . }}
+                  name: {{ include "stashden.databaseSecret" . }}
                   key: {{ .Values.database.existingSecretKey }}
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "roxycloud.jwtSecret" . }}
+                  name: {{ include "stashden.jwtSecret" . }}
                   key: {{ .Values.jwt.existingSecretKey }}
             {{- with .Values.config.corsAllowedOrigins }}
             - name: CORS_ALLOWED_ORIGINS
@@ -127,7 +127,7 @@ spec:
             - name: BOOTSTRAP_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "roxycloud.fullname" . }}
+                  name: {{ include "stashden.fullname" . }}
                   key: bootstrap-admin-password
             {{- end }}
           livenessProbe:
@@ -160,7 +160,7 @@ spec:
         - name: blobs
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ include "roxycloud.claimName" . }}
+            claimName: {{ include "stashden.claimName" . }}
           {{- else }}
           emptyDir: {}
           {{- end }}
