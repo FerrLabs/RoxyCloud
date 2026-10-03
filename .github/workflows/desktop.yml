@@ -32,7 +32,7 @@ jobs:
             signatures: target/release/bundle/nsis/*.exe.sig
             extra: --bundles nsis
           # An AppImage inherits the glibc of the machine that built it, so
-          # this label is the oldest distribution RoxyCloud runs on, not a
+          # this label is the oldest distribution Stashden runs on, not a
           # detail: 22.04 means glibc 2.35, which covers Debian 12 and Ubuntu
           # 22.04 alike. Raise it deliberately, and never to ubuntu-latest.
           - os: ubuntu-22.04

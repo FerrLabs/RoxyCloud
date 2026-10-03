@@ -16,8 +16,8 @@ parallel without fighting over blob refcounts. They skip themselves when `DATABA
 which is why `cargo test` works on a machine with no database:
 
 ```bash
-docker run -d --name roxy-db -e POSTGRES_USER=roxy -e POSTGRES_PASSWORD=roxy   -e POSTGRES_DB=roxycloud -p 5432:5432 postgres:17-alpine
-DATABASE_URL=postgres://roxy:roxy@localhost:5432/roxycloud cargo test
+docker run -d --name stashden-db -e POSTGRES_USER=stashden -e POSTGRES_PASSWORD=stashden   -e POSTGRES_DB=stashden -p 5432:5432 postgres:17-alpine
+DATABASE_URL=postgres://stashden:stashden@localhost:5432/stashden cargo test
 ```
 
 `DATABASE_URL` points at any database on the server; the tests only use it to reach the server and
@@ -53,7 +53,7 @@ diagram that lies is worse than no diagram, because people trust it.
 
 ## Licensing your contribution
 
-RoxyCloud is AGPL-3.0-only. Contributions are accepted under the same licence, certified with the
+Stashden is AGPL-3.0-only. Contributions are accepted under the same licence, certified with the
 [Developer Certificate of Origin](https://developercertificate.org): sign off every commit with
 `git commit -s`, which appends a `Signed-off-by` line.
 
@@ -66,12 +66,12 @@ what you write. The practical consequence, stated plainly so nobody is surprised
 FerrLabs included, can relicense this project or sell proprietary exceptions to it without the
 agreement of every contributor.
 
-If you run a modified RoxyCloud as a network service, the AGPL requires you to offer your users the
+If you run a modified Stashden as a network service, the AGPL requires you to offer your users the
 source of your modified version. The web app carries a source link for exactly that reason; leave it
 in place.
 
 ## Scope
 
-RoxyCloud is deliberately narrower than Nextcloud. There is no plugin system and no extension API,
+Stashden is deliberately narrower than Nextcloud. There is no plugin system and no extension API,
 and proposals to add one will be declined. Feature requests that widen the product are better raised
 as an issue before the code, so nobody spends a weekend on something that will not land.

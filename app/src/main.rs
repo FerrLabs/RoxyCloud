@@ -398,5 +398,5 @@ fn main() {
             install_update
         ])
         .run(tauri::generate_context!())
-        .expect("starting the RoxyCloud window");
+        .expect("starting the Stashden window");
 }

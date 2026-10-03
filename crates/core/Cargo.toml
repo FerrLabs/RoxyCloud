@@ -1,7 +1,7 @@
 [package]
 name = "stashden-core"
 version.workspace = true
-description = "Domain types shared by the RoxyCloud server, CLI and desktop client"
+description = "Domain types shared by the Stashden server, CLI and desktop client"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true

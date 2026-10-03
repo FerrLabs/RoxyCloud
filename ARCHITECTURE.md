@@ -1,6 +1,6 @@
-# RoxyCloud Architecture
+# Stashden Architecture
 
-RoxyCloud is self-hosted file storage: a web UI, a REST API, and a WebDAV endpoint over a
+Stashden is self-hosted file storage: a web UI, a REST API, and a WebDAV endpoint over a
 content-addressed blob store. It is the OSS member of the FerrLabs portfolio, licensed AGPL-3.0-only.
 
 The licence is a product decision, not a formality. AGPL is what stops a larger host from running a
@@ -10,7 +10,7 @@ number of companies refuse AGPL dependencies outright. Contributions come in und
 copyright assignment, which means the project cannot be relicensed or sold as a proprietary
 exception later without every contributor agreeing. That door is closed deliberately.
 
-RoxyCloud is the first FerrLabs product that does not carry the `Ferr*` prefix. That is deliberate:
+Stashden is the first FerrLabs product that does not carry the `Ferr*` prefix. That is deliberate:
 it competes in a self-hosted market where the brand has to stand on its own, next to Nextcloud and
 OxiCloud, rather than read as one entry in a B2B tooling suite. The FerrLabs relationship stays at
 the brand level, the way FerrGames does it: footer attribution, cross-product nav, hosting under
@@ -27,22 +27,23 @@ mobile sync clients, federated sharing.
 
 ## Surfaces
 
-The name is shared with an unrelated IT consultancy that holds `roxycloud.com`, so the project lives
-on `roxycloud.io`. They sell services rather than software, which is why the name stays; the day this
-becomes a paid hosted product, that reasoning is worth revisiting.
+The project was called RoxyCloud until 0.32. That name was shared with an IT consultancy holding
+`roxycloud.com` and a Minecraft host, and said nothing about what the project is; #188 has the
+shortlist and the reasons for Stashden. None of the hosts below is registered yet: `stashden.dev`,
+`.app` and `.io` were all free when the name was chosen.
 
 | Surface | Host | Stack |
 |---|---|---|
-| Marketing site | `roxycloud.io` | Angular 22, prerendered, EN + FR |
-| Web app | `app.roxycloud.io` | Angular SPA, components local to this repo |
-| API | `api.roxycloud.io` | Rust, axum 0.8, sqlx, Postgres |
-| WebDAV | `api.roxycloud.io/dav` | Same binary, separate router |
-| CLI | `roxy` | Rust, ships with the server image |
+| Marketing site | `stashden.dev` | Angular 22, prerendered, EN + FR |
+| Web app | `app.stashden.dev` | Angular SPA, components local to this repo |
+| API | `api.stashden.dev` | Rust, axum 0.8, sqlx, Postgres |
+| WebDAV | `api.stashden.dev/dav` | Same binary, separate router |
+| CLI | `stashden` | Rust, ships with the server image |
 | Desktop | `app/` | Tauri 2 shell around the same Angular build |
 
 ## Identity
 
-RoxyCloud owns its users. It does not consume `FerrLabs-Cloud/api`, and it does not link the `Kit`
+Stashden owns its users. It does not consume `FerrLabs-Cloud/api`, and it does not link the `Kit`
 crates or the `UI` packages, because both of those repositories are private: an outside contributor
 who cannot resolve a dependency cannot build the project, and a project nobody can build is
 source-available, not open source. Every dependency here resolves from crates.io, npm, or this
@@ -107,7 +108,7 @@ One Cargo workspace at the root, plus the browser surfaces.
 crates/core/     domain types: paths, hashes, nodes. No I/O, no framework
 crates/client/   API client and sync engine, shared by the CLI and the desktop app
 api/             the axum server and the migrations
-cli/             `roxy`, the command-line client and admin tool
+cli/             `stashden`, the command-line client and admin tool
 app/             the desktop client: a Tauri shell around web/
 web/             Angular SPA, the only interface
 site/            Angular marketing and documentation, prerendered
@@ -132,7 +133,7 @@ network, no database and no display: the reconciler is a pure function over thre
 
 Two decisions carry it. Comparison is by content, never by timestamp, which the content-addressed
 store makes free: a local file hashed with blake3 yields the same etag the server computed, so
-equality is a string compare rather than a transfer. And the state file, `.roxycloud-sync.json` in
+equality is a string compare rather than a transfer. And the state file, `.stashden-sync.json` in
 the synced folder, doubles as an mtime cache, so a restart rehashes only what changed rather than
 the whole folder.
 
@@ -176,7 +177,7 @@ which is the failure mode this design exists to prevent. The Tauri API is behind
 so the browser bundle does not carry it.
 
 Conflict handling is the part that will hurt, and it is a product decision more than a technical
-one. When a file changed on both sides, RoxyCloud keeps both and renames the loser, the way Dropbox
+one. When a file changed on both sides, Stashden keeps both and renames the loser, the way Dropbox
 does. Silent overwrite of somebody's work is not a resolution strategy, and a modal that blocks the
 sync until a human answers is worse.
 
@@ -336,7 +337,7 @@ a re-upload of the same content from racing the collector.
 sequenceDiagram
     participant C as Client
     participant T as Traefik
-    participant A as api.roxycloud.io
+    participant A as api.stashden.dev
     participant P as Postgres
     participant B as Blob store
 
@@ -358,7 +359,7 @@ a resumable session so a dropped connection resumes instead of restarting.
 ```mermaid
 flowchart LR
     subgraph Public
-        SPA[app.roxycloud.io]
+        SPA[app.stashden.dev]
         DAV[WebDAV clients]
         LINK[Anonymous share links]
     end

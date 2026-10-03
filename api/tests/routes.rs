@@ -389,7 +389,7 @@ database_test!(
 fn web_root(harness: &Harness) -> std::path::PathBuf {
     let root = harness.blob_root.join("web");
     std::fs::create_dir_all(&root).expect("a web root");
-    std::fs::write(root.join("index.html"), "<title>RoxyCloud</title>").expect("an entry point");
+    std::fs::write(root.join("index.html"), "<title>Stashden</title>").expect("an entry point");
     std::fs::write(root.join("main.js"), "console.log('bundle')").expect("a bundle");
     root
 }
@@ -418,7 +418,7 @@ database_test!(the_web_app_is_served_when_a_root_is_configured, harness, {
     let (status, body) = from_the_web_root(&harness, "/").await;
 
     assert_eq!(status, StatusCode::OK);
-    assert!(body.contains("RoxyCloud"), "{body}");
+    assert!(body.contains("Stashden"), "{body}");
 
     let (status, body) = from_the_web_root(&harness, "/main.js").await;
     assert_eq!(status, StatusCode::OK);
@@ -434,7 +434,7 @@ database_test!(an_unknown_api_path_is_still_not_found, harness, {
             StatusCode::NOT_FOUND,
             "the app must not answer for {path}, or a typo in a client reads as a page: {body}"
         );
-        assert!(!body.contains("RoxyCloud"), "{path}: {body}");
+        assert!(!body.contains("Stashden"), "{path}: {body}");
     }
 });
 

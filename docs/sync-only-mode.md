@@ -34,7 +34,7 @@ The RFC proposed the mode as "one policy on a peer", with the server holding no 
 That reads as a smaller change than it is, because three-way reconciliation needs a base, and the
 base is per-pair.
 
-`sync/state.rs` keeps the last agreed state in `.roxycloud-sync.json` beside the folder, one file,
+`sync/state.rs` keeps the last agreed state in `.stashden-sync.json` beside the folder, one file,
 because there is one remote. With N peers there are N bases, and a device that syncs with two others
 needs to remember what it last agreed with each. That is a change to the state file's shape rather
 than to the reconciler, but it is a change, and pretending the mode is a flag hides it.

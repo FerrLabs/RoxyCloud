@@ -2,7 +2,7 @@
 
 <img src="site/public/favicon.svg" alt="" width="88" height="88" />
 
-# RoxyCloud
+# Stashden
 
 **Self-hosted file storage in Rust.**
 
@@ -17,6 +17,22 @@ Your files, on hardware you own, under the AGPL.
 [Architecture](ARCHITECTURE.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [FerrLabs](https://github.com/FerrLabs)
 
 </div>
+
+## Formerly RoxyCloud
+
+The project was called RoxyCloud until version 0.32 ([#188](https://github.com/FerrLabs/RoxyCloud/issues/188)).
+Nothing has to be redone by hand:
+
+- the desktop app updates to Stashden and removes the RoxyCloud install it replaces, keeping the
+  signed-in account and the folders it syncs;
+- a synced folder's `.roxycloud-sync.json` is taken over the first time the new version opens it;
+- the CLI is now `stashden`, and still reads `ROXYCLOUD_URL`, `ROXYCLOUD_TOKEN` and
+  `ROXYCLOUD_PASSWORD`, with a warning, when the `STASHDEN_*` names are not set;
+- the image is `ghcr.io/ferrlabs/stashden-api`, and is still pushed to `roxycloud-api` for now;
+- a Helm release installed from the `roxycloud` chart upgrades with `nameOverride=roxycloud`, as
+  `deploy/helm/stashden/README.md` explains;
+- `docker-compose.yml` keeps its `roxycloud` database and `/var/lib/roxycloud` volume, so an existing
+  install comes back up on its data.
 
 ## Status
 
@@ -40,7 +56,7 @@ uploads, and WebDAV with locking, which is what lets macOS Finder and Windows Ex
 Overwriting a file keeps what it replaced as a version, which can be downloaded or restored.
 
 The desktop app asks which instance to sign in to and remembers it, so one build works against
-any server, and keeps a folder in sync from its own window as well as from `roxy sync`. It uploads
+any server, and keeps a folder in sync from its own window as well as from `stashden sync`. It uploads
 from the system's file picker or from files dragged onto its window, streaming each one from disk
 rather than loading it into the window first. A dropped folder is refused with a note to sync it
 instead.
@@ -56,8 +72,8 @@ deploy/     Dockerfile, compose file, Helm chart
 
 ## Installing the desktop app
 
-Every release carries an installer: `RoxyCloud_<version>_x64-setup.exe` for Windows and
-`RoxyCloud_<version>_amd64.AppImage` for Linux, on the
+Every release carries an installer: `Stashden_<version>_x64-setup.exe` for Windows and
+`Stashden_<version>_amd64.AppImage` for Linux, on the
 [releases page](https://github.com/FerrLabs/RoxyCloud/releases/latest). The app asks for the address
 of the instance on first launch, so it works against any server, not only a particular one.
 
@@ -68,15 +84,15 @@ UAC prompt instead. Each installer is published with its SHA-256 beside it, so t
 checked before it is run:
 
 ```bash
-sha256sum -c RoxyCloud_0.26.0_x64-setup.exe.sha256
+sha256sum -c Stashden_0.33.0_x64-setup.exe.sha256
 ```
 
 The AppImage needs the executable bit and a system with FUSE. It is built on Ubuntu 22.04, so it
 wants glibc 2.35 or later, which covers Debian 12 and everything more recent:
 
 ```bash
-chmod +x RoxyCloud_*_amd64.AppImage
-./RoxyCloud_*_amd64.AppImage
+chmod +x Stashden_*_amd64.AppImage
+./Stashden_*_amd64.AppImage
 ```
 
 macOS has no build yet: a `.dmg` anyone can open needs an Apple developer account and notarisation.
@@ -122,7 +138,7 @@ directory.
 Postgres 15 or later, and a Rust toolchain matching `rust-toolchain.toml`.
 
 ```bash
-DATABASE_URL=postgres://localhost/roxycloud JWT_SECRET=dev-secret cargo run -p stashden-api
+DATABASE_URL=postgres://localhost/stashden JWT_SECRET=dev-secret cargo run -p stashden-api
 ```
 
 Migrations run on boot. Configuration is environment only:
@@ -163,10 +179,10 @@ the same origin as the page, which is what the image builds with, since the API 
 also the API it talks to:
 
 ```bash
-pnpm --filter @stashden/web build   --define STASHDEN_API_URL="'https://api.example.com'"   --define STASHDEN_SOURCE_URL="'https://git.example.com/roxycloud'"
+pnpm --filter @stashden/web build   --define STASHDEN_API_URL="'https://api.example.com'"   --define STASHDEN_SOURCE_URL="'https://git.example.com/stashden'"
 ```
 
-If you deploy a modified RoxyCloud, point the source URL at your fork: the AGPL requires you to
+If you deploy a modified Stashden, point the source URL at your fork: the AGPL requires you to
 offer your users the source of the version they are actually using.
 
 ## Self-hosting
@@ -333,7 +349,7 @@ the bytes twice, and quota is charged for the copy because the tree grew.
 
 Each account carries a role: `admin`, `member` or `reader`. A reader may list and download; upload
 and delete answer 403. The check sits in the API rather than in the interface, so it holds for curl
-and for `roxy sync` as much as for the web app.
+and for `stashden sync` as much as for the web app.
 
 An administrator reaches the accounts from their own menu: who exists, what each is using against
 its quota, and whether it is disabled, with a role to change, a quota to set, an account to add, one
@@ -570,14 +586,14 @@ failures, in the same words as the command line below. Sync now, Pause, Resume a
 they say, and the folder is remembered for the account, so the next session offers it again rather
 than asking.
 
-`roxy sync` reconciles a local folder with the server once and prints what it did. It compares
+`stashden sync` reconciles a local folder with the server once and prints what it did. It compares
 content, not timestamps: a file is only transferred when its bytes differ from the other side.
 
 ```bash
-STASHDEN_TOKEN=... cargo run -p stashden-cli -- sync ~/RoxyCloud
+STASHDEN_TOKEN=... cargo run -p stashden-cli -- sync ~/Stashden
 ```
 
-State lives in `.roxycloud-sync.json` inside the folder, which is what makes a second run cheap and
+State lives in `.stashden-sync.json` inside the folder, which is what makes a second run cheap and
 what tells a deletion apart from a file that was never there. Delete it to start from a full
 comparison again.
 
@@ -588,7 +604,7 @@ overwritten and nothing waits for an answer.
 `--watch` keeps it running instead, syncing as the folder changes:
 
 ```bash
-STASHDEN_TOKEN=... cargo run -p stashden-cli -- sync ~/RoxyCloud --watch
+STASHDEN_TOKEN=... cargo run -p stashden-cli -- sync ~/Stashden --watch
 ```
 
 A save is not a sync. Changes are collected until the folder has been quiet for a moment, and a
@@ -629,7 +645,7 @@ The tests that need Postgres skip themselves when `DATABASE_URL` is unset, so th
 anywhere. Point it at a database and they run:
 
 ```bash
-DATABASE_URL=postgres://roxy:roxy@localhost:5432/roxycloud cargo test --workspace
+DATABASE_URL=postgres://stashden:stashden@localhost:5432/stashden cargo test --workspace
 ```
 
 `pnpm run build` builds both browser surfaces. `web/dist` is embedded in the desktop build, so

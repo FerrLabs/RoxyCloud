@@ -15,12 +15,12 @@ export const fr: SiteContent = {
   },
 
   home: {
-    documentTitle: 'RoxyCloud, stockage de fichiers auto-hébergé en Rust',
+    documentTitle: 'Stashden, stockage de fichiers auto-hébergé en Rust',
     description:
-      "RoxyCloud est un serveur de fichiers auto-hébergé écrit en Rust : une application web, une API REST et WebDAV au-dessus d'un stockage adressé par contenu, sous licence AGPL.",
+      "Stashden est un serveur de fichiers auto-hébergé écrit en Rust : une application web, une API REST et WebDAV au-dessus d'un stockage adressé par contenu, sous licence AGPL.",
     eyebrow: 'Stockage de fichiers auto-hébergé',
     heading: 'Vos fichiers, sur votre machine.',
-    lead: "RoxyCloud est un serveur de fichiers écrit en Rust. Il range ce que vous envoyez dans un stockage adressé par contenu, le sert via une API REST et une application web, et tourne sur une machine qui vous appartient.",
+    lead: "Stashden est un serveur de fichiers écrit en Rust. Il range ce que vous envoyez dans un stockage adressé par contenu, le sert via une API REST et une application web, et tourne sur une machine qui vous appartient.",
     install: "L'installer",
     source: 'Lire les sources',
     status: {
@@ -67,17 +67,17 @@ export const fr: SiteContent = {
         },
         {
           title: "Le lien vers les sources n'est pas décoratif",
-          body: "RoxyCloud est sous AGPL-3.0. Faites tourner une version modifiée pour d'autres et ils ont le droit de la lire, d'où le lien que l'application web porte vers les sources du build qu'elle sert.",
+          body: "Stashden est sous AGPL-3.0. Faites tourner une version modifiée pour d'autres et ils ont le droit de la lire, d'où le lien que l'application web porte vers les sources du build qu'elle sert.",
         },
       ],
     },
   },
 
   install: {
-    documentTitle: 'Installer RoxyCloud',
+    documentTitle: 'Installer Stashden',
     description:
-      "Faire tourner RoxyCloud avec Docker Compose ou depuis les sources : prérequis, variables d'environnement, premier administrateur et build de l'application web.",
-    heading: 'Installer RoxyCloud',
+      "Faire tourner Stashden avec Docker Compose ou depuis les sources : prérequis, variables d'environnement, premier administrateur et build de l'application web.",
+    heading: 'Installer Stashden',
     lead: "Deux chemins. Docker Compose pour qu'il réponde sur le port 3001 en quelques minutes, une chaîne d'outils Rust si vous comptez le modifier.",
     requirements: {
       heading: 'Avant de commencer',
@@ -115,7 +115,7 @@ curl --fail http://localhost:3001/health`,
       blocks: [
         {
           caption: 'Lancer l’API sur un Postgres local',
-          code: `DATABASE_URL=postgres://localhost/roxycloud \\
+          code: `DATABASE_URL=postgres://localhost/stashden \\
 JWT_SECRET=dev-secret \\
 cargo run -p stashden-api`,
         },
@@ -179,16 +179,16 @@ cargo run -p stashden-api`,
           code: `pnpm install
 pnpm --filter @stashden/web build \\
   --define STASHDEN_API_URL="'https://fichiers.exemple.com'" \\
-  --define STASHDEN_SOURCE_URL="'https://git.exemple.com/roxycloud'"`,
+  --define STASHDEN_SOURCE_URL="'https://git.exemple.com/stashden'"`,
         },
       ],
     },
   },
 
   api: {
-    documentTitle: "L'API RoxyCloud",
+    documentTitle: "L'API Stashden",
     description:
-      "L'API REST de RoxyCloud : jetons de session, endpoints dossiers et fichiers, et ce qui n'est pas encore implémenté.",
+      "L'API REST de Stashden : jetons de session, endpoints dossiers et fichiers, et ce qui n'est pas encore implémenté.",
     heading: "L'API",
     lead: "Une seule surface REST, du JSON dans les deux sens, des jetons bearer. WebDAV partage le même binaire et le même arbre sous /dav, authentifié par un mot de passe applicatif plutôt que par une session.",
     session: {
