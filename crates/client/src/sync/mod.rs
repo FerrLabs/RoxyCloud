@@ -19,6 +19,6 @@ pub use local::{LocalScan, ScanError, scan};
 pub use path::{InvalidRelPath, RelPath};
 pub use plan::{Action, Plan, reconcile};
 pub use snapshot::{Entry, Snapshot};
-pub use state::{STATE_FILE_NAME, StateError, SyncState};
+pub use state::{LEGACY_STATE_FILE_NAME, STATE_FILE_NAME, StateError, SyncState};
 pub use transport::Transport;
 pub use watch::{Command, Session, Status, WatchError, watch};

@@ -9,10 +9,10 @@ use super::local::{self, LocalScan, ScanError};
 use super::path::RelPath;
 use super::plan::{Action, reconcile};
 use super::snapshot::Entry;
-use super::state::{STATE_FILE_NAME, StateError, SyncState};
+use super::state::{STATE_FILE_NAME, StateError, SyncState, adopt_legacy};
 use super::transport::Transport;
 
-const PARTIAL_SUFFIX: &str = ".roxypart";
+const PARTIAL_SUFFIX: &str = ".stashpart";
 
 #[derive(Debug, thiserror::Error)]
 pub enum SyncError {
@@ -88,6 +88,7 @@ impl<T: Transport> Engine<T> {
 
     pub fn open(root: impl Into<PathBuf>, transport: T) -> Result<Self, SyncError> {
         let root = root.into();
+        adopt_legacy(&root)?;
         let state = SyncState::load(&state_path(&root))?;
         Ok(Self {
             root,

@@ -11,7 +11,7 @@ use super::held::Held;
 use super::local;
 use super::path::RelPath;
 use super::snapshot::Snapshot;
-use super::state::SyncState;
+use super::state::{LEGACY_STATE_FILE_NAME, STATE_FILE_NAME, SyncState};
 use super::transport::Transport;
 use super::watch::{Command, Status, watch};
 
@@ -167,6 +167,41 @@ async fn a_file_deleted_locally_is_deleted_on_the_server() {
 
     assert_eq!(report.deleted_remotely, 1);
     assert!(pair.read_server("a.txt").is_none());
+}
+
+#[tokio::test]
+async fn a_folder_synced_by_an_older_version_keeps_its_history() {
+    let pair = Pair::new("legacy-state");
+    pair.write_local("a.txt", b"agreed");
+    pair.engine().sync_once().await.expect("first sync");
+    fs::rename(
+        pair.local.join(STATE_FILE_NAME),
+        pair.local.join(LEGACY_STATE_FILE_NAME),
+    )
+    .expect("stands in for a folder an older version synced");
+
+    fs::remove_file(pair.local.join("a.txt")).expect("removes the local copy");
+    let report = pair.engine().sync_once().await.expect("second sync");
+
+    assert_eq!(
+        report.deleted_remotely, 1,
+        "the deletion is recognised, so the old state was carried over"
+    );
+    assert!(pair.local.join(STATE_FILE_NAME).exists());
+    assert!(!pair.local.join(LEGACY_STATE_FILE_NAME).exists());
+}
+
+#[tokio::test]
+async fn the_current_state_file_wins_over_one_an_older_version_left() {
+    let pair = Pair::new("both-states");
+    pair.write_local("a.txt", b"agreed");
+    pair.engine().sync_once().await.expect("first sync");
+    fs::write(pair.local.join(LEGACY_STATE_FILE_NAME), b"{}").expect("writes a stale legacy state");
+
+    fs::remove_file(pair.local.join("a.txt")).expect("removes the local copy");
+    let report = pair.engine().sync_once().await.expect("second sync");
+
+    assert_eq!(report.deleted_remotely, 1);
 }
 
 #[tokio::test]

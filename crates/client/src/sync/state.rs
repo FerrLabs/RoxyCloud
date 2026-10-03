@@ -8,7 +8,25 @@ use serde::{Deserialize, Serialize};
 use super::path::RelPath;
 use super::snapshot::{Entry, Snapshot};
 
-pub const STATE_FILE_NAME: &str = ".roxycloud-sync.json";
+pub const STATE_FILE_NAME: &str = ".stashden-sync.json";
+pub const LEGACY_STATE_FILE_NAME: &str = ".roxycloud-sync.json";
+
+#[must_use]
+pub fn is_state_file(name: &str) -> bool {
+    name == STATE_FILE_NAME || name == LEGACY_STATE_FILE_NAME
+}
+
+pub fn adopt_legacy(root: &Path) -> Result<(), StateError> {
+    let current = root.join(STATE_FILE_NAME);
+    let legacy = root.join(LEGACY_STATE_FILE_NAME);
+    if current.exists() || !legacy.exists() {
+        return Ok(());
+    }
+    fs::rename(&legacy, &current).map_err(|source| StateError::Write {
+        path: current,
+        source,
+    })
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum StateError {
