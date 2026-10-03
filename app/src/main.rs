@@ -3,13 +3,13 @@ mod sync;
 
 use std::path::PathBuf;
 
-use roxycloud_client::sync::watch::Session as SyncSession;
-use roxycloud_client::{Remote, free_path};
-use roxycloud_core::grant::{Given, NewGrant, Received};
-use roxycloud_core::node::{Node, Trashed};
-use roxycloud_core::share::{Minted, NewShare, Share};
-use roxycloud_core::user::User;
-use roxycloud_core::version::Version;
+use stashden_client::sync::watch::Session as SyncSession;
+use stashden_client::{Remote, free_path};
+use stashden_core::grant::{Given, NewGrant, Received};
+use stashden_core::node::{Node, Trashed};
+use stashden_core::share::{Minted, NewShare, Share};
+use stashden_core::user::User;
+use stashden_core::version::Version;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_updater::UpdaterExt;

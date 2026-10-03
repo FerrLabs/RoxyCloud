@@ -4,7 +4,7 @@ use axum::response::{IntoResponse, Response};
 use serde_json::json;
 
 use crate::storage::StorageError;
-use roxycloud_core::name::InvalidNodeName;
+use stashden_core::name::InvalidNodeName;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
@@ -37,7 +37,7 @@ pub enum ApiError {
     #[error("invalid path: {0}")]
     InvalidPath(#[from] InvalidNodeName),
     #[error(transparent)]
-    InvalidEmail(#[from] roxycloud_core::user::InvalidEmail),
+    InvalidEmail(#[from] stashden_core::user::InvalidEmail),
     #[error("quota exceeded")]
     QuotaExceeded,
     #[error("this upload is at {expected} bytes")]

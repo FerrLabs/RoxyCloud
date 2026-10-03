@@ -10,7 +10,7 @@ import { Localisation } from '../localisation';
 export class SiteFooter {
   private readonly localisation = inject(Localisation);
 
-  protected readonly sourceUrl = ROXYCLOUD_SOURCE_URL;
-  protected readonly licenceUrl = `${ROXYCLOUD_SOURCE_URL}/blob/main/LICENSE`;
+  protected readonly sourceUrl = STASHDEN_SOURCE_URL;
+  protected readonly licenceUrl = `${STASHDEN_SOURCE_URL}/blob/main/LICENSE`;
   protected readonly footer = computed(() => this.localisation.content().chrome.footer);
 }

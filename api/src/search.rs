@@ -2,9 +2,9 @@ use serde::Serialize;
 use sqlx::PgPool;
 
 use crate::error::ApiError;
-use roxycloud_core::grant::SHARED_WITH_ME;
-use roxycloud_core::node::Node;
-use roxycloud_core::user::User;
+use stashden_core::grant::SHARED_WITH_ME;
+use stashden_core::node::Node;
+use stashden_core::user::User;
 
 pub const DEFAULT_LIMIT: i64 = 50;
 pub const MAX_LIMIT: i64 = 200;

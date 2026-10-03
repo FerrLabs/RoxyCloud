@@ -44,7 +44,7 @@ export class PublicLinks {
 
   private async get(token: string, at: string, password: string): Promise<Response> {
     const response = await fetch(
-      `${ROXYCLOUD_API_URL}/v1/public/${encodeURIComponent(token)}${at}`,
+      `${STASHDEN_API_URL}/v1/public/${encodeURIComponent(token)}${at}`,
       {
         headers: password.length > 0 ? { 'X-Share-Password': password } : {},
       },

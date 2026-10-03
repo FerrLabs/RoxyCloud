@@ -1,8 +1,8 @@
 mod common;
 
-use roxycloud_api::app_passwords::{authenticate, list, mint, revoke};
-use roxycloud_core::role::Role;
-use roxycloud_core::user::Email;
+use stashden_api::app_passwords::{authenticate, list, mint, revoke};
+use stashden_core::role::Role;
+use stashden_core::user::Email;
 
 async fn minted(harness: &common::Harness, user: uuid::Uuid, name: &str) -> (uuid::Uuid, String) {
     let mut tx = harness.state.db.begin().await.expect("begin");

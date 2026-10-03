@@ -12,7 +12,7 @@ use percent_encoding::{AsciiSet, CONTROLS, percent_decode_str, utf8_percent_enco
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use roxycloud_core::name::{NodeName, parse_path};
+use stashden_core::name::{NodeName, parse_path};
 
 const PATH_SEGMENT: &AsciiSet = &CONTROLS
     .add(b' ')

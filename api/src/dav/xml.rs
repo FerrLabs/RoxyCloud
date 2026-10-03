@@ -3,7 +3,7 @@ use std::fmt::Write;
 use chrono::{DateTime, Utc};
 
 use super::propfind::{Requested, Unknown};
-use roxycloud_core::node::{Node, NodeKind};
+use stashden_core::node::{Node, NodeKind};
 
 pub const MULTISTATUS_OPEN: &str = concat!(
     r#"<?xml version="1.0" encoding="utf-8"?>"#,

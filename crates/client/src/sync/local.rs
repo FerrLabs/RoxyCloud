@@ -4,7 +4,7 @@ use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-use roxycloud_core::blob::BlobHash;
+use stashden_core::blob::BlobHash;
 
 use super::path::RelPath;
 use super::snapshot::Entry;
@@ -173,7 +173,7 @@ mod tests {
     use crate::sync::state::{LEGACY_STATE_FILE_NAME, STATE_FILE_NAME};
 
     fn scratch(name: &str) -> PathBuf {
-        let directory = std::env::temp_dir().join(format!("roxycloud-scan-{name}"));
+        let directory = std::env::temp_dir().join(format!("stashden-scan-{name}"));
         let _ = fs::remove_dir_all(&directory);
         fs::create_dir_all(&directory).expect("scratch directory");
         directory

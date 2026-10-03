@@ -5,8 +5,8 @@ use uuid::Uuid;
 use crate::db::{charge_quota, lock_owner, name_taken, node_columns, release_blob};
 use crate::error::ApiError;
 use crate::versions;
-use roxycloud_core::blob::BlobHash;
-use roxycloud_core::node::Node;
+use stashden_core::blob::BlobHash;
+use stashden_core::node::Node;
 
 pub async fn send(tx: &mut Transaction<'_, Postgres>, node: &Node) -> Result<(), ApiError> {
     lock_owner(tx, node.owner_id).await?;

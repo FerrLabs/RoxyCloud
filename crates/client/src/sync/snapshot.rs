@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
-use roxycloud_core::blob::BlobHash;
-use roxycloud_core::node::etag_for_file;
 use serde::{Deserialize, Serialize};
+use stashden_core::blob::BlobHash;
+use stashden_core::node::etag_for_file;
 
 use super::path::RelPath;
 

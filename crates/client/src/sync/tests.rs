@@ -65,7 +65,7 @@ struct Pair {
 
 impl Pair {
     fn new(name: &str) -> Self {
-        let base = std::env::temp_dir().join(format!("roxycloud-sync-{name}"));
+        let base = std::env::temp_dir().join(format!("stashden-sync-{name}"));
         let _ = fs::remove_dir_all(&base);
         let pair = Self {
             local: base.join("local"),
@@ -436,7 +436,7 @@ async fn a_folder_that_came_back_on_the_server_is_not_removed_again() {
 async fn an_edit_in_a_read_only_share_is_held_back_rather_than_retried() {
     let pair = Pair::new("read-only-share");
     pair.write_server("Shared with me/archive/old.txt", b"theirs");
-    let held = Held::from_mounts([("archive".to_owned(), roxycloud_core::grant::Access::Read)]);
+    let held = Held::from_mounts([("archive".to_owned(), stashden_core::grant::Access::Read)]);
     pair.engine_holding(held.clone())
         .sync_once()
         .await
@@ -471,7 +471,7 @@ async fn an_edit_in_a_read_only_share_is_held_back_rather_than_retried() {
 async fn a_conflict_in_a_read_only_share_still_brings_the_owners_version_down() {
     let pair = Pair::new("read-only-conflict");
     pair.write_server("Shared with me/archive/old.txt", b"theirs");
-    let held = Held::from_mounts([("archive".to_owned(), roxycloud_core::grant::Access::Read)]);
+    let held = Held::from_mounts([("archive".to_owned(), stashden_core::grant::Access::Read)]);
     pair.engine_holding(held.clone())
         .sync_once()
         .await

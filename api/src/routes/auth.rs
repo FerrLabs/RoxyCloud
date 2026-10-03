@@ -1,7 +1,7 @@
 use axum::Json;
 use axum::extract::State;
-use roxycloud_core::user::{Email, User};
 use serde::{Deserialize, Serialize};
+use stashden_core::user::{Email, User};
 
 use crate::attempts::{self, Scope};
 use crate::auth::Caller;

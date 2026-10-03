@@ -1,5 +1,5 @@
 [package]
-name = "roxycloud-client"
+name = "stashden-client"
 version.workspace = true
 description = "RoxyCloud API client and sync engine, shared by the CLI and the desktop app"
 edition.workspace = true
@@ -9,7 +9,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-roxycloud-core = { workspace = true }
+stashden-core = { workspace = true }
 uuid = { workspace = true }
 
 reqwest = { workspace = true }

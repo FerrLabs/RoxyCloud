@@ -21,8 +21,8 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
 [workspace.dependencies]
-roxycloud-core = { path = "crates/core" }
-roxycloud-client = { path = "crates/client" }
+stashden-core = { path = "crates/core" }
+stashden-client = { path = "crates/client" }
 
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io"] }

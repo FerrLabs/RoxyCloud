@@ -1,5 +1,5 @@
-use roxycloud_core::grant::{Given, NewGrant};
-use roxycloud_core::share::{Minted, NewShare, Share};
+use stashden_core::grant::{Given, NewGrant};
+use stashden_core::share::{Minted, NewShare, Share};
 use uuid::Uuid;
 
 use crate::remote::{Remote, RemoteError, answered, check};

@@ -13,9 +13,9 @@ use crate::error::ApiError;
 use crate::state::AppState;
 use crate::storage;
 use crate::trash;
-use roxycloud_core::blob::BlobHash;
-use roxycloud_core::name::parse_path;
-use roxycloud_core::node::{Node, NodeKind};
+use stashden_core::blob::BlobHash;
+use stashden_core::name::parse_path;
+use stashden_core::node::{Node, NodeKind};
 
 pub async fn put(
     State(state): State<AppState>,

@@ -1,8 +1,8 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use roxycloud_core::name::{InvalidNodeName, NodeName, parse_path};
 use serde::{Deserialize, Serialize};
+use stashden_core::name::{InvalidNodeName, NodeName, parse_path};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn local_paths_are_built_from_segments_not_from_the_string() {
-        let root = Path::new("/tmp/roxy");
+        let root = Path::new("/tmp/stashden");
         assert_eq!(
             path("a/b/c.txt").to_path(root),
             root.join("a").join("b").join("c.txt")

@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use roxycloud_core::name::MAX_NAME_LEN;
+use stashden_core::name::MAX_NAME_LEN;
 
 use super::path::RelPath;
 use super::snapshot::{Entry, Snapshot};
@@ -175,7 +175,7 @@ fn floor_char_boundary(text: &str, limit: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use roxycloud_core::blob::BlobHash;
+    use stashden_core::blob::BlobHash;
 
     fn at(input: &str) -> RelPath {
         RelPath::parse(input).expect("valid path")

@@ -19,7 +19,7 @@ if (unmodified !== true && !(Array.isArray(unmodified) && unmodified.includes('s
 
 const angular = JSON.parse(await readFile(join(web, 'angular.json'), 'utf8'));
 const [project] = Object.values(angular.projects);
-const origin = JSON.parse(project.architect.build.options.define.ROXYCLOUD_API_URL.replaceAll("'", '"'));
+const origin = JSON.parse(project.architect.build.options.define.STASHDEN_API_URL.replaceAll("'", '"'));
 
 const TYPES = {
   '.css': 'text/css',

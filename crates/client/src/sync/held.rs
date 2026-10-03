@@ -1,4 +1,4 @@
-use roxycloud_core::grant::{Access, SHARED_WITH_ME};
+use stashden_core::grant::{Access, SHARED_WITH_ME};
 
 use super::path::RelPath;
 use super::plan::{Action, Plan};

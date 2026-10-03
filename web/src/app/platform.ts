@@ -461,5 +461,5 @@ export function resolvePlatform(baseUrl: string): Platform {
 }
 
 export function providePlatform(): Provider {
-  return { provide: PLATFORM, useFactory: () => resolvePlatform(ROXYCLOUD_API_URL) };
+  return { provide: PLATFORM, useFactory: () => resolvePlatform(STASHDEN_API_URL) };
 }

@@ -48,8 +48,7 @@ async fn open_s3(cfg: &S3Config) -> S3BlobStore {
         loader = loader.region(Region::new(region.clone()));
     }
     if let (Some(key), Some(secret)) = (&cfg.access_key_id, &cfg.secret_access_key) {
-        loader =
-            loader.credentials_provider(Credentials::new(key, secret, None, None, "roxycloud"));
+        loader = loader.credentials_provider(Credentials::new(key, secret, None, None, "stashden"));
     }
 
     let mut builder = aws_sdk_s3::config::Builder::from(&loader.load().await);

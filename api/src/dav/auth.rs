@@ -6,7 +6,7 @@ use axum::response::{IntoResponse, Response};
 
 use crate::app_passwords;
 use crate::state::AppState;
-use roxycloud_core::user::User;
+use stashden_core::user::User;
 
 /// A client that presented an app password over Basic auth. Session tokens are deliberately not
 /// accepted here: this surface exists for credentials a client may keep on disk.

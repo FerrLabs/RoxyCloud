@@ -4,7 +4,7 @@ use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::error::ApiError;
-use roxycloud_core::user::{Email, User};
+use stashden_core::user::{Email, User};
 
 const SECRET_BYTES: usize = 32;
 const MAX_NAME_LEN: usize = 100;

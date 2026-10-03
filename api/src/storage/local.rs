@@ -7,7 +7,7 @@ use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
 use super::{BlobStore, Reader, StorageError, Upload, Written, is_recent, shards};
-use roxycloud_core::blob::BlobHash;
+use stashden_core::blob::BlobHash;
 
 pub struct LocalBlobStore {
     root: PathBuf,

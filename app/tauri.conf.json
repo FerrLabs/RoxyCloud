@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../web/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm --filter @roxycloud/web dev",
-    "beforeBuildCommand": "pnpm --filter @roxycloud/web build"
+    "beforeDevCommand": "pnpm --filter @stashden/web dev",
+    "beforeBuildCommand": "pnpm --filter @stashden/web build"
   },
   "app": {
     "windows": [

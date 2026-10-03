@@ -1,5 +1,5 @@
 [package]
-name = "roxycloud-cli"
+name = "stashden-cli"
 version.workspace = true
 description = "Command-line client and administration tool for RoxyCloud"
 edition.workspace = true
@@ -13,8 +13,8 @@ name = "stashden"
 path = "src/main.rs"
 
 [dependencies]
-roxycloud-client = { workspace = true }
-roxycloud-core = { workspace = true }
+stashden-client = { workspace = true }
+stashden-core = { workspace = true }
 uuid = { workspace = true }
 
 clap = { workspace = true }

@@ -2,9 +2,9 @@ mod common;
 
 use std::time::Duration;
 
-use roxycloud_api::sweeper::{Collected, sweep};
-use roxycloud_core::blob::BlobHash;
-use roxycloud_core::role::Role;
+use stashden_api::sweeper::{Collected, sweep};
+use stashden_core::blob::BlobHash;
+use stashden_core::role::Role;
 
 fn hash_of(contents: &[u8]) -> BlobHash {
     BlobHash::from(blake3::hash(contents))

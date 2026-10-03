@@ -6,8 +6,8 @@ use crate::attempts::{self, Scope};
 use crate::db::node_columns;
 use crate::error::ApiError;
 use crate::password;
-use roxycloud_core::node::Node;
-use roxycloud_core::share::{Minted, Share};
+use stashden_core::node::Node;
+use stashden_core::share::{Minted, Share};
 
 const TOKEN_BYTES: usize = 32;
 

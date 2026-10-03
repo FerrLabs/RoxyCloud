@@ -1,5 +1,5 @@
 {
-  "name": "@roxycloud/web",
+  "name": "@stashden/web",
   "private": true,
   "version": "0.32.0",
   "type": "module",

@@ -34,7 +34,7 @@ export class App {
     { initialValue: false },
   );
 
-  protected readonly sourceUrl = ROXYCLOUD_SOURCE_URL;
+  protected readonly sourceUrl = STASHDEN_SOURCE_URL;
   protected readonly connected = signal(this.platform.authenticated());
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);

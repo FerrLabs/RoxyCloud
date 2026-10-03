@@ -28,8 +28,8 @@
             ],
             "styles": ["src/styles.css"],
             "define": {
-              "ROXYCLOUD_API_URL": "'http://localhost:3001'",
-              "ROXYCLOUD_SOURCE_URL": "'https://github.com/FerrLabs/RoxyCloud'"
+              "STASHDEN_API_URL": "'http://localhost:3001'",
+              "STASHDEN_SOURCE_URL": "'https://github.com/FerrLabs/RoxyCloud'"
             }
           },
           "configurations": {

@@ -5,10 +5,10 @@ use uuid::Uuid;
 
 use crate::db::{contains, live_node, node_columns};
 use crate::error::ApiError;
-use roxycloud_core::grant::{Access, Given, Received};
-use roxycloud_core::name::{MAX_NAME_LEN, NodeName};
-use roxycloud_core::node::Node;
-use roxycloud_core::user::{Email, User};
+use stashden_core::grant::{Access, Given, Received};
+use stashden_core::name::{MAX_NAME_LEN, NodeName};
+use stashden_core::node::Node;
+use stashden_core::user::{Email, User};
 
 const ONCE_PER_ADDRESS: &str = "grants_once_per_address";
 

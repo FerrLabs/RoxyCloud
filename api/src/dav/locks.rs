@@ -3,7 +3,7 @@ use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::error::ApiError;
-use roxycloud_core::node::Node;
+use stashden_core::node::Node;
 
 /// What a client gets if it asks for nothing in particular, and the most any client may hold. A
 /// lock nobody refreshes is a file nobody else can write, so the ceiling is what limits the damage

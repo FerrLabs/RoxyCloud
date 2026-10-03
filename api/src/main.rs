@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use std::time::Duration;
 
-use roxycloud_api::{build_router, config::Config, state::AppState, sweeper, users};
-use roxycloud_core::role::Role;
-use roxycloud_core::user::Email;
+use stashden_api::{build_router, config::Config, state::AppState, sweeper, users};
+use stashden_core::role::Role;
+use stashden_core::user::Email;
 use tracing::{info, warn};
 
 #[tokio::main]

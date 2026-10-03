@@ -1,5 +1,5 @@
-use roxycloud_client::RemoteError;
 use serde::Serialize;
+use stashden_client::RemoteError;
 
 #[derive(Debug, Serialize)]
 pub struct Failure {

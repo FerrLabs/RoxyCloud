@@ -7,7 +7,7 @@ use crate::auth::{Caller, Writer};
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::trash;
-use roxycloud_core::node::{Node, Trashed};
+use stashden_core::node::{Node, Trashed};
 
 pub async fn list(
     State(state): State<AppState>,

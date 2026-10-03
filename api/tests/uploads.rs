@@ -4,8 +4,8 @@ use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode, header};
 use bytes::Bytes;
 use http_body_util::BodyExt;
-use roxycloud_api::build_router;
-use roxycloud_core::role::Role;
+use stashden_api::build_router;
+use stashden_core::role::Role;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -162,7 +162,7 @@ database_test!(an_interrupted_upload_resumes_to_the_same_digest, harness, {
     );
     assert_eq!(
         node.etag,
-        roxycloud_core::node::etag_for_file(roxycloud_core::blob::BlobHash::from(blake3::hash(
+        stashden_core::node::etag_for_file(stashden_core::blob::BlobHash::from(blake3::hash(
             &whole
         )))
     );
@@ -209,9 +209,9 @@ database_test!(
         let node = harness.resolve(id, "torn.bin").await;
         assert_eq!(
             node.etag,
-            roxycloud_core::node::etag_for_file(roxycloud_core::blob::BlobHash::from(
-                blake3::hash(&whole)
-            )),
+            stashden_core::node::etag_for_file(stashden_core::blob::BlobHash::from(blake3::hash(
+                &whole
+            ))),
             "appending after the bytes a dead request left would duplicate a region and lose the tail"
         );
     }
@@ -245,7 +245,7 @@ database_test!(
 
 database_test!(a_writer_whose_claim_lapsed_records_nothing, harness, {
     let (id, _) = session(&harness, "owner@example.com", Role::Member).await;
-    let opened = roxycloud_api::uploads::begin(
+    let opened = stashden_api::uploads::begin(
         &harness.state.db,
         &harness.state.staging,
         id,
@@ -282,7 +282,7 @@ database_test!(a_writer_whose_claim_lapsed_records_nothing, harness, {
         }
     });
 
-    let sending = roxycloud_api::uploads::append(
+    let sending = stashden_api::uploads::append(
         &harness.state.db,
         &harness.state.staging,
         &opened,
@@ -298,10 +298,10 @@ database_test!(a_writer_whose_claim_lapsed_records_nothing, harness, {
     let (outcome, ()) = tokio::join!(sending, stealing);
 
     assert!(
-        matches!(outcome, Err(roxycloud_api::error::ApiError::AlreadyWriting)),
+        matches!(outcome, Err(stashden_api::error::ApiError::AlreadyWriting)),
         "a writer that lost its claim has to record nothing"
     );
-    let after = roxycloud_api::uploads::of(&harness.state.db, id, opened.id)
+    let after = stashden_api::uploads::of(&harness.state.db, id, opened.id)
         .await
         .expect("the session");
     assert_eq!(
@@ -315,7 +315,7 @@ database_test!(
     harness,
     {
         let (id, _) = session(&harness, "owner@example.com", Role::Member).await;
-        let opened = roxycloud_api::uploads::begin(
+        let opened = stashden_api::uploads::begin(
             &harness.state.db,
             &harness.state.staging,
             id,
@@ -352,7 +352,7 @@ database_test!(
             }
         });
 
-        let sending = roxycloud_api::uploads::append(
+        let sending = stashden_api::uploads::append(
             &harness.state.db,
             &harness.state.staging,
             &opened,
@@ -368,11 +368,11 @@ database_test!(
         let (outcome, ()) = tokio::join!(sending, stealing);
 
         assert!(
-            matches!(outcome, Err(roxycloud_api::error::ApiError::AlreadyWriting)),
+            matches!(outcome, Err(stashden_api::error::ApiError::AlreadyWriting)),
             "an over-send by a writer without the claim is refused for the claim, not for the size"
         );
         assert!(
-            roxycloud_api::uploads::of(&harness.state.db, id, opened.id)
+            stashden_api::uploads::of(&harness.state.db, id, opened.id)
                 .await
                 .is_ok(),
             "the session belongs to whoever holds it now, not to the writer that lost it"
@@ -382,7 +382,7 @@ database_test!(
 
 database_test!(a_writer_that_lost_its_claim_stops_reading, harness, {
     let (id, _) = session(&harness, "owner@example.com", Role::Member).await;
-    let opened = roxycloud_api::uploads::begin(
+    let opened = stashden_api::uploads::begin(
         &harness.state.db,
         &harness.state.staging,
         id,
@@ -424,7 +424,7 @@ database_test!(a_writer_that_lost_its_claim_stops_reading, harness, {
     let staging = harness.state.staging.clone();
     let session = opened.clone();
     let sending = tokio::spawn(async move {
-        roxycloud_api::uploads::append(&db, &staging, &session, 0, Box::pin(body)).await
+        stashden_api::uploads::append(&db, &staging, &session, 0, Box::pin(body)).await
     });
 
     waiting.await.ok();
@@ -442,7 +442,7 @@ database_test!(a_writer_that_lost_its_claim_stops_reading, harness, {
         .expect("the write task");
 
     assert!(
-        matches!(outcome, Err(roxycloud_api::error::ApiError::AlreadyWriting)),
+        matches!(outcome, Err(stashden_api::error::ApiError::AlreadyWriting)),
         "a writer that lost its claim has to be refused"
     );
     assert_eq!(
@@ -664,10 +664,10 @@ database_test!(a_session_nobody_came_back_to_is_swept, harness, {
     send(&harness, &bearer, &upload, 0, &payload(400)).await;
 
     harness.expire_uploads().await;
-    let expired = roxycloud_api::uploads::purge_expired(&harness.state.db)
+    let expired = stashden_api::uploads::purge_expired(&harness.state.db)
         .await
         .expect("purging");
-    let live = roxycloud_api::uploads::live_staged(&harness.state.db)
+    let live = stashden_api::uploads::live_staged(&harness.state.db)
         .await
         .expect("listing");
     let swept = harness

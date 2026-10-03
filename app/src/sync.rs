@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use roxycloud_client::sync::watch::{Command, Status, watch};
-use roxycloud_client::{Debounce, Engine, Remote, Report};
 use serde::Serialize;
+use stashden_client::sync::watch::{Command, Status, watch};
+use stashden_client::{Debounce, Engine, Remote, Report};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tokio::sync::oneshot;

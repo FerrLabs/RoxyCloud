@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use roxycloud_core::node::Node;
-use roxycloud_core::version::Version;
+use stashden_core::node::Node;
+use stashden_core::version::Version;
 use uuid::Uuid;
 
 use crate::remote::{Remote, RemoteError, answered, check};

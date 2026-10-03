@@ -4,9 +4,9 @@ use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::versions;
-use roxycloud_core::blob::BlobHash;
-use roxycloud_core::name::NodeName;
-use roxycloud_core::node::{Node, NodeKind, etag_for_directory, etag_for_file};
+use stashden_core::blob::BlobHash;
+use stashden_core::name::NodeName;
+use stashden_core::node::{Node, NodeKind, etag_for_directory, etag_for_file};
 
 const NAME_PER_PARENT: &str = "nodes_unique_name_per_parent";
 

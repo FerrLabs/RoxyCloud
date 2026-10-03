@@ -17,7 +17,7 @@ use crate::error::ApiError;
 use crate::routes::files::never_rendered;
 use crate::state::AppState;
 use crate::trash;
-use roxycloud_core::node::{Node, NodeKind};
+use stashden_core::node::{Node, NodeKind};
 
 pub(super) const ALLOWED: &str =
     "OPTIONS, PROPFIND, PROPPATCH, MKCOL, GET, HEAD, PUT, DELETE, COPY, MOVE, LOCK, UNLOCK";
@@ -166,7 +166,7 @@ async fn propfind(
 
     let requested = propfind::parse(&body);
     let mut quotas = Quotas::new(&state, caller.0.id);
-    let lock_on = |id: Uuid, path: &[roxycloud_core::name::NodeName], kind: NodeKind| {
+    let lock_on = |id: Uuid, path: &[stashden_core::name::NodeName], kind: NodeKind| {
         held.iter()
             .find(|lock| lock.node_id == id)
             .map(|lock| locking::active(lock, path, kind))
