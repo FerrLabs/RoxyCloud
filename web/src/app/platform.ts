@@ -70,7 +70,7 @@ export interface Platform {
   emptyTrash?(): Promise<void>;
 }
 
-export const PLATFORM = new InjectionToken<Platform>('RoxyCloud platform');
+export const PLATFORM = new InjectionToken<Platform>('Stashden platform');
 
 export class RequestFailed extends Error {
   constructor(

@@ -20,7 +20,7 @@ impl IntoResponse for Unauthenticated {
             StatusCode::UNAUTHORIZED,
             [(
                 WWW_AUTHENTICATE,
-                HeaderValue::from_static("Basic realm=\"RoxyCloud\", charset=\"UTF-8\""),
+                HeaderValue::from_static("Basic realm=\"Stashden\", charset=\"UTF-8\""),
             )],
         )
             .into_response()

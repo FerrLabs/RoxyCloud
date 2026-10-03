@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
 
     let app = build_router(state, &cfg.cors_allowed_origins, cfg.web_root.as_deref());
     let bind = format!("0.0.0.0:{}", cfg.port);
-    info!(%bind, "starting RoxyCloud API");
+    info!(%bind, "starting Stashden API");
 
     let listener = tokio::net::TcpListener::bind(&bind)
         .await
