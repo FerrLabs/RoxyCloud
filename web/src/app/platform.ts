@@ -83,14 +83,16 @@ export class RequestFailed extends Error {
 
 const TOKEN_KEY = 'stashden.token';
 const SERVER_KEY = 'stashden.server';
-const LEGACY_KEYS: [current: string, legacy: string][] = [
-  [TOKEN_KEY, 'roxycloud.token'],
-  [SERVER_KEY, 'roxycloud.server'],
-];
+const KEY_PREFIX = 'stashden.';
+const LEGACY_KEY_PREFIX = 'roxycloud.';
 
 function adoptLegacyKeys(): void {
   try {
-    for (const [current, legacy] of LEGACY_KEYS) {
+    const legacyKeys = Array.from({ length: localStorage.length }, (_, index) =>
+      localStorage.key(index),
+    ).filter((key): key is string => key?.startsWith(LEGACY_KEY_PREFIX) ?? false);
+    for (const legacy of legacyKeys) {
+      const current = KEY_PREFIX + legacy.slice(LEGACY_KEY_PREFIX.length);
       const value = localStorage.getItem(legacy);
       if (value !== null && localStorage.getItem(current) === null) {
         localStorage.setItem(current, value);

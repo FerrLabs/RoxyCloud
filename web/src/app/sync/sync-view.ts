@@ -18,7 +18,7 @@ import {
   type Syncing,
 } from './syncing';
 
-const FOLDER_KEY = 'roxycloud.sync-folder';
+const FOLDER_KEY = 'stashden.sync-folder';
 
 @Component({
   selector: 'rx-sync-view',
