@@ -9,10 +9,10 @@
 A web app, a REST API and folder sync over a content-addressed blob store.<br />
 Your files, on hardware you own, under the AGPL.
 
-[![Latest release](https://img.shields.io/github/v/release/FerrLabs/RoxyCloud)](https://github.com/FerrLabs/RoxyCloud/releases/latest)
-[![CI](https://github.com/FerrLabs/RoxyCloud/actions/workflows/ci.yml/badge.svg)](https://github.com/FerrLabs/RoxyCloud/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/FerrLabs/Stashden)](https://github.com/FerrLabs/Stashden/releases/latest)
+[![CI](https://github.com/FerrLabs/Stashden/actions/workflows/ci.yml/badge.svg)](https://github.com/FerrLabs/Stashden/actions/workflows/ci.yml)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-%23FE5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/en/v1.0.0/)
-[![License](https://img.shields.io/github/license/FerrLabs/RoxyCloud)](LICENSE)
+[![License](https://img.shields.io/github/license/FerrLabs/Stashden)](LICENSE)
 
 [Architecture](ARCHITECTURE.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [FerrLabs](https://github.com/FerrLabs)
 
@@ -20,7 +20,7 @@ Your files, on hardware you own, under the AGPL.
 
 ## Formerly RoxyCloud
 
-The project was called RoxyCloud until version 0.32 ([#188](https://github.com/FerrLabs/RoxyCloud/issues/188)).
+The project was called RoxyCloud until version 0.32 ([#188](https://github.com/FerrLabs/Stashden/issues/188)).
 Nothing has to be redone by hand:
 
 - the desktop app updates to Stashden and removes the RoxyCloud install it replaces, keeping the
@@ -74,7 +74,7 @@ deploy/     Dockerfile, compose file, Helm chart
 
 Every release carries an installer: `Stashden_<version>_x64-setup.exe` for Windows and
 `Stashden_<version>_amd64.AppImage` for Linux, on the
-[releases page](https://github.com/FerrLabs/RoxyCloud/releases/latest). The app asks for the address
+[releases page](https://github.com/FerrLabs/Stashden/releases/latest). The app asks for the address
 of the instance on first launch, so it works against any server, not only a particular one.
 
 The Windows installer is signed through Azure Artifact Signing once the repository carries its

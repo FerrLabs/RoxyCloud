@@ -29,7 +29,7 @@
             "styles": ["src/styles.css"],
             "define": {
               "STASHDEN_API_URL": "'http://localhost:3001'",
-              "STASHDEN_SOURCE_URL": "'https://github.com/FerrLabs/RoxyCloud'"
+              "STASHDEN_SOURCE_URL": "'https://github.com/FerrLabs/Stashden'"
             }
           },
           "configurations": {

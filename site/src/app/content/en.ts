@@ -93,8 +93,8 @@ export const en: SiteContent = {
       blocks: [
         {
           caption: 'Clone and configure',
-          code: `git clone https://github.com/FerrLabs/RoxyCloud.git
-cd RoxyCloud
+          code: `git clone https://github.com/FerrLabs/Stashden.git
+cd Stashden
 
 export POSTGRES_PASSWORD='a long random string'
 export JWT_SECRET='a different long random string'
