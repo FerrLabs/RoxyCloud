@@ -101,7 +101,8 @@ mod tests {
     fn the_collection_at_the_root_is_an_empty_path() {
         for raw in ["/dav", "/dav/"] {
             let uri: axum::http::Uri = raw.parse().expect("a valid uri");
-            assert!(path_of(&uri).expect("a valid path").is_empty());
+            let path = path_of(&uri).expect("a valid path");
+            assert!(path.is_empty(), "{path:?}");
         }
     }
 

@@ -287,7 +287,8 @@ database_test!(
         .await;
         assert_eq!(deleted.status, StatusCode::NO_CONTENT);
         assert_eq!(harness.trashed(owner).await, ["new.txt"]);
-        assert!(harness.trashed(guest_id).await.is_empty());
+        let trashed = harness.trashed(guest_id).await;
+        assert!(trashed.is_empty(), "{trashed:?}");
     }
 );
 
@@ -594,12 +595,8 @@ database_test!(a_revoked_grant_is_gone_on_the_next_request, harness, {
         get(&harness, path, &guest).await.status,
         StatusCode::NOT_FOUND
     );
-    assert!(
-        get(&harness, "/v1/folders", &guest)
-            .await
-            .names()
-            .is_empty()
-    );
+    let names = get(&harness, "/v1/folders", &guest).await.names();
+    assert!(names.is_empty(), "{names:?}");
 });
 
 database_test!(
@@ -976,7 +973,8 @@ database_test!(a_write_grant_on_a_file_grows_nothing_below_it, harness, {
     .await;
 
     assert_eq!(written.status, StatusCode::BAD_REQUEST, "{}", written.body);
-    assert!(harness.children(&file).await.is_empty());
+    let children = harness.children(&file).await;
+    assert!(children.is_empty(), "{children:?}");
     assert_eq!(
         overwritten.status,
         StatusCode::CREATED,

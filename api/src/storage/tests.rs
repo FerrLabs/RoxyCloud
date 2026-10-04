@@ -492,7 +492,8 @@ async fn an_object_store_sweeps_a_staging_object_nobody_placed() {
         .expect("sweep");
 
     assert_eq!(cleared, 1);
-    assert!(fixture.keys().await.is_empty());
+    let keys = fixture.keys().await;
+    assert!(keys.is_empty(), "{keys:?}");
 }
 
 #[test]

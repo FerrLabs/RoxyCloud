@@ -519,7 +519,7 @@ mod tests {
         let remote = snapshot(&[("a", Entry::Directory)]);
 
         let plan = reconcile(&local, &remote, &Snapshot::new(), now());
-        assert!(plan.actions.is_empty());
+        assert!(plan.actions.is_empty(), "{:?}", plan.actions);
         assert_eq!(plan.blocked, [at("a")]);
     }
 }

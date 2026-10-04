@@ -140,7 +140,7 @@ mod tests {
             requested.properties,
             vec![Property::Etag, Property::ContentLength]
         );
-        assert!(requested.unknown.is_empty());
+        assert!(requested.unknown.is_empty(), "{:?}", requested.unknown);
     }
 
     #[test]
@@ -168,7 +168,11 @@ mod tests {
             br#"<D:propfind xmlns:D="DAV:" xmlns:Z="urn:example:"><D:prop><Z:getetag/></D:prop></D:propfind>"#,
         );
 
-        assert!(requested.properties.is_empty());
+        assert!(
+            requested.properties.is_empty(),
+            "{:?}",
+            requested.properties
+        );
         assert_eq!(requested.unknown, vec![unknown("urn:example:", "getetag")]);
     }
 

@@ -246,7 +246,8 @@ database_test!(a_move_carries_the_subtree_with_it, harness, {
         "the child came along"
     );
     let inbox = harness.resolve(owner.id, "inbox").await;
-    assert!(harness.children(&inbox).await.is_empty());
+    let children = harness.children(&inbox).await;
+    assert!(children.is_empty(), "{children:?}");
 });
 
 database_test!(a_directory_cannot_be_moved_inside_itself, harness, {
@@ -466,7 +467,8 @@ database_test!(trashing_a_directory_takes_its_whole_subtree, harness, {
     harness.trash(&photos).await;
 
     let root = harness.root(owner.id).await;
-    assert!(harness.children(&root).await.is_empty());
+    let children = harness.children(&root).await;
+    assert!(children.is_empty(), "{children:?}");
     assert_eq!(
         harness.live_nodes(owner.id).await,
         0,
@@ -696,7 +698,8 @@ database_test!(purging_leaves_nothing_to_restore, harness, {
 
     harness.purge(owner.id, node.id).await;
 
-    assert!(harness.trashed(owner.id).await.is_empty());
+    let trashed = harness.trashed(owner.id).await;
+    assert!(trashed.is_empty(), "{trashed:?}");
     assert!(
         matches!(
             harness.try_restore(owner.id, node.id).await,
@@ -771,6 +774,7 @@ database_test!(
             Some((0, true)),
             "the row went with the parent, so its reference has to go too"
         );
-        assert!(harness.trashed(owner.id).await.is_empty());
+        let trashed = harness.trashed(owner.id).await;
+        assert!(trashed.is_empty(), "{trashed:?}");
     }
 );

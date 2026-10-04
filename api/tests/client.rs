@@ -54,7 +54,8 @@ database_test!(the_client_restores_and_purges_from_the_trash, harness, {
     remote.purge(gone.id).await.expect("purging");
 
     assert_eq!(restored.name, "back.txt");
-    assert!(harness.trashed(owner.id).await.is_empty());
+    let trashed = harness.trashed(owner.id).await;
+    assert!(trashed.is_empty(), "{trashed:?}");
     assert_eq!(harness.resolve(owner.id, "back.txt").await.id, back.id);
 });
 
@@ -105,7 +106,8 @@ database_test!(the_client_empties_the_trash, harness, {
 
     remote.empty_trash().await.expect("emptying");
 
-    assert!(harness.trashed(owner.id).await.is_empty());
+    let trashed = harness.trashed(owner.id).await;
+    assert!(trashed.is_empty(), "{trashed:?}");
 });
 
 database_test!(the_client_lists_downloads_and_restores_versions, harness, {
