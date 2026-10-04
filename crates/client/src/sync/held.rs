@@ -234,7 +234,7 @@ mod tests {
         };
         let plan = outcome(conflict.clone());
         assert_eq!(plan.actions, [conflict]);
-        assert!(plan.held.is_empty());
+        assert!(plan.held.is_empty(), "{:?}", plan.held);
     }
 
     #[test]

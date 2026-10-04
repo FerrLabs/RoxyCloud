@@ -334,14 +334,18 @@ mod tests {
 
     #[test]
     fn an_etag_condition_is_not_mistaken_for_a_token() {
-        assert!(submitted_tokens(Some(r#"(["etag-value"])"#)).is_empty());
-        assert!(submitted_tokens(Some("(<urn:something-else>)")).is_empty());
+        let tokens = submitted_tokens(Some(r#"(["etag-value"])"#));
+        assert!(tokens.is_empty(), "{tokens:?}");
+        let tokens = submitted_tokens(Some("(<urn:something-else>)"));
+        assert!(tokens.is_empty(), "{tokens:?}");
     }
 
     #[test]
     fn nothing_submitted_is_no_tokens_rather_than_a_failure() {
-        assert!(submitted_tokens(None).is_empty());
-        assert!(submitted_tokens(Some("garbage <unclosed")).is_empty());
+        let tokens = submitted_tokens(None);
+        assert!(tokens.is_empty(), "{tokens:?}");
+        let tokens = submitted_tokens(Some("garbage <unclosed"));
+        assert!(tokens.is_empty(), "{tokens:?}");
     }
 
     #[test]

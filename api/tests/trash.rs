@@ -80,7 +80,8 @@ database_test!(
 
         assert_eq!(empty(&harness, owner.id).await, 2);
 
-        assert!(harness.trashed(owner.id).await.is_empty());
+        let trashed = harness.trashed(owner.id).await;
+        assert!(trashed.is_empty(), "{trashed:?}");
         assert_eq!(harness.trashed(neighbour.id).await, ["x.txt"]);
         assert_eq!(harness.resolve(owner.id, "keep.txt").await.name, "keep.txt");
         for contents in [&b"deleted file"[..], b"deleted with its folder"] {
@@ -112,7 +113,8 @@ database_test!(
 
         empty(&harness, owner.id).await;
 
-        assert!(harness.trashed(owner.id).await.is_empty());
+        let trashed = harness.trashed(owner.id).await;
+        assert!(trashed.is_empty(), "{trashed:?}");
         for contents in [&b"deleted first"[..], b"deleted with the folder"] {
             assert_eq!(harness.blob(hash_of(contents)).await, Some((0, true)));
         }
@@ -174,7 +176,8 @@ database_test!(
             .await
             .expect("an entry already purged with its folder is skipped, not an error");
 
-        assert!(harness.trashed(owner.id).await.is_empty());
+        let trashed = harness.trashed(owner.id).await;
+        assert!(trashed.is_empty(), "{trashed:?}");
     }
 );
 

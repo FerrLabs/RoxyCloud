@@ -334,7 +334,8 @@ database_test!(delete_moves_a_node_to_the_trash, harness, {
 
     assert_eq!(answer.status, StatusCode::NO_CONTENT);
     let root = harness.root(owner).await;
-    assert!(harness.children(&root).await.is_empty());
+    let children = harness.children(&root).await;
+    assert!(children.is_empty(), "{children:?}");
     assert_eq!(harness.trashed(owner).await, ["photos"]);
 });
 

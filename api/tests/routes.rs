@@ -337,7 +337,8 @@ database_test!(a_purge_answers_no_content, harness, {
     .await;
 
     assert_eq!(status, StatusCode::NO_CONTENT);
-    assert!(harness.trashed(member.id).await.is_empty());
+    let trashed = harness.trashed(member.id).await;
+    assert!(trashed.is_empty(), "{trashed:?}");
 });
 
 database_test!(a_reader_may_not_restore, harness, {
