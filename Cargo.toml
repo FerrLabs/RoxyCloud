@@ -7,7 +7,7 @@ version = "0.33.0"
 edition = "2024"
 license = "AGPL-3.0-only"
 authors = ["FerrLabs"]
-repository = "https://github.com/FerrLabs/RoxyCloud"
+repository = "https://github.com/FerrLabs/Stashden"
 rust-version = "1.88"
 
 [workspace.lints.rust]

@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Report privately through [GitHub Security Advisories](https://github.com/FerrLabs/RoxyCloud/security/advisories/new).
+Report privately through [GitHub Security Advisories](https://github.com/FerrLabs/Stashden/security/advisories/new).
 Do not open a public issue.
 
 Expect an acknowledgement within 72 hours and an assessment within a week. Please give us 90 days

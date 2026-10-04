@@ -4,9 +4,9 @@ description: Stashden API, the server behind the web app, the desktop shell and 
 type: application
 version: 0.33.0
 appVersion: "0.33.0"
-home: https://github.com/FerrLabs/RoxyCloud
+home: https://github.com/FerrLabs/Stashden
 sources:
-  - https://github.com/FerrLabs/RoxyCloud
+  - https://github.com/FerrLabs/Stashden
 keywords:
   - storage
   - files
