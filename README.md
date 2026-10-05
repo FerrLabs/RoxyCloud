@@ -612,6 +612,10 @@ folder that never goes quiet still syncs at a ceiling rather than waiting foreve
 write a temp file, rename it, and touch the directory therefore produce one sync, not four. Ctrl+C
 stops it.
 
+Changes made on the server reach the folder too: watching starts with a full pass, and another runs
+every minute when nothing local has triggered one, so a file added from the web app or another
+machine arrives within a minute. The desktop app's sync works the same way.
+
 One thing it deliberately does not do: an empty local directory is not created on the server, since
 there is no endpoint for that yet.
 

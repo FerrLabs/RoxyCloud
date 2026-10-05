@@ -1,6 +1,6 @@
 use std::future::pending;
 use std::path::Path;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher as _, recommended_watcher};
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ use super::state::is_state_file;
 use super::transport::Transport;
 
 const STATUS_BUFFER: usize = 64;
+pub const DEFAULT_POLL: Duration = Duration::from_secs(60);
 const PARTIAL_EXTENSIONS: [&str; 2] = ["stashpart", "roxypart"];
 const STATE_TEMP_NAMES: [&str; 2] = [".stashden-sync.tmp", ".roxycloud-sync.tmp"];
 
@@ -64,7 +65,11 @@ impl Session {
     }
 }
 
-pub fn watch<T>(mut engine: Engine<T>, debounce: Debounce) -> Result<Session, WatchError>
+pub fn watch<T>(
+    mut engine: Engine<T>,
+    debounce: Debounce,
+    poll: Duration,
+) -> Result<Session, WatchError>
 where
     T: Transport + Send + Sync + 'static,
 {
@@ -87,10 +92,20 @@ where
         let _watcher = watcher;
         let mut debounce = debounce;
         let mut paused = false;
+        let mut next_poll = tokio::time::Instant::now();
         let _ = announce.send(Status::Idle);
 
         loop {
-            let deadline = debounce.deadline().map(tokio::time::Instant::from_std);
+            let deadline = if paused {
+                None
+            } else {
+                Some(
+                    debounce
+                        .deadline()
+                        .map(tokio::time::Instant::from_std)
+                        .map_or(next_poll, |local| local.min(next_poll)),
+                )
+            };
 
             let due = tokio::select! {
                 command = inbox.recv() => match command {
@@ -103,7 +118,7 @@ where
                     Some(Command::Resume) => {
                         paused = false;
                         let _ = announce.send(Status::Idle);
-                        debounce.is_pending()
+                        debounce.is_pending() || next_poll <= tokio::time::Instant::now()
                     }
                     Some(Command::SyncNow) => true,
                 },
@@ -122,6 +137,7 @@ where
             }
 
             debounce.taken();
+            next_poll = tokio::time::Instant::now() + poll;
             let _ = announce.send(Status::Syncing);
             let _ = announce.send(match engine.sync_once().await {
                 Ok(report) => Status::Synced(report),

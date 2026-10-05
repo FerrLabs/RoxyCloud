@@ -13,7 +13,7 @@ use super::path::RelPath;
 use super::snapshot::Snapshot;
 use super::state::{LEGACY_STATE_FILE_NAME, STATE_FILE_NAME, SyncState};
 use super::transport::Transport;
-use super::watch::{Command, Status, watch};
+use super::watch::{Command, DEFAULT_POLL, Status, watch};
 
 struct FakeServer {
     root: PathBuf,
@@ -325,10 +325,25 @@ async fn next_sync(status: &mut broadcast::Receiver<Status>) -> Report {
         .expect("a sync within ten seconds")
 }
 
+async fn any_sync(status: &mut broadcast::Receiver<Status>) {
+    let waiting = async {
+        loop {
+            match status.recv().await {
+                Ok(Status::Synced(_)) => return,
+                Ok(_) => (),
+                Err(error) => panic!("the status channel closed: {error}"),
+            }
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(10), waiting)
+        .await
+        .expect("a pass within ten seconds");
+}
+
 #[tokio::test]
 async fn the_watcher_syncs_a_file_written_after_it_started() {
     let pair = Pair::new("watch");
-    let session = watch(pair.engine(), eager()).expect("watches the folder");
+    let session = watch(pair.engine(), eager(), DEFAULT_POLL).expect("watches the folder");
     let mut status = session.subscribe();
 
     pair.write_local("a.txt", b"written while watching");
@@ -346,7 +361,7 @@ async fn the_watcher_syncs_a_file_written_after_it_started() {
 #[tokio::test]
 async fn a_paused_session_holds_the_change_until_it_resumes() {
     let pair = Pair::new("watch-pause");
-    let session = watch(pair.engine(), eager()).expect("watches the folder");
+    let session = watch(pair.engine(), eager(), DEFAULT_POLL).expect("watches the folder");
     let mut status = session.subscribe();
     session.send(Command::Pause).await;
 
@@ -521,4 +536,42 @@ async fn a_conflict_in_a_read_only_share_still_brings_the_owners_version_down() 
         Some(&b"theirs, again"[..])
     );
     assert!(pair.read_server(&copies[0]).is_none());
+}
+
+#[tokio::test]
+async fn the_watcher_brings_down_what_was_already_on_the_server_when_it_starts() {
+    let pair = Pair::new("watch-first-pass");
+    pair.write_server("a.txt", b"waiting on the server");
+
+    let session = watch(pair.engine(), eager(), DEFAULT_POLL).expect("watches the folder");
+    let mut status = session.subscribe();
+
+    let report = next_sync(&mut status).await;
+    assert_eq!(report.downloaded, 1);
+    assert_eq!(
+        pair.read_local("a.txt").as_deref(),
+        Some(&b"waiting on the server"[..])
+    );
+
+    session.stop().await;
+}
+
+#[tokio::test]
+async fn the_watcher_brings_down_a_server_change_without_a_local_one() {
+    let pair = Pair::new("watch-poll");
+    let session =
+        watch(pair.engine(), eager(), Duration::from_millis(200)).expect("watches the folder");
+    let mut status = session.subscribe();
+    any_sync(&mut status).await;
+
+    pair.write_server("b.txt", b"added from another machine");
+
+    let report = next_sync(&mut status).await;
+    assert_eq!(report.downloaded, 1);
+    assert_eq!(
+        pair.read_local("b.txt").as_deref(),
+        Some(&b"added from another machine"[..])
+    );
+
+    session.stop().await;
 }

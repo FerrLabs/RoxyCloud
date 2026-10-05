@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use serde::Serialize;
-use stashden_client::sync::watch::{Command, Status, watch};
+use stashden_client::sync::watch::{Command, DEFAULT_POLL, Status, watch};
 use stashden_client::{Debounce, Engine, Remote, Report};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
@@ -67,7 +67,8 @@ pub async fn start_sync(
     let remote =
         Remote::new(&credentials.server, credentials.token).map_err(|error| error.to_string())?;
     let engine = Engine::open(folder.clone(), remote).map_err(|error| error.to_string())?;
-    let session = watch(engine, Debounce::default()).map_err(|error| error.to_string())?;
+    let session =
+        watch(engine, Debounce::default(), DEFAULT_POLL).map_err(|error| error.to_string())?;
     let mut status = session.subscribe();
 
     let generation = {

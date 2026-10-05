@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use stashden_client::sync::watch::{Status, watch};
+use stashden_client::sync::watch::{DEFAULT_POLL, Status, watch};
 use stashden_client::{Debounce, Engine, Remote, Report};
 
 pub async fn once(engine: &mut Engine<Remote>) -> Result<()> {
@@ -12,7 +12,8 @@ pub async fn once(engine: &mut Engine<Remote>) -> Result<()> {
 }
 
 pub async fn keep_watching(engine: Engine<Remote>) -> Result<()> {
-    let session = watch(engine, Debounce::default()).context("watching the folder")?;
+    let session =
+        watch(engine, Debounce::default(), DEFAULT_POLL).context("watching the folder")?;
     let mut status = session.subscribe();
 
     loop {
