@@ -8,7 +8,7 @@ use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
 
-use crate::remote::{Remote, RemoteError, check};
+use crate::remote::{Authorize, Remote, RemoteError, check};
 use crate::sync::held::Held;
 use crate::sync::path::RelPath;
 use crate::sync::snapshot::{Entry, Snapshot};
@@ -61,7 +61,7 @@ impl Remote {
         let response = self
             .http()
             .put(&url)
-            .bearer_auth(self.token())
+            .authorized(self)
             .body(Body::wrap_stream(ReaderStream::new(file)))
             .send()
             .await?;
@@ -71,36 +71,21 @@ impl Remote {
 
     pub async fn me(&self) -> Result<User, RemoteError> {
         let url = format!("{}/v1/auth/me", self.base());
-        let response = self
-            .http()
-            .get(&url)
-            .bearer_auth(self.token())
-            .send()
-            .await?;
+        let response = self.http().get(&url).authorized(self).send().await?;
         check(response.status(), "the authenticated account")?;
         Ok(response.json().await?)
     }
 
     pub async fn read(&self, path: &str) -> Result<bytes::Bytes, RemoteError> {
         let url = self.endpoint("files", path)?;
-        let response = self
-            .http()
-            .get(&url)
-            .bearer_auth(self.token())
-            .send()
-            .await?;
+        let response = self.http().get(&url).authorized(self).send().await?;
         check(response.status(), path)?;
         Ok(response.bytes().await?)
     }
 
     pub async fn download(&self, path: &str, destination: &Path) -> Result<(), RemoteError> {
         let url = self.endpoint("files", path)?;
-        let response = self
-            .http()
-            .get(&url)
-            .bearer_auth(self.token())
-            .send()
-            .await?;
+        let response = self.http().get(&url).authorized(self).send().await?;
         check(response.status(), path)?;
         save(response, destination).await
     }
@@ -111,12 +96,7 @@ impl Remote {
 
     async fn grants_received<T: DeserializeOwned>(&self) -> Result<Vec<T>, RemoteError> {
         let url = format!("{}/v1/grants/received", self.base());
-        let response = self
-            .http()
-            .get(&url)
-            .bearer_auth(self.token())
-            .send()
-            .await?;
+        let response = self.http().get(&url).authorized(self).send().await?;
         check(response.status(), "the shares received")?;
         Ok(response.json().await?)
     }

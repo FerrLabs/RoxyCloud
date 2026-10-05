@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
-use reqwest::{Client, StatusCode};
+use reqwest::{Client, RequestBuilder, StatusCode};
 use serde::Deserialize;
 use stashden_core::name::{InvalidNodeName, parse_path};
 use stashden_core::node::{Node, Trashed};
@@ -66,8 +66,34 @@ impl RemoteError {
 
 pub struct Remote {
     base: String,
-    token: String,
+    credential: Credential,
     http: Client,
+}
+
+#[derive(Clone)]
+pub enum Credential {
+    Session(String),
+    AppPassword { email: String, secret: String },
+}
+
+pub(crate) trait Authorize {
+    fn authorized(self, remote: &Remote) -> Self;
+}
+
+impl Authorize for RequestBuilder {
+    fn authorized(self, remote: &Remote) -> Self {
+        match &remote.credential {
+            Credential::Session(token) => self.bearer_auth(token),
+            Credential::AppPassword { email, secret } => self.basic_auth(email, Some(secret)),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MintedAppPassword {
+    pub id: Uuid,
+    pub name: String,
+    pub secret: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -94,16 +120,34 @@ impl Remote {
         let session: Session = response.json().await?;
         let remote = Self {
             base,
-            token: session.token.clone(),
+            credential: Credential::Session(session.token.clone()),
             http,
         };
         Ok((remote, session))
     }
 
     pub fn new(base_url: &str, token: impl Into<String>) -> Result<Self, RemoteError> {
+        Self::with(base_url, Credential::Session(token.into()))
+    }
+
+    pub fn with_app_password(
+        base_url: &str,
+        email: impl Into<String>,
+        secret: impl Into<String>,
+    ) -> Result<Self, RemoteError> {
+        Self::with(
+            base_url,
+            Credential::AppPassword {
+                email: email.into(),
+                secret: secret.into(),
+            },
+        )
+    }
+
+    fn with(base_url: &str, credential: Credential) -> Result<Self, RemoteError> {
         Ok(Self {
             base: base_url.trim_end_matches('/').to_owned(),
-            token: token.into(),
+            credential,
             http: Client::builder().build()?,
         })
     }
@@ -112,8 +156,29 @@ impl Remote {
         &self.http
     }
 
-    pub(crate) fn token(&self) -> &str {
-        &self.token
+    pub async fn mint_app_password(&self, name: &str) -> Result<MintedAppPassword, RemoteError> {
+        let response = self
+            .http
+            .post(format!("{}/v1/app-passwords", self.base))
+            .authorized(self)
+            .json(&serde_json::json!({ "name": name }))
+            .send()
+            .await?;
+        Ok(answered(response, "the app passwords")
+            .await?
+            .json()
+            .await?)
+    }
+
+    pub async fn revoke_app_password(&self, id: Uuid) -> Result<(), RemoteError> {
+        let response = self
+            .http
+            .delete(format!("{}/v1/app-passwords/{id}", self.base))
+            .authorized(self)
+            .send()
+            .await?;
+        answered(response, &id.to_string()).await?;
+        Ok(())
     }
 
     pub(crate) fn base(&self) -> &str {
@@ -135,7 +200,7 @@ impl Remote {
 
     pub async fn list(&self, path: &str) -> Result<Vec<Node>, RemoteError> {
         let url = self.endpoint("folders", path)?;
-        let response = self.http.get(&url).bearer_auth(&self.token).send().await?;
+        let response = self.http.get(&url).authorized(self).send().await?;
         check(response.status(), path)?;
         Ok(response.json().await?)
     }
@@ -146,7 +211,7 @@ impl Remote {
         let response = self
             .http
             .post(format!("{}/v1/move", self.base))
-            .bearer_auth(&self.token)
+            .authorized(self)
             .json(&serde_json::json!({ "from": from, "to": to }))
             .send()
             .await?;
@@ -161,7 +226,7 @@ impl Remote {
         let response = self
             .http
             .get(format!("{}/v1/trash", self.base))
-            .bearer_auth(&self.token)
+            .authorized(self)
             .send()
             .await?;
         check(response.status(), "the trash")?;
@@ -172,7 +237,7 @@ impl Remote {
         let response = self
             .http
             .post(format!("{}/v1/trash/{id}/restore", self.base))
-            .bearer_auth(&self.token)
+            .authorized(self)
             .send()
             .await?;
         Ok(answered(response, &id.to_string()).await?.json().await?)
@@ -182,7 +247,7 @@ impl Remote {
         let response = self
             .http
             .delete(format!("{}/v1/trash/{id}", self.base))
-            .bearer_auth(&self.token)
+            .authorized(self)
             .send()
             .await?;
         answered(response, &id.to_string()).await?;
@@ -193,7 +258,7 @@ impl Remote {
         let response = self
             .http
             .delete(format!("{}/v1/trash", self.base))
-            .bearer_auth(&self.token)
+            .authorized(self)
             .send()
             .await?;
         answered(response, "the trash").await?;
@@ -202,12 +267,7 @@ impl Remote {
 
     pub async fn delete(&self, path: &str) -> Result<(), RemoteError> {
         let url = self.endpoint("files", path)?;
-        let response = self
-            .http
-            .delete(&url)
-            .bearer_auth(&self.token)
-            .send()
-            .await?;
+        let response = self.http.delete(&url).authorized(self).send().await?;
         answered(response, path).await?;
         Ok(())
     }

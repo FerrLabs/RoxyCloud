@@ -18,6 +18,21 @@ struct Cli {
     #[arg(long, env = "STASHDEN_TOKEN", hide_env_values = true)]
     token: Option<String>,
 
+    #[arg(
+        long,
+        env = "STASHDEN_EMAIL",
+        help = "Account an app password belongs to"
+    )]
+    email: Option<String>,
+
+    #[arg(
+        long,
+        env = "STASHDEN_APP_PASSWORD",
+        hide_env_values = true,
+        help = "App password, used instead of a session token when set with --email"
+    )]
+    app_password: Option<String>,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -29,6 +44,12 @@ enum Command {
         email: String,
         #[arg(long, env = "STASHDEN_PASSWORD", hide_env_values = true)]
         password: Option<String>,
+        #[arg(
+            long,
+            value_name = "NAME",
+            help = "Mint an app password under this name and print it, for a sync that runs unattended"
+        )]
+        create_app_password: Option<String>,
     },
     /// List a remote directory
     Ls {
@@ -60,19 +81,39 @@ async fn main() -> Result<()> {
     let server = legacy::settle(cli.server.clone(), "STASHDEN_URL", "ROXYCLOUD_URL")
         .unwrap_or_else(|| DEFAULT_SERVER.to_owned());
     let connect = || {
+        if let (Some(email), Some(secret)) = (cli.email.as_deref(), cli.app_password.as_deref())
+            && !secret.is_empty()
+        {
+            return Remote::with_app_password(&server, email, secret)
+                .context("building the API client");
+        }
         let token = legacy::settle(cli.token.clone(), "STASHDEN_TOKEN", "ROXYCLOUD_TOKEN");
         remote(&server, token.as_deref())
     };
 
     match &cli.command {
-        Command::Login { email, password } => {
+        Command::Login {
+            email,
+            password,
+            create_app_password,
+        } => {
             let password =
                 legacy::settle(password.clone(), "STASHDEN_PASSWORD", "ROXYCLOUD_PASSWORD")
                     .context("a password is needed: pass --password or set STASHDEN_PASSWORD")?;
-            let (_, session) = Remote::login(&server, email, &password)
+            let (remote, session) = Remote::login(&server, email, &password)
                 .await
                 .context("logging in")?;
-            println!("{}", session.token);
+            match create_app_password {
+                Some(name) => {
+                    let minted = remote
+                        .mint_app_password(name)
+                        .await
+                        .context("minting the app password")?;
+                    println!("STASHDEN_EMAIL={email}");
+                    println!("STASHDEN_APP_PASSWORD={}", minted.secret);
+                }
+                None => println!("{}", session.token),
+            }
         }
         Command::Ls { path } => {
             for node in connect()?.list(path).await? {
@@ -122,7 +163,10 @@ const SERVER_HELP: &str = "Server to talk to [default: http://localhost:3001]";
 
 fn remote(server: &str, token: Option<&str>) -> Result<Remote> {
     let Some(token) = token.filter(|token| !token.is_empty()) else {
-        anyhow::bail!("no session token; run `stashden login` or set STASHDEN_TOKEN");
+        anyhow::bail!(
+            "not signed in: set STASHDEN_TOKEN from `stashden login`, or STASHDEN_EMAIL and \
+             STASHDEN_APP_PASSWORD from `stashden login --create-app-password <name>`"
+        );
     };
     Remote::new(server, token.to_owned()).context("building the API client")
 }

@@ -2,14 +2,14 @@ use stashden_core::grant::{Given, NewGrant};
 use stashden_core::share::{Minted, NewShare, Share};
 use uuid::Uuid;
 
-use crate::remote::{Remote, RemoteError, answered, check};
+use crate::remote::{Authorize, Remote, RemoteError, answered, check};
 
 impl Remote {
     pub async fn list_shares(&self) -> Result<Vec<Share>, RemoteError> {
         let response = self
             .http()
             .get(format!("{}/v1/shares", self.base()))
-            .bearer_auth(self.token())
+            .authorized(self)
             .send()
             .await?;
         check(response.status(), "the shares")?;
@@ -20,7 +20,7 @@ impl Remote {
         let response = self
             .http()
             .post(format!("{}/v1/shares", self.base()))
-            .bearer_auth(self.token())
+            .authorized(self)
             .json(request)
             .send()
             .await?;
@@ -31,7 +31,7 @@ impl Remote {
         let response = self
             .http()
             .delete(format!("{}/v1/shares/{id}", self.base()))
-            .bearer_auth(self.token())
+            .authorized(self)
             .send()
             .await?;
         answered(response, &id.to_string()).await?;
@@ -42,7 +42,7 @@ impl Remote {
         let response = self
             .http()
             .get(format!("{}/v1/grants", self.base()))
-            .bearer_auth(self.token())
+            .authorized(self)
             .send()
             .await?;
         check(response.status(), "what this account shares")?;
@@ -53,7 +53,7 @@ impl Remote {
         let response = self
             .http()
             .post(format!("{}/v1/grants", self.base()))
-            .bearer_auth(self.token())
+            .authorized(self)
             .json(request)
             .send()
             .await?;
@@ -64,7 +64,7 @@ impl Remote {
         let response = self
             .http()
             .delete(format!("{}/v1/grants/{id}", self.base()))
-            .bearer_auth(self.token())
+            .authorized(self)
             .send()
             .await?;
         answered(response, &id.to_string()).await?;
