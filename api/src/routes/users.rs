@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::attempts::{self, Scope};
-use crate::auth::{Admin, Caller};
+use crate::auth::{Admin, SessionCaller};
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::{password, users};
@@ -173,7 +173,7 @@ pub async fn reset_password(
 /// out of their own account.
 pub async fn change_password(
     State(state): State<AppState>,
-    caller: Caller,
+    caller: SessionCaller,
     Json(request): Json<PasswordChange>,
 ) -> Result<StatusCode, ApiError> {
     if !password::verify(&request.current, &caller.user.password_hash) {

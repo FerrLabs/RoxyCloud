@@ -6,7 +6,7 @@ use axum::response::{IntoResponse, Response};
 
 use crate::app_passwords;
 use crate::state::AppState;
-use stashden_core::user::User;
+use stashden_core::user::{Email, User};
 
 /// A client that presented an app password over Basic auth. Session tokens are deliberately not
 /// accepted here: this surface exists for credentials a client may keep on disk.
@@ -34,26 +34,28 @@ impl FromRequestParts<AppState> for DavCaller {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let presented = parts
-            .headers
-            .get(AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.strip_prefix("Basic "))
-            .and_then(decode)
-            .ok_or(Unauthenticated)?;
-
-        let (email, secret) = presented.split_once(':').ok_or(Unauthenticated)?;
-        let email = email.parse().map_err(|_| Unauthenticated)?;
+        let (email, secret) = basic_credentials(parts).ok_or(Unauthenticated)?;
 
         let State(state) = State::<AppState>::from_request_parts(parts, state)
             .await
             .map_err(|_| Unauthenticated)?;
 
-        app_passwords::authenticate(&state.db, &email, secret)
+        app_passwords::authenticate(&state.db, &email, &secret)
             .await
             .map(Self)
             .ok_or(Unauthenticated)
     }
+}
+
+pub(crate) fn basic_credentials(parts: &Parts) -> Option<(Email, String)> {
+    let presented = parts
+        .headers
+        .get(AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Basic "))
+        .and_then(decode)?;
+    let (email, secret) = presented.split_once(':')?;
+    Some((email.parse().ok()?, secret.to_owned()))
 }
 
 fn decode(encoded: &str) -> Option<String> {

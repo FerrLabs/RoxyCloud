@@ -6,6 +6,8 @@ use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, deco
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::app_passwords;
+use crate::dav::auth::basic_credentials;
 use crate::error::ApiError;
 use crate::state::AppState;
 use stashden_core::user::User;
@@ -66,9 +68,16 @@ impl Sessions {
 
 /// The account behind a session token, loaded rather than taken on the token's word: a session
 /// outliving the account it names is how a disabled person keeps reading until their token expires.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Credential {
+    Session,
+    AppPassword,
+}
+
 #[derive(Debug, Clone)]
 pub struct Caller {
     pub user: User,
+    pub via: Credential,
 }
 
 impl Caller {
@@ -118,9 +127,39 @@ impl FromRequestParts<AppState> for Admin {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let caller = Caller::from_request_parts(parts, state).await?;
-        if !caller.user.may_administer() {
+        let SessionCaller { user } = SessionCaller::from_request_parts(parts, state).await?;
+        if !user.may_administer() {
             return Err(ApiError::Forbidden);
+        }
+        Ok(Self { user })
+    }
+}
+
+/// The account itself, for the routes that change it: its password, its app passwords, other
+/// people's accounts. An app password reaches files and sync but never these, so a credential kept
+/// on disk cannot mint more of itself or lock its owner out.
+#[derive(Debug, Clone)]
+pub struct SessionCaller {
+    pub user: User,
+}
+
+impl SessionCaller {
+    #[must_use]
+    pub fn user_id(&self) -> Uuid {
+        self.user.id
+    }
+}
+
+impl FromRequestParts<AppState> for SessionCaller {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let caller = Caller::from_request_parts(parts, state).await?;
+        if caller.via != Credential::Session {
+            return Err(ApiError::SessionRequired);
         }
         Ok(Self { user: caller.user })
     }
@@ -133,26 +172,33 @@ impl FromRequestParts<AppState> for Caller {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let token = parts
+        let bearer = parts
             .headers
             .get(AUTHORIZATION)
             .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.strip_prefix("Bearer "))
-            .ok_or(ApiError::Unauthenticated)?;
+            .and_then(|value| value.strip_prefix("Bearer "));
 
-        let user_id = state
-            .sessions
-            .verify(token.trim())
-            .ok_or(ApiError::Unauthenticated)?;
-
-        let user = crate::users::by_id(&state.db, user_id)
-            .await?
-            .ok_or(ApiError::Unauthenticated)?;
+        let (user, via) = if let Some(token) = bearer {
+            let user_id = state
+                .sessions
+                .verify(token.trim())
+                .ok_or(ApiError::Unauthenticated)?;
+            let user = crate::users::by_id(&state.db, user_id)
+                .await?
+                .ok_or(ApiError::Unauthenticated)?;
+            (user, Credential::Session)
+        } else {
+            let (email, secret) = basic_credentials(parts).ok_or(ApiError::Unauthenticated)?;
+            let user = app_passwords::authenticate(&state.db, &email, &secret)
+                .await
+                .ok_or(ApiError::Unauthenticated)?;
+            (user, Credential::AppPassword)
+        };
 
         if !user.is_active() {
             return Err(ApiError::Unauthenticated);
         }
-        Ok(Self { user })
+        Ok(Self { user, via })
     }
 }
 
