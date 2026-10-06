@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.33.1] - 2026-10-06
+
+### Bug Fixes
+
+- fix(sync): bring down server changes while watching, with a pass on start and every minute (#275)
+
 ## [0.33.0] - 2026-10-03
 
 ### Features
