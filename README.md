@@ -611,6 +611,17 @@ overwritten and nothing waits for an answer.
 STASHDEN_TOKEN=... cargo run -p stashden-cli -- sync ~/Stashden --watch
 ```
 
+A session token lasts twelve hours, so a sync meant to run unattended signs in with an app password
+instead. `login --create-app-password <name>` mints one and prints the two variables to keep:
+
+```bash
+stashden login you@example.com --create-app-password "sync on the NAS"
+STASHDEN_EMAIL=you@example.com STASHDEN_APP_PASSWORD=... stashden sync ~/Stashden --watch
+```
+
+It reaches files and sync but cannot manage the account, and revoking it from the web app signs the
+sync out on its next request.
+
 A save is not a sync. Changes are collected until the folder has been quiet for a moment, and a
 folder that never goes quiet still syncs at a ceiling rather than waiting forever. Editors that
 write a temp file, rename it, and touch the directory therefore produce one sync, not four. Ctrl+C

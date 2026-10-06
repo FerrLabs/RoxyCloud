@@ -1,29 +1,12 @@
-use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::error::ApiError;
+pub use stashden_core::app_password::{AppPassword, Minted};
 use stashden_core::user::{Email, User};
 
 const SECRET_BYTES: usize = 32;
 const MAX_NAME_LEN: usize = 100;
-
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct AppPassword {
-    pub id: Uuid,
-    pub name: String,
-    pub created_at: DateTime<Utc>,
-    pub last_used_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Minted {
-    #[serde(flatten)]
-    pub password: AppPassword,
-    /// The only time the secret exists outside the client that will use it.
-    pub secret: String,
-}
 
 pub async fn mint(
     tx: &mut Transaction<'_, Postgres>,

@@ -264,3 +264,90 @@ database_test!(
         }
     }
 );
+
+database_test!(an_app_password_client_reads_and_writes_files, harness, {
+    let owner = harness
+        .account("unattended@example.com", Role::Member)
+        .await;
+    harness.write(owner.id, "notes/plan.md", b"the plan").await;
+    let base = serve(harness.state.clone()).await;
+    let session = Remote::new(
+        &base,
+        harness.state.sessions.issue(owner.id).expect("a token"),
+    )
+    .expect("a client");
+    let minted = session
+        .mint_app_password("sync on the server")
+        .await
+        .expect("minting");
+
+    let unattended = Remote::with_app_password(&base, "unattended@example.com", minted.secret)
+        .expect("a client");
+
+    let names: Vec<String> = unattended
+        .list("notes")
+        .await
+        .expect("listing")
+        .into_iter()
+        .map(|node| node.name)
+        .collect();
+    assert_eq!(names, ["plan.md"]);
+    let source = tempfile::NamedTempFile::new().expect("a scratch file");
+    std::fs::write(source.path(), b"written unattended").expect("writing the source");
+    unattended
+        .upload("notes/new.md", source.path())
+        .await
+        .expect("uploading");
+    assert_eq!(
+        &unattended.read("notes/new.md").await.expect("reading")[..],
+        b"written unattended"
+    );
+});
+
+database_test!(an_app_password_client_cannot_mint_another, harness, {
+    let owner = harness.account("nested@example.com", Role::Member).await;
+    let base = serve(harness.state.clone()).await;
+    let session = Remote::new(
+        &base,
+        harness.state.sessions.issue(owner.id).expect("a token"),
+    )
+    .expect("a client");
+    let minted = session.mint_app_password("first").await.expect("minting");
+    let unattended =
+        Remote::with_app_password(&base, "nested@example.com", minted.secret).expect("a client");
+
+    let refused = unattended.mint_app_password("second").await;
+
+    match refused {
+        Err(RemoteError::Refused { status, .. }) => assert_eq!(status, StatusCode::FORBIDDEN),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+});
+
+database_test!(a_revoked_app_password_client_is_signed_out, harness, {
+    let owner = harness
+        .account("revoked-client@example.com", Role::Member)
+        .await;
+    let base = serve(harness.state.clone()).await;
+    let session = Remote::new(
+        &base,
+        harness.state.sessions.issue(owner.id).expect("a token"),
+    )
+    .expect("a client");
+    let minted = session
+        .mint_app_password("a lost laptop")
+        .await
+        .expect("minting");
+    let unattended = Remote::with_app_password(&base, "revoked-client@example.com", minted.secret)
+        .expect("a client");
+
+    session
+        .revoke_app_password(minted.password.id)
+        .await
+        .expect("revoking");
+
+    assert!(matches!(
+        unattended.list("").await,
+        Err(RemoteError::Unauthenticated)
+    ));
+});

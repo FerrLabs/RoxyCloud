@@ -1,3 +1,4 @@
+pub mod app_password;
 pub mod blob;
 pub mod grant;
 pub mod name;
