@@ -342,7 +342,7 @@ database_test!(a_revoked_app_password_client_is_signed_out, harness, {
         .expect("a client");
 
     session
-        .revoke_app_password(minted.id)
+        .revoke_app_password(minted.password.id)
         .await
         .expect("revoking");
 

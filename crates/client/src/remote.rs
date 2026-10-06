@@ -3,6 +3,7 @@ use std::path::Path;
 use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 use reqwest::{Client, RequestBuilder, StatusCode};
 use serde::Deserialize;
+use stashden_core::app_password::Minted;
 use stashden_core::name::{InvalidNodeName, parse_path};
 use stashden_core::node::{Node, Trashed};
 use uuid::Uuid;
@@ -90,13 +91,6 @@ impl Authorize for RequestBuilder {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct MintedAppPassword {
-    pub id: Uuid,
-    pub name: String,
-    pub secret: String,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct Session {
     pub token: String,
     pub expires_in: i64,
@@ -156,7 +150,7 @@ impl Remote {
         &self.http
     }
 
-    pub async fn mint_app_password(&self, name: &str) -> Result<MintedAppPassword, RemoteError> {
+    pub async fn mint_app_password(&self, name: &str) -> Result<Minted, RemoteError> {
         let response = self
             .http
             .post(format!("{}/v1/app-passwords", self.base))
