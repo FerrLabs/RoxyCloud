@@ -135,9 +135,6 @@ impl FromRequestParts<AppState> for Admin {
     }
 }
 
-/// The account itself, for the routes that change it: its password, its app passwords, other
-/// people's accounts. An app password reaches files and sync but never these, so a credential kept
-/// on disk cannot mint more of itself or lock its owner out.
 #[derive(Debug, Clone)]
 pub struct SessionCaller {
     pub user: User,
