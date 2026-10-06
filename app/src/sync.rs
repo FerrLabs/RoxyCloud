@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 use stashden_client::sync::watch::{Command, DEFAULT_POLL, Status, watch};
-use stashden_client::{Debounce, Engine, Remote, Report};
+use stashden_client::{Debounce, Engine, Report};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tokio::sync::oneshot;
@@ -64,8 +64,7 @@ pub async fn start_sync(
         .clone()
         .ok_or("not connected to a server")?;
 
-    let remote =
-        Remote::new(&credentials.server, credentials.token).map_err(|error| error.to_string())?;
+    let remote = crate::remote_for(&credentials).map_err(|error| error.to_string())?;
     let engine = Engine::open(folder.clone(), remote).map_err(|error| error.to_string())?;
     let session =
         watch(engine, Debounce::default(), DEFAULT_POLL).map_err(|error| error.to_string())?;

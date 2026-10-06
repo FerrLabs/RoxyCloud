@@ -61,6 +61,12 @@ from the system's file picker or from files dragged onto its window, streaming e
 rather than loading it into the window first. A dropped folder is refused with a note to sync it
 instead.
 
+Signing in from the desktop app mints an app password named after the computer and keeps it in the
+system keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service on Linux), so
+the app opens signed in and a folder keeps syncing past the twelve hours a session lasts. Signing
+out revokes that app password on the server and removes it from the keychain. Revoking it from the
+web app signs the desktop out on its next request.
+
 ## Layout
 
 ```
@@ -239,6 +245,7 @@ GET    /v1/thumbnails/{*path} a thumbnail of an image, made on demand
 GET    /v1/app-passwords      the credentials this account has minted
 POST   /v1/app-passwords      mint one, shown once
 DELETE /v1/app-passwords/{id} revoke one, taking effect immediately
+DELETE /v1/app-passwords/current the one this request presents, to sign out
 PUT    /v1/auth/password      change your own, giving the current one
 GET    /v1/users              every account, with what each is using   (admin)
 POST   /v1/users              create one                               (admin)
@@ -284,6 +291,8 @@ POST   /v1/version/{id}/{*path}    restore it, keeping what it replaces as a ver
 Every `/v1` route except login and `/v1/public/*` takes `Authorization: Bearer <session token>`.
 The file, folder, trash, version and sharing routes also take an app password over Basic auth, the
 credential a long-running sync keeps, since a session token lapses after `SESSION_TTL_SECONDS`.
+`DELETE /v1/app-passwords/current` revokes the app password that authenticates the request, which is
+how a client signs out without holding a session.
 
 Deleting is reversible. `DELETE /v1/files/{*path}` marks the node and everything under it, credits
 the quota and leaves the bytes alone, so `GET /v1/trash` lists what was deleted and a restore puts it

@@ -22,7 +22,7 @@ database_test!(a_minted_secret_authenticates_its_owner, harness, {
     let authenticated = authenticate(&harness.state.db, &email("dav@example.com"), &secret).await;
 
     assert_eq!(
-        authenticated.map(|user| user.id),
+        authenticated.map(|(user, _)| user.id),
         Some(owner.id),
         "the credential a client stores in plain text is not the account password, but it is the account"
     );

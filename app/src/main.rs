@@ -1,10 +1,11 @@
 mod failure;
+mod keychain;
 mod sync;
 
 use std::path::PathBuf;
 
 use stashden_client::sync::watch::Session as SyncSession;
-use stashden_client::{Remote, free_path};
+use stashden_client::{Remote, RemoteError, free_path};
 use stashden_core::grant::{Given, NewGrant, Received};
 use stashden_core::node::{Node, Trashed};
 use stashden_core::share::{Minted, NewShare, Share};
@@ -16,13 +17,8 @@ use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::Mutex;
 
 use failure::Failure;
+use keychain::Credentials;
 use uuid::Uuid;
-
-#[derive(Clone)]
-struct Credentials {
-    server: String,
-    token: String,
-}
 
 #[derive(Default)]
 struct Desktop {
@@ -40,16 +36,52 @@ async fn login(
     email: String,
     password: String,
 ) -> Result<(), String> {
-    let (remote, session) = Remote::login(&server, &email, &password)
+    let (session, _) = Remote::login(&server, &email, &password)
+        .await
+        .map_err(|error| error.to_string())?;
+    let minted = session
+        .mint_app_password(&format!("Stashden desktop on {}", this_computer()))
         .await
         .map_err(|error| error.to_string())?;
 
-    *desktop.remote.lock().await = Some(remote);
-    *desktop.credentials.lock().await = Some(Credentials {
+    let credentials = Credentials {
         server,
-        token: session.token,
-    });
+        email,
+        secret: minted.secret,
+    };
+    connect(&desktop, credentials.clone()).await?;
+    keychain::keep(credentials).await
+}
+
+#[tauri::command]
+async fn resume(desktop: State<'_, Desktop>) -> Result<bool, String> {
+    let Some(credentials) = keychain::kept().await? else {
+        return Ok(false);
+    };
+    connect(&desktop, credentials).await?;
+    Ok(true)
+}
+
+async fn connect(desktop: &Desktop, credentials: Credentials) -> Result<(), String> {
+    let remote = remote_for(&credentials).map_err(|error| error.to_string())?;
+    *desktop.remote.lock().await = Some(remote);
+    *desktop.credentials.lock().await = Some(credentials);
     Ok(())
+}
+
+fn remote_for(credentials: &Credentials) -> Result<Remote, RemoteError> {
+    Remote::with_app_password(
+        &credentials.server,
+        credentials.email.as_str(),
+        credentials.secret.as_str(),
+    )
+}
+
+fn this_computer() -> String {
+    ["COMPUTERNAME", "HOSTNAME"]
+        .into_iter()
+        .find_map(|name| std::env::var(name).ok().filter(|value| !value.is_empty()))
+        .unwrap_or_else(|| "this computer".to_owned())
 }
 
 #[derive(serde::Serialize)]
@@ -106,9 +138,18 @@ async fn sign_out(desktop: State<'_, Desktop>) -> Result<(), String> {
     if let Some(session) = desktop.sync.lock().await.take() {
         session.stop().await;
     }
-    desktop.remote.lock().await.take();
     desktop.credentials.lock().await.take();
-    Ok(())
+    let revoked = match desktop.remote.lock().await.take() {
+        Some(remote) => match remote.revoke_own_app_password().await {
+            Ok(()) | Err(RemoteError::Unauthenticated) => Ok(()),
+            Err(error) => Err(format!(
+                "the server did not revoke this computer's app password, revoke it from the web app: {error}"
+            )),
+        },
+        None => Ok(()),
+    };
+    keychain::forget().await?;
+    revoked
 }
 
 #[tauri::command]
@@ -366,6 +407,7 @@ fn main() {
         .manage(Desktop::default())
         .invoke_handler(tauri::generate_handler![
             login,
+            resume,
             sign_out,
             list_folder,
             account,

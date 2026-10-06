@@ -33,6 +33,10 @@ pub fn router(state: AppState) -> Router {
             "/v1/app-passwords",
             get(app_passwords::list).post(app_passwords::mint),
         )
+        .route(
+            "/v1/app-passwords/current",
+            delete(app_passwords::revoke_presented),
+        )
         .route("/v1/app-passwords/{id}", delete(app_passwords::revoke))
         .route("/v1/auth/password", put(users::change_password))
         .route("/v1/users", get(users::list).post(users::create))

@@ -24,6 +24,7 @@ export type Release = {
 export interface Platform {
   readonly kind: PlatformKind;
   authenticated(): boolean;
+  resume?(): Promise<boolean>;
   login(email: string, password: string, server?: string): Promise<void>;
   server?(): string;
   checkUpdate?(): Promise<Release>;
@@ -306,6 +307,11 @@ function desktopPlatform(fallback: string): Platform {
   return {
     kind: 'desktop',
     authenticated: () => connected,
+    resume: async () => {
+      const { invoke } = await core();
+      connected = await invoke<boolean>('resume');
+      return connected;
+    },
     server: remembered,
     login: async (email, password, server) => {
       const address = addressOf(server ?? remembered());

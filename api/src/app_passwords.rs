@@ -68,7 +68,7 @@ pub async fn revoke(pool: &PgPool, user_id: Uuid, id: Uuid) -> Result<(), ApiErr
 /// Answers the account a `WebDAV` client is entitled to act as, or nothing at all. The presented
 /// secret is high entropy and server-generated, so it is fingerprinted rather than run through a
 /// password hash: clients send it on every request, and no dictionary reaches it.
-pub async fn authenticate(pool: &PgPool, email: &Email, presented: &str) -> Option<User> {
+pub async fn authenticate(pool: &PgPool, email: &Email, presented: &str) -> Option<(User, Uuid)> {
     let user = crate::users::by_email(pool, email).await.ok().flatten()?;
     if user.disabled_at.is_some() {
         return None;
@@ -94,7 +94,7 @@ pub async fn authenticate(pool: &PgPool, email: &Email, presented: &str) -> Opti
     .execute(pool)
     .await;
 
-    Some(user)
+    Some((user, id))
 }
 
 fn secret() -> String {

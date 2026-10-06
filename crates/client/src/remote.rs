@@ -175,6 +175,17 @@ impl Remote {
         Ok(())
     }
 
+    pub async fn revoke_own_app_password(&self) -> Result<(), RemoteError> {
+        let response = self
+            .http
+            .delete(format!("{}/v1/app-passwords/current", self.base))
+            .authorized(self)
+            .send()
+            .await?;
+        answered(response, "this app password").await?;
+        Ok(())
+    }
+
     pub(crate) fn base(&self) -> &str {
         &self.base
     }

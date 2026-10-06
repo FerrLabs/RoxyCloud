@@ -36,6 +36,7 @@ export class App {
 
   protected readonly sourceUrl = STASHDEN_SOURCE_URL;
   protected readonly connected = signal(this.platform.authenticated());
+  protected readonly resuming = signal(this.platform.resume !== undefined);
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
   protected readonly changing = signal(false);
@@ -46,6 +47,22 @@ export class App {
   constructor() {
     if (this.connected()) {
       void this.start();
+    } else {
+      void this.resume();
+    }
+  }
+
+  private async resume(): Promise<void> {
+    try {
+      if (await this.platform.resume?.()) {
+        this.connected.set(true);
+        await this.start();
+      }
+    } catch (cause: unknown) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      this.error.set(`Sign in again, the saved session did not open: ${message}`);
+    } finally {
+      this.resuming.set(false);
     }
   }
 
@@ -67,7 +84,7 @@ export class App {
       await this.platform.signOut();
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      this.error.set(`Signed out here, but the app kept its session: ${message}`);
+      this.error.set(`Signed out here, but ${message}`);
     }
     this.session.forget();
     this.connected.set(false);
