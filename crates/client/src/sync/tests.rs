@@ -363,6 +363,7 @@ async fn a_paused_session_holds_the_change_until_it_resumes() {
     let pair = Pair::new("watch-pause");
     let session = watch(pair.engine(), eager(), DEFAULT_POLL).expect("watches the folder");
     let mut status = session.subscribe();
+    any_sync(&mut status).await;
     session.send(Command::Pause).await;
 
     pair.write_local("a.txt", b"written while paused");
