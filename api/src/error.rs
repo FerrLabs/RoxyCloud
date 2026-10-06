@@ -24,6 +24,8 @@ pub enum ApiError {
     TooManyAttempts { seconds: i64 },
     #[error("this account may not write")]
     Forbidden,
+    #[error("an app password cannot manage the account, sign in with the account's password")]
+    SessionRequired,
     #[error("{0} already exists")]
     Conflict(String),
     #[error("a directory cannot be moved inside itself")]
@@ -86,7 +88,7 @@ impl ApiError {
             }
             Self::WeakPassword(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::NotFound | Self::Storage(StorageError::NotFound(_)) => StatusCode::NOT_FOUND,
-            Self::Forbidden | Self::AcrossAccounts => StatusCode::FORBIDDEN,
+            Self::Forbidden | Self::SessionRequired | Self::AcrossAccounts => StatusCode::FORBIDDEN,
             Self::Conflict(_)
             | Self::MoveIntoSelf
             | Self::AlreadyGranted

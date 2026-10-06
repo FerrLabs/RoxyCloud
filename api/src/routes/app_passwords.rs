@@ -5,7 +5,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::app_passwords::{self, AppPassword, Minted};
-use crate::auth::Caller;
+use crate::auth::SessionCaller;
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::users;
@@ -17,7 +17,7 @@ pub struct Name {
 
 pub async fn mint(
     State(state): State<AppState>,
-    caller: Caller,
+    caller: SessionCaller,
     Json(request): Json<Name>,
 ) -> Result<(StatusCode, Json<Minted>), ApiError> {
     // A credential outlives the session that minted it, so this is the one route where a token
@@ -38,7 +38,7 @@ pub async fn mint(
 
 pub async fn list(
     State(state): State<AppState>,
-    caller: Caller,
+    caller: SessionCaller,
 ) -> Result<Json<Vec<AppPassword>>, ApiError> {
     Ok(Json(
         app_passwords::list(&state.db, caller.user_id()).await?,
@@ -47,7 +47,7 @@ pub async fn list(
 
 pub async fn revoke(
     State(state): State<AppState>,
-    caller: Caller,
+    caller: SessionCaller,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     app_passwords::revoke(&state.db, caller.user_id(), id).await?;

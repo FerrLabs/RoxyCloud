@@ -282,6 +282,8 @@ POST   /v1/version/{id}/{*path}    restore it, keeping what it replaces as a ver
 ```
 
 Every `/v1` route except login and `/v1/public/*` takes `Authorization: Bearer <session token>`.
+The file, folder, trash, version and sharing routes also take an app password over Basic auth, the
+credential a long-running sync keeps, since a session token lapses after `SESSION_TTL_SECONDS`.
 
 Deleting is reversible. `DELETE /v1/files/{*path}` marks the node and everything under it, credits
 the quota and leaves the bytes alone, so `GET /v1/trash` lists what was deleted and a restore puts it
@@ -329,9 +331,11 @@ The bytes come back to the disk on that schedule, not on the purge.
 
 A WebDAV client stores its credential in plain text more often than not, so it never gets the
 account password. `POST /v1/app-passwords` mints a high-entropy secret, shows it once, and keeps only
-a fingerprint of it. The secret authenticates over Basic auth on the WebDAV surface and nowhere else:
-account management answers 401 to it, so a stolen credential cannot mint itself a successor. Revoking
-takes effect on the next request, and `last_used_at` says which credentials nothing is using.
+a fingerprint of it. The secret authenticates over Basic auth, on the WebDAV surface and on the
+`/v1` routes a client needs for files and sync. Account management answers 403 to it (minting app
+passwords, changing the password, administering accounts), so a stolen credential cannot mint itself a
+successor or lock its owner out. Revoking takes effect on the next request, and `last_used_at` says
+which credentials nothing is using.
 
 The account menu mints and revokes them without a terminal. The secret appears once, in the dialog
 that made it, next to the WebDAV address of the instance and the address to sign in with, so the
