@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.34.0] - 2026-10-06
+
+### Features
+
+- feat(auth): accept app passwords on the file and sync routes, never on account management (#278)
+
 ## [0.33.1] - 2026-10-06
 
 ### Bug Fixes
