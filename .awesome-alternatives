@@ -1,1 +1,10 @@
-stashden
+# yaml-language-server: $schema=https://raw.githubusercontent.com/awesome-alternatives/awesome-alternatives/main/schema/maintainer-file.schema.json
+tools:
+  stashden:
+    category: file-sync
+    replaces:
+      - tool: nextcloud
+        fit: partial
+        note: Covers file storage and WebDAV only, not the calendar, contacts and app platform around them.
+    affiliation: Maintained by FerrLabs, whose founder also maintains this directory.
+    deploy: [container, compose, helm]
