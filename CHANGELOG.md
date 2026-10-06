@@ -4,6 +4,13 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.0] - 2026-10-06
+
+### Features
+
+- feat(app): keep the desktop signed in with an app password in the system keychain (#280)
+- feat(cli): sign in with an app password for unattended sync (#279)
+
 ## [0.34.0] - 2026-10-06
 
 ### Features
