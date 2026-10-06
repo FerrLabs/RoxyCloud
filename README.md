@@ -65,7 +65,8 @@ Signing in from the desktop app mints an app password named after the computer a
 system keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service on Linux), so
 the app opens signed in and a folder keeps syncing past the twelve hours a session lasts. Signing
 out revokes that app password on the server and removes it from the keychain. Revoking it from the
-web app signs the desktop out on its next request.
+web app signs the desktop out on its next request. Without a keychain, as on some minimal Linux
+desktops, the app says so and stays signed in until it closes.
 
 ## Layout
 

@@ -35,7 +35,7 @@ async fn login(
     server: String,
     email: String,
     password: String,
-) -> Result<(), String> {
+) -> Result<Option<String>, String> {
     let (session, _) = Remote::login(&server, &email, &password)
         .await
         .map_err(|error| error.to_string())?;
@@ -50,7 +50,10 @@ async fn login(
         secret: minted.secret,
     };
     connect(&desktop, credentials.clone()).await?;
-    keychain::keep(credentials).await
+    Ok(keychain::keep(credentials)
+        .await
+        .err()
+        .map(|reason| format!("Signed in until the app closes, then it will ask again: {reason}")))
 }
 
 #[tauri::command]
@@ -78,10 +81,12 @@ fn remote_for(credentials: &Credentials) -> Result<Remote, RemoteError> {
 }
 
 fn this_computer() -> String {
-    ["COMPUTERNAME", "HOSTNAME"]
-        .into_iter()
-        .find_map(|name| std::env::var(name).ok().filter(|value| !value.is_empty()))
-        .unwrap_or_else(|| "this computer".to_owned())
+    let name = gethostname::gethostname().to_string_lossy().into_owned();
+    if name.is_empty() {
+        "this computer".to_owned()
+    } else {
+        name
+    }
 }
 
 #[derive(serde::Serialize)]
