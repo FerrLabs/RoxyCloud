@@ -5,7 +5,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::app_passwords::{self, AppPassword, Minted};
-use crate::auth::SessionCaller;
+use crate::auth::{Caller, Credential, SessionCaller};
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::users;
@@ -51,5 +51,16 @@ pub async fn revoke(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     app_passwords::revoke(&state.db, caller.user_id(), id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn revoke_presented(
+    State(state): State<AppState>,
+    caller: Caller,
+) -> Result<StatusCode, ApiError> {
+    let Credential::AppPassword(id) = caller.via else {
+        return Err(ApiError::AppPasswordRequired);
+    };
+    app_passwords::revoke(&state.db, caller.user.id, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

@@ -26,6 +26,8 @@ pub enum ApiError {
     Forbidden,
     #[error("an app password cannot manage the account, sign in with the account's password")]
     SessionRequired,
+    #[error("only an app password can revoke itself, a session revokes one by its id")]
+    AppPasswordRequired,
     #[error("{0} already exists")]
     Conflict(String),
     #[error("a directory cannot be moved inside itself")]
@@ -96,6 +98,7 @@ impl ApiError {
             | Self::OffsetMismatch { .. } => StatusCode::CONFLICT,
             Self::Locked(_) => StatusCode::LOCKED,
             Self::Incomplete { .. }
+            | Self::AppPasswordRequired
             | Self::InvalidPath(_)
             | Self::InvalidEmail(_)
             | Self::WrongKind { .. }

@@ -71,7 +71,7 @@ impl Sessions {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Credential {
     Session,
-    AppPassword,
+    AppPassword(Uuid),
 }
 
 #[derive(Debug, Clone)]
@@ -186,10 +186,10 @@ impl FromRequestParts<AppState> for Caller {
             (user, Credential::Session)
         } else {
             let (email, secret) = basic_credentials(parts).ok_or(ApiError::Unauthenticated)?;
-            let user = app_passwords::authenticate(&state.db, &email, &secret)
+            let (user, id) = app_passwords::authenticate(&state.db, &email, &secret)
                 .await
                 .ok_or(ApiError::Unauthenticated)?;
-            (user, Credential::AppPassword)
+            (user, Credential::AppPassword(id))
         };
 
         if !user.is_active() {

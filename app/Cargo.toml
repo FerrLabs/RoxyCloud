@@ -22,6 +22,8 @@ tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
+keyring = "4"
+gethostname = "1"
 
 [lints]
 workspace = true

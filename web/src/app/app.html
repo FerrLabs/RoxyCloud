@@ -27,7 +27,7 @@
         <p class="failure" role="alert">{{ message }}</p>
       }
       <router-outlet />
-    } @else {
+    } @else if (!resuming()) {
       <section class="sign-in">
         <h1>Sign in</h1>
         @if (error(); as message) {

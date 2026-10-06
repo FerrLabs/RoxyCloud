@@ -24,7 +24,8 @@ export type Release = {
 export interface Platform {
   readonly kind: PlatformKind;
   authenticated(): boolean;
-  login(email: string, password: string, server?: string): Promise<void>;
+  resume?(): Promise<boolean>;
+  login(email: string, password: string, server?: string): Promise<string | null>;
   server?(): string;
   checkUpdate?(): Promise<Release>;
   installUpdate?(): Promise<void>;
@@ -139,6 +140,7 @@ function browserPlatform(baseUrl: string): Platform {
         body: JSON.stringify({ email, password }),
       });
       localStorage.setItem(TOKEN_KEY, session.token);
+      return null;
     },
     signOut: () => localStorage.removeItem(TOKEN_KEY),
     changePassword: async (current, password) => {
@@ -306,17 +308,23 @@ function desktopPlatform(fallback: string): Platform {
   return {
     kind: 'desktop',
     authenticated: () => connected,
+    resume: async () => {
+      const { invoke } = await core();
+      connected = await invoke<boolean>('resume');
+      return connected;
+    },
     server: remembered,
     login: async (email, password, server) => {
       const address = addressOf(server ?? remembered());
       const { invoke } = await core();
-      await invoke<void>('login', { server: address, email, password });
+      const warning = await invoke<string | null>('login', { server: address, email, password });
       try {
         localStorage.setItem(SERVER_KEY, address);
       } catch {
         // A browser that refuses storage still signs in, it just forgets the address.
       }
       connected = true;
+      return warning;
     },
     signOut: async () => {
       const { invoke } = await core();

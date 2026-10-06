@@ -42,7 +42,7 @@ impl FromRequestParts<AppState> for DavCaller {
 
         app_passwords::authenticate(&state.db, &email, &secret)
             .await
-            .map(Self)
+            .map(|(user, _)| Self(user))
             .ok_or(Unauthenticated)
     }
 }

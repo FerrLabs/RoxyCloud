@@ -170,3 +170,65 @@ database_test!(a_session_still_manages_the_account, harness, {
         StatusCode::CREATED
     );
 });
+
+database_test!(an_app_password_revokes_itself, harness, {
+    let minted = app_password(&harness, "leaving@example.com", Role::Member).await;
+
+    assert_eq!(
+        status(
+            &harness,
+            "DELETE",
+            "/v1/app-passwords/current",
+            &minted.basic,
+            ""
+        )
+        .await,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        status(&harness, "GET", "/v1/folders", &minted.basic, "").await,
+        StatusCode::UNAUTHORIZED,
+        "signing out leaves nothing behind that still opens the files"
+    );
+});
+
+database_test!(revoking_itself_leaves_the_other_app_passwords, harness, {
+    let leaving = app_password(&harness, "two@example.com", Role::Member).await;
+    let mut tx = harness.state.db.begin().await.expect("begin");
+    let staying = mint(&mut tx, leaving.owner, "the other machine")
+        .await
+        .expect("minting");
+    tx.commit().await.expect("commit");
+    let staying = basic("two@example.com", &staying.secret);
+
+    status(
+        &harness,
+        "DELETE",
+        "/v1/app-passwords/current",
+        &leaving.basic,
+        "",
+    )
+    .await;
+
+    assert_eq!(
+        status(&harness, "GET", "/v1/folders", &staying, "").await,
+        StatusCode::OK
+    );
+});
+
+database_test!(a_session_has_no_current_app_password_to_revoke, harness, {
+    let owner = harness.account("bearer@example.com", Role::Member).await;
+    let token = harness.state.sessions.issue(owner.id).expect("a token");
+
+    assert_eq!(
+        status(
+            &harness,
+            "DELETE",
+            "/v1/app-passwords/current",
+            &format!("Bearer {token}"),
+            ""
+        )
+        .await,
+        StatusCode::BAD_REQUEST
+    );
+});
