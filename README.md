@@ -252,6 +252,7 @@ DELETE /v1/app-passwords/current the one this request presents, to sign out
 PUT    /v1/auth/password      change your own, giving the current one
 GET    /v1/users              every account, with what each is using   (admin)
 POST   /v1/users              create one                               (admin)
+DELETE /v1/users/{id}         delete it, `?hand_over_to=` gives its files away (admin)
 POST   /v1/users/{id}/disable end its sessions and refuse it at login  (admin)
 POST   /v1/users/{id}/enable  let it back in                           (admin)
 PUT    /v1/users/{id}/role    admin, member or reader                  (admin)
@@ -614,6 +615,16 @@ password without knowing it. Disabling one takes effect on the account's next re
 when its token expires, because every request loads the account behind the session rather than taking
 the token's word for it. An administrator cannot disable or demote themselves, since an installation
 nobody can administer is not a state worth being able to reach through the API.
+
+Deleting an account takes it, its sessions, app passwords, links and the shares it made, and the
+shares made to its address. What happens to its files is the administrator's choice. By default
+they are released: the account's trash is emptied and every file and version gives up its hold on
+its bytes, which the sweep collects after the grace period. With `hand_over_to`, everything moves
+into a folder named after the account (`Display name (address)`, numbered if that name is taken) in
+the files of another account, which has to be active and able to write. The bytes the departing
+account used are added to the recipient's quota in the same transaction, and a recipient without
+room refuses the whole request with 507 and nothing is deleted. Nobody can delete themselves, and
+the account's trash is not handed over.
 
 On an empty database, set `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` for the first boot
 to create the administrator, then log in:

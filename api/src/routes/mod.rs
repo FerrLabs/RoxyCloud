@@ -41,6 +41,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/app-passwords/{id}", delete(app_passwords::revoke))
         .route("/v1/auth/password", put(users::change_password))
         .route("/v1/users", get(users::list).post(users::create))
+        .route("/v1/users/{id}", delete(users::delete))
         .route("/v1/users/{id}/disable", post(users::disable))
         .route("/v1/users/{id}/enable", post(users::enable))
         .route("/v1/users/{id}/unlock", post(users::unlock))

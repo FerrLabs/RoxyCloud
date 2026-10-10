@@ -5,6 +5,7 @@ pub mod auth;
 pub mod config;
 pub mod dav;
 pub mod db;
+pub mod departure;
 pub mod error;
 pub mod grants;
 pub mod incoming;
