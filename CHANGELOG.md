@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.1] - 2026-10-10
+
+### Bug Fixes
+
+- fix(sync): hold everything under a shelf folder that is not a share (#302)
+
 ## [0.38.0] - 2026-10-10
 
 ### Features
