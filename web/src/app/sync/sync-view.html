@@ -69,6 +69,11 @@
           @for (path of last.held; track path) {
             <li><span class="tag">held</span> {{ path }} was not changed on the server</li>
           }
+          @for (unsupported of last.unsupported; track unsupported.path) {
+            <li>
+              <span class="tag">not here</span> {{ unsupported.path }} ({{ unsupported.reason }})
+            </li>
+          }
           @for (path of last.skipped; track path) {
             <li><span class="tag">skipped</span> {{ path }}</li>
           }

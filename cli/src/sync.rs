@@ -58,6 +58,9 @@ fn print(report: &Report) {
     for path in &report.held {
         println!("held: {path} was not changed on the server");
     }
+    for unsupported in &report.unsupported {
+        println!("not here: {} ({})", unsupported.path, unsupported.reason);
+    }
     for path in &report.skipped {
         println!("skipped: {path}");
     }

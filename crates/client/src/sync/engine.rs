@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use chrono::Utc;
 use serde::Serialize;
 
+use super::fit::{self, Rules};
 use super::ignore;
 use super::local::{self, LocalScan, ScanError};
 use super::path::RelPath;
@@ -52,6 +53,7 @@ pub struct Report {
     pub conflicts: Vec<RelPath>,
     pub blocked: Vec<RelPath>,
     pub held: Vec<RelPath>,
+    pub unsupported: Vec<Failure>,
     pub skipped: Vec<String>,
     pub failures: Vec<Failure>,
 }
@@ -79,6 +81,7 @@ pub struct Engine<T> {
     root: PathBuf,
     transport: T,
     state: SyncState,
+    rules: Rules,
 }
 
 impl<T: Transport> Engine<T> {
@@ -91,11 +94,19 @@ impl<T: Transport> Engine<T> {
         let root = root.into();
         adopt_legacy(&root)?;
         let state = SyncState::load(&state_path(&root))?;
+        let rules = Rules::of(&root);
         Ok(Self {
             root,
             transport,
             state,
+            rules,
         })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn holding_names_by(mut self, rules: Rules) -> Self {
+        self.rules = rules;
+        self
     }
 
     pub async fn sync_once(&mut self) -> Result<Report, SyncError> {
@@ -112,16 +123,20 @@ impl<T: Transport> Engine<T> {
             .held()
             .await
             .map_err(|source| SyncError::Transport(Box::new(source)))?;
-        let plan = held.apply(reconcile(
-            &scan.snapshot(),
-            &remote,
-            &self.state.base(),
-            Utc::now(),
-        ));
+        let mut local = scan.snapshot();
+        let unfit = fit::unfit(&local, &remote, self.rules);
+        local.retain(|path, _| !unfit.contains_key(path));
+        remote.retain(|path, _| !unfit.contains_key(path));
+
+        let plan = held.apply(reconcile(&local, &remote, &self.state.base(), Utc::now()));
 
         let mut report = Report {
             blocked: plan.blocked,
             held: plan.held,
+            unsupported: unfit
+                .into_iter()
+                .map(|(path, reason)| Failure { path, reason })
+                .collect(),
             skipped: scan
                 .skipped
                 .iter()

@@ -1,5 +1,6 @@
 pub mod debounce;
 pub mod engine;
+pub mod fit;
 pub mod held;
 pub mod ignore;
 pub mod local;
