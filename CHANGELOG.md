@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.2] - 2026-10-10
+
+### Bug Fixes
+
+- fix(sync): leave the junk operating systems and editors drop out of the sync (#297)
+
 ## [0.36.1] - 2026-10-10
 
 ### Bug Fixes
