@@ -1,6 +1,6 @@
 use sqlx::{PgPool, Postgres, Transaction};
 use stashden_core::blob::BlobHash;
-use stashden_core::name::NodeName;
+use stashden_core::name::{MAX_NAME_LEN, NodeName};
 use stashden_core::user::User;
 use uuid::Uuid;
 
@@ -95,7 +95,8 @@ async fn hand_over(
     db::charge_quota(tx, recipient.id, used).await
 }
 
-const MAX_FOLDER_NAME_BYTES: usize = 240;
+const NUMBERED_SUFFIX: &str = " 1000";
+const MAX_FOLDER_NAME_BYTES: usize = MAX_NAME_LEN - NUMBERED_SUFFIX.len();
 
 fn folder_name(leaving: &User) -> String {
     fitted(&format!(
