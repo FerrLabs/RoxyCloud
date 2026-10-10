@@ -10,8 +10,7 @@ use super::engine::{Engine, Report};
 use super::held::Held;
 use super::local;
 use super::path::RelPath;
-use super::snapshot::Entry;
-use super::snapshot::Snapshot;
+use super::snapshot::{Entry, Snapshot};
 use super::state::{LEGACY_STATE_FILE_NAME, STATE_FILE_NAME, SyncState};
 use super::transport::{Expect, Transport};
 use super::watch::{Command, DEFAULT_POLL, Status, watch};
@@ -34,9 +33,9 @@ impl Transport for FakeServer {
     type Error = io::Error;
 
     async fn snapshot(&self) -> Result<Snapshot, Self::Error> {
-        let scan = local::scan(&self.root, &SyncState::default())
-            .map_err(|error| io::Error::other(error.to_string()))?;
-        Ok(scan.snapshot())
+        let mut snapshot = Snapshot::new();
+        list_everything(&self.root, None, &mut snapshot)?;
+        Ok(snapshot)
     }
 
     async fn download_to(&self, path: &RelPath, destination: &Path) -> Result<(), Self::Error> {
@@ -81,6 +80,32 @@ impl Transport for FakeServer {
     async fn held(&self) -> Result<Held, Self::Error> {
         Ok(self.held.clone())
     }
+}
+
+fn list_everything(
+    root: &Path,
+    directory: Option<&RelPath>,
+    snapshot: &mut Snapshot,
+) -> io::Result<()> {
+    let absolute = directory.map_or_else(|| root.to_path_buf(), |path| path.to_path(root));
+    for entry in fs::read_dir(absolute)? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let path = match directory {
+            Some(parent) => parent.child(&name),
+            None => RelPath::parse(&name),
+        }
+        .map_err(|error| io::Error::other(error.to_string()))?;
+        if entry.file_type()?.is_dir() {
+            snapshot.insert(path.clone(), Entry::Directory);
+            list_everything(root, Some(&path), snapshot)?;
+        } else {
+            let bytes = fs::read(entry.path())?;
+            let size = u64::try_from(bytes.len()).expect("small test file");
+            snapshot.insert(path, Entry::file(blake3::hash(&bytes).into(), size));
+        }
+    }
+    Ok(())
 }
 
 struct Pair {
@@ -672,5 +697,95 @@ async fn a_server_file_created_during_the_pass_is_not_overwritten() {
     assert_eq!(
         pair.read_server("a.txt").as_deref(),
         Some(&b"created there"[..])
+    );
+}
+
+#[tokio::test]
+async fn junk_the_system_leaves_in_the_folder_stays_local() {
+    let pair = Pair::new("ignore-local");
+    pair.write_local("photos/.DS_Store", b"finder");
+    pair.write_local("~$report.docx", b"word lock");
+    pair.write_local("photos/beach.jpg", b"sand");
+
+    let report = pair.engine().sync_once().await.expect("syncs");
+
+    assert_eq!(report.uploaded, 1);
+    assert!(pair.read_server("photos/.DS_Store").is_none());
+    assert!(pair.read_server("~$report.docx").is_none());
+    assert!(
+        report.skipped.is_empty(),
+        "ignoring is not worth a report line"
+    );
+}
+
+#[tokio::test]
+async fn junk_already_on_the_server_does_not_come_down() {
+    let pair = Pair::new("ignore-remote");
+    pair.write_server("Thumbs.db", b"explorer");
+
+    let report = pair.engine().sync_once().await.expect("syncs");
+
+    assert_eq!(report.downloaded, 0);
+    assert!(pair.read_local("Thumbs.db").is_none());
+}
+
+#[tokio::test]
+async fn junk_synced_by_an_older_client_is_left_where_it_is() {
+    let pair = Pair::new("ignore-legacy");
+    pair.write_server("desktop.ini", b"explorer");
+    let path = RelPath::parse("desktop.ini").expect("a path");
+    let mut state = SyncState::default();
+    state.record(path, Entry::file(blake3::hash(b"explorer").into(), 8), None);
+    state
+        .save(&pair.local.join(STATE_FILE_NAME))
+        .expect("saving the old state");
+
+    let report = pair.engine().sync_once().await.expect("syncs");
+
+    assert_eq!(report.deleted_remotely, 0);
+    assert_eq!(
+        pair.read_server("desktop.ini").as_deref(),
+        Some(&b"explorer"[..]),
+        "missing locally because it is ignored, not because it was deleted"
+    );
+}
+
+#[tokio::test]
+async fn a_folder_removed_on_the_server_goes_even_with_junk_in_it() {
+    let pair = Pair::new("ignore-rmdir");
+    pair.write_local("photos/beach.jpg", b"sand");
+    pair.engine().sync_once().await.expect("first sync");
+    pair.write_local("photos/.DS_Store", b"finder opened it");
+
+    fs::remove_dir_all(pair.server.join("photos")).expect("removed on the server");
+    let report = pair.engine().sync_once().await.expect("second sync");
+
+    assert_eq!(report.failures, Vec::new());
+    assert_eq!(report.directories_removed_locally, 1);
+    assert!(!pair.local.join("photos").exists());
+    assert!(
+        pair.engine()
+            .sync_once()
+            .await
+            .expect("third sync")
+            .is_quiet(),
+        "the removal is done, not planned again on every pass"
+    );
+}
+
+#[tokio::test]
+async fn a_folder_with_real_files_left_in_it_is_still_not_removed() {
+    let pair = Pair::new("ignore-rmdir-kept");
+    pair.write_local("photos/beach.jpg", b"sand");
+    pair.engine().sync_once().await.expect("first sync");
+    pair.write_local("photos/.DS_Store", b"finder");
+
+    fs::remove_dir_all(pair.server.join("photos")).expect("removed on the server");
+    pair.write_local("photos/new.jpg", b"added meanwhile");
+    pair.engine().sync_once().await.expect("second sync");
+
+    assert_eq!(
+        pair.read_local("photos/new.jpg").as_deref(),
+        Some(&b"added meanwhile"[..])
     );
 }

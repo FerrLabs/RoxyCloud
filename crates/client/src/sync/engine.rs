@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use chrono::Utc;
 use serde::Serialize;
 
+use super::ignore;
 use super::local::{self, LocalScan, ScanError};
 use super::path::RelPath;
 use super::plan::{Action, reconcile};
@@ -12,7 +13,7 @@ use super::snapshot::Entry;
 use super::state::{STATE_FILE_NAME, StateError, SyncState, adopt_legacy};
 use super::transport::{Expect, Transport};
 
-const PARTIAL_SUFFIX: &str = ".stashpart";
+pub(crate) const PARTIAL_SUFFIX: &str = ".stashpart";
 
 #[derive(Debug, thiserror::Error)]
 pub enum SyncError {
@@ -99,11 +100,12 @@ impl<T: Transport> Engine<T> {
 
     pub async fn sync_once(&mut self) -> Result<Report, SyncError> {
         let scan = self.scan().await?;
-        let remote = self
+        let mut remote = self
             .transport
             .snapshot()
             .await
             .map_err(|source| SyncError::Transport(Box::new(source)))?;
+        remote.retain(|path, _| !ignore::hides(path));
 
         let held = self
             .transport
@@ -345,7 +347,14 @@ fn create_directory(path: &Path) -> Result<(), String> {
 }
 
 fn remove_directory(path: &Path) -> Result<(), String> {
-    fs::remove_dir(path).map_err(|source| format!("removing {}: {source}", path.display()))
+    let failed = |source: io::Error| format!("removing {}: {source}", path.display());
+    for entry in fs::read_dir(path).map_err(failed)? {
+        let entry = entry.map_err(failed)?;
+        if entry.file_name().to_str().is_some_and(ignore::is_ignored) && entry.path().is_file() {
+            fs::remove_file(entry.path()).map_err(failed)?;
+        }
+    }
+    fs::remove_dir(path).map_err(failed)
 }
 
 fn remove_file(path: &Path) -> Result<(), String> {
