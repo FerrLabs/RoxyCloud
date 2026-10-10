@@ -1,6 +1,8 @@
 use axum::extract::FromRequestParts;
 use axum::http::header::AUTHORIZATION;
 use axum::http::request::Parts;
+use base64::Engine as _;
+use base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig};
 use chrono::{Duration, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
@@ -8,11 +10,10 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::app_passwords;
-use crate::dav::auth::basic_credentials;
 use crate::error::ApiError;
 use crate::sessions;
 use crate::state::AppState;
-use stashden_core::user::User;
+use stashden_core::user::{Email, User};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
@@ -86,12 +87,32 @@ impl Sessions {
 
 /// The account behind a session token, loaded rather than taken on the token's word: a session
 /// outliving the account it names is how a disabled person keeps reading until their token expires.
+const BASIC: GeneralPurpose = GeneralPurpose::new(
+    &base64::alphabet::STANDARD,
+    GeneralPurposeConfig::new().with_decode_padding_mode(DecodePaddingMode::Indifferent),
+);
+
+pub(crate) fn basic_credentials(parts: &Parts) -> Option<(Email, String)> {
+    let encoded = parts
+        .headers
+        .get(AUTHORIZATION)?
+        .to_str()
+        .ok()?
+        .strip_prefix("Basic ")?;
+    let presented = String::from_utf8(BASIC.decode(encoded.trim()).ok()?).ok()?;
+    let (email, secret) = presented.split_once(':')?;
+    Some((email.parse().ok()?, secret.to_owned()))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Credential {
     Session(Uuid),
     AppPassword(Uuid),
 }
 
+/// The account behind a session token or an app password, loaded rather than taken on the
+/// credential's word: a session outliving the account it names is how a disabled person keeps
+/// reading until their token expires.
 #[derive(Debug, Clone)]
 pub struct Caller {
     pub user: User,
@@ -227,6 +248,54 @@ impl FromRequestParts<AppState> for Caller {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_basic_credential_survives_the_round_trip() {
+        let parts = request("Basic ZGF2QGV4YW1wbGUuY29tOnNlY3JldA==");
+        let (email, secret) = basic_credentials(&parts).expect("a credential");
+        assert_eq!(email.as_str(), "dav@example.com");
+        assert_eq!(secret, "secret");
+    }
+
+    #[test]
+    fn padding_is_optional_and_whitespace_is_forgiven() {
+        let padded = request("Basic YUBiLmM6cw==");
+        let bare = request("Basic YUBiLmM6cw");
+        let spaced = request("Basic YUBiLmM6cw== ");
+        for parts in [padded, bare, spaced] {
+            let (email, secret) = basic_credentials(&parts).expect("a credential");
+            assert_eq!(email.as_str(), "a@b.c");
+            assert_eq!(secret, "s");
+        }
+    }
+
+    #[test]
+    fn a_secret_may_contain_a_colon() {
+        let parts = request("Basic YUBiLmM6czpj");
+        let (_, secret) = basic_credentials(&parts).expect("a credential");
+        assert_eq!(secret, "s:c");
+    }
+
+    #[test]
+    fn anything_that_is_not_a_basic_credential_is_refused() {
+        for header in [
+            "Basic not base64!",
+            "Basic //8=",
+            "Basic bm9jb2xvbg==",
+            "Bearer YUBiLmM6cw==",
+        ] {
+            assert!(basic_credentials(&request(header)).is_none(), "{header}");
+        }
+    }
+
+    fn request(authorization: &str) -> Parts {
+        let (parts, ()) = axum::http::Request::builder()
+            .header(AUTHORIZATION, authorization)
+            .body(())
+            .expect("a request")
+            .into_parts();
+        parts
+    }
 
     fn sessions(ttl: Duration) -> Sessions {
         Sessions::new("test-secret", ttl)
