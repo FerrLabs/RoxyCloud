@@ -5,6 +5,12 @@ use super::held::Held;
 use super::path::RelPath;
 use super::snapshot::Snapshot;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Expect {
+    Absent,
+    Etag(String),
+}
+
 pub trait Transport {
     type Error: std::error::Error + Send + Sync + 'static;
 
@@ -20,6 +26,7 @@ pub trait Transport {
         &self,
         path: &RelPath,
         source: &Path,
+        expect: &Expect,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
     fn remove(&self, path: &RelPath) -> impl Future<Output = Result<(), Self::Error>> + Send;

@@ -11,6 +11,7 @@ use crate::auth::{Caller, Writer};
 use crate::db;
 use crate::error::ApiError;
 use crate::incoming::{self, Received};
+use crate::precondition::Precondition;
 use crate::state::AppState;
 use crate::trash;
 use stashden_core::blob::BlobHash;
@@ -31,6 +32,7 @@ pub async fn put(
         });
     }
 
+    let precondition = Precondition::from_headers(&headers);
     let room = {
         let mut tx = state.db.begin().await?;
         let (parent, name) = access::file_target(
@@ -41,6 +43,7 @@ pub async fn put(
             state.default_quota_bytes,
         )
         .await?;
+        precondition.check(db::child(&mut tx, parent.id, &name).await?.as_ref())?;
         incoming::room(&mut tx, &state, &parent, &name).await?
     };
     let Received { written, size } = incoming::receive(&state, &headers, body, room).await?;
@@ -54,6 +57,11 @@ pub async fn put(
         state.default_quota_bytes,
     )
     .await?;
+    precondition.check(
+        db::child_for_update(&mut tx, parent.id, &name)
+            .await?
+            .as_ref(),
+    )?;
     let node = db::put_file(
         &mut tx,
         parent.owner_id,

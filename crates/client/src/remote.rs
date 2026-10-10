@@ -31,6 +31,8 @@ pub enum RemoteError {
     NotFound(String),
     #[error("{0} clashes with something already on the server")]
     Conflict(String),
+    #[error("{0} changed on the server since it was listed; the next pass keeps both")]
+    Changed(String),
     #[error("{message}")]
     Refused { status: StatusCode, message: String },
     #[error("the server answered {0}")]
@@ -53,6 +55,7 @@ impl RemoteError {
             Self::Unauthenticated => Some(StatusCode::UNAUTHORIZED),
             Self::NotFound(_) => Some(StatusCode::NOT_FOUND),
             Self::Conflict(_) => Some(StatusCode::CONFLICT),
+            Self::Changed(_) => Some(StatusCode::PRECONDITION_FAILED),
             Self::Path(_) | Self::Transport(_) | Self::Io { .. } => None,
         }
     }
@@ -327,6 +330,7 @@ pub(crate) fn check(status: StatusCode, path: &str) -> Result<(), RemoteError> {
         StatusCode::UNAUTHORIZED => Err(RemoteError::Unauthenticated),
         StatusCode::NOT_FOUND => Err(RemoteError::NotFound(path.to_owned())),
         StatusCode::CONFLICT => Err(RemoteError::Conflict(path.to_owned())),
+        StatusCode::PRECONDITION_FAILED => Err(RemoteError::Changed(path.to_owned())),
         other => Err(RemoteError::Status(other)),
     }
 }
