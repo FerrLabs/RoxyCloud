@@ -616,6 +616,10 @@ content, not timestamps: a file is only transferred when its bytes differ from t
 STASHDEN_TOKEN=... cargo run -p stashden-cli -- sync ~/Stashden
 ```
 
+What operating systems and editors leave in a folder is not synced in either direction: `.DS_Store`,
+`._*` files, `Thumbs.db`, `ehthumbs.db`, `desktop.ini`, Office's `~$*` lock files, LibreOffice's
+`.~lock.*#` and unfinished `*.stashpart` downloads. One already on the server stays there untouched.
+
 State lives in `.stashden-sync.json` inside the folder, which is what makes a second run cheap and
 what tells a deletion apart from a file that was never there. Delete it to start from a full
 comparison again.

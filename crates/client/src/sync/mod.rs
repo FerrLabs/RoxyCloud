@@ -1,6 +1,7 @@
 pub mod debounce;
 pub mod engine;
 pub mod held;
+pub mod ignore;
 pub mod local;
 pub mod path;
 pub mod plan;

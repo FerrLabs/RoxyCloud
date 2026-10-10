@@ -6,6 +6,7 @@ use std::time::UNIX_EPOCH;
 
 use stashden_core::blob::BlobHash;
 
+use super::ignore;
 use super::path::RelPath;
 use super::snapshot::Entry;
 use super::state::{SyncState, is_state_file};
@@ -70,7 +71,7 @@ fn walk(
             scan.skipped.push(entry.path());
             continue;
         };
-        if is_state_file(name) {
+        if is_state_file(name) || ignore::is_ignored(name) {
             continue;
         }
 
