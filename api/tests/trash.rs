@@ -225,8 +225,8 @@ database_test!(the_trash_is_emptied_over_http_by_a_writer_only, harness, {
     let reader = harness.account("reader@example.com", Role::Reader).await;
     let file = harness.write(member.id, "a.txt", b"to be emptied").await;
     harness.trash(&file).await;
-    let member_token = harness.state.sessions.issue(member.id).expect("a token");
-    let reader_token = harness.state.sessions.issue(reader.id).expect("a token");
+    let member_token = harness.session(member.id).await;
+    let reader_token = harness.session(reader.id).await;
 
     let (status, _) = call(&harness.state, "DELETE", "/v1/trash", &reader_token).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
@@ -244,7 +244,7 @@ database_test!(
         let owner = harness.account("expiry@example.com", Role::Member).await;
         let file = harness.write(owner.id, "a.txt", b"on a clock").await;
         harness.trash(&file).await;
-        let token = harness.state.sessions.issue(owner.id).expect("a token");
+        let token = harness.session(owner.id).await;
 
         let (_, body) = call(&harness.state, "GET", "/v1/trash", &token).await;
         let listed: Vec<Value> = serde_json::from_slice(&body).expect("a list");

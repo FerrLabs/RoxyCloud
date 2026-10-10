@@ -87,7 +87,7 @@ fn field<'a>(body: &'a str, name: &str) -> &'a str {
 /// Mints a link on a file that exists, guarded by `password`, and answers its token.
 async fn guarded_link(harness: &Harness, password: &str) -> String {
     let user = harness.account("owner@example.com", Role::Member).await;
-    let bearer = harness.state.sessions.issue(user.id).expect("a token");
+    let bearer = harness.session(user.id).await;
     harness.write(user.id, "guarded.txt", b"private").await;
 
     let minted = call(
@@ -188,7 +188,7 @@ database_test!(
     harness,
     {
         let admin = harness.account("admin@example.com", Role::Admin).await;
-        let bearer = harness.state.sessions.issue(admin.id).expect("a token");
+        let bearer = harness.session(admin.id).await;
         let target = harness.account("target@example.com", Role::Member).await;
 
         for _ in 1..=FREE_ATTEMPTS {
@@ -222,7 +222,7 @@ database_test!(only_an_administrator_may_unlock_an_account, harness, {
     let reader = harness.account("reader@example.com", Role::Reader).await;
 
     for who in [member, reader] {
-        let bearer = harness.state.sessions.issue(who.id).expect("a token");
+        let bearer = harness.session(who.id).await;
         let answer = call(
             &harness,
             "POST",
@@ -240,7 +240,7 @@ database_test!(
     harness,
     {
         let admin = harness.account("admin@example.com", Role::Admin).await;
-        let bearer = harness.state.sessions.issue(admin.id).expect("a token");
+        let bearer = harness.session(admin.id).await;
         let target = harness.account("calm@example.com", Role::Member).await;
 
         let answer = call(
@@ -385,7 +385,7 @@ database_test!(
 
 database_test!(a_link_with_no_password_has_nothing_to_guess, harness, {
     let user = harness.account("owner@example.com", Role::Member).await;
-    let bearer = harness.state.sessions.issue(user.id).expect("a token");
+    let bearer = harness.session(user.id).await;
     harness.write(user.id, "open.txt", b"public").await;
     let minted = call(
         &harness,
@@ -421,7 +421,7 @@ database_test!(
     harness,
     {
         let user = harness.account("owner@example.com", Role::Member).await;
-        let bearer = harness.state.sessions.issue(user.id).expect("a token");
+        let bearer = harness.session(user.id).await;
         harness.write(user.id, "guarded.txt", b"private").await;
         let auth = format!("Bearer {bearer}");
 
@@ -454,7 +454,7 @@ database_test!(
 
 database_test!(an_account_password_still_has_to_be_a_real_one, harness, {
     let admin = harness.account("admin@example.com", Role::Admin).await;
-    let bearer = harness.state.sessions.issue(admin.id).expect("a token");
+    let bearer = harness.session(admin.id).await;
 
     let answer = call(
         &harness,

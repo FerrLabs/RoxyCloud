@@ -80,7 +80,7 @@ async fn call(
 
 async fn session(harness: &Harness, email: &str, role: Role) -> (Uuid, String) {
     let user = harness.account(email, role).await;
-    let token = harness.state.sessions.issue(user.id).expect("a token");
+    let token = harness.session(user.id).await;
     (user.id, token)
 }
 

@@ -156,7 +156,7 @@ database_test!(a_wrong_secret_is_refused, harness, {
 
 database_test!(a_session_still_manages_the_account, harness, {
     let owner = harness.account("session@example.com", Role::Member).await;
-    let token = harness.state.sessions.issue(owner.id).expect("a token");
+    let token = harness.session(owner.id).await;
 
     assert_eq!(
         status(
@@ -218,7 +218,7 @@ database_test!(revoking_itself_leaves_the_other_app_passwords, harness, {
 
 database_test!(a_session_has_no_current_app_password_to_revoke, harness, {
     let owner = harness.account("bearer@example.com", Role::Member).await;
-    let token = harness.state.sessions.issue(owner.id).expect("a token");
+    let token = harness.session(owner.id).await;
 
     assert_eq!(
         status(

@@ -53,7 +53,7 @@ Two authentication paths, because DAV clients cannot do anything modern:
 
 | Caller | Mechanism |
 |---|---|
-| Web app | Password login (Argon2id) or OIDC, exchanged for a session cookie |
+| Web app | Password login (Argon2id) or OIDC, exchanged for a session token the server can revoke |
 | WebDAV client | Scoped app password over Basic auth, minted in the web app |
 | Share link | Opaque token in the URL, optionally password-protected |
 | Provider | `OIDC` authorization code with `PKCE`, mapped to an account by a verified address |
@@ -343,7 +343,7 @@ sequenceDiagram
 
     C->>T: PUT /dav/photos/x.jpg
     T->>A: forwarded
-    A->>A: authenticate (session JWT or app password)
+    A->>P: authenticate (live session or app password)
     A->>P: check destination, locks and room left
     A->>A: stream body, hash with BLAKE3, cut off past the room
     A->>B: write blob if digest unknown
@@ -381,11 +381,13 @@ flowchart LR
     API --> BS
 ```
 
-A session token names an account; it does not stand in for one. Every authenticated request loads
-the account behind the token and refuses a disabled one, which is what makes disabling somebody take
-effect on their next request instead of when their token expires. The cost is one indexed lookup on
-requests that already run several queries, and the alternative was a rule that says "revoked" and
-means "in up to twelve hours".
+A session token names an account and a row in `sessions`; it does not stand in for either. Every
+authenticated request checks that the session still exists and loads the account behind it, refusing
+a disabled one, which is what makes signing out, a password change, an admin reset or disabling
+somebody take effect on the next request instead of when the token expires. Revoking deletes the
+row, and the sweeper drops the expired ones. The cost is two indexed lookups on requests that already
+run several queries, and the alternative was a rule that says "revoked" and means "in up to twelve
+hours".
 
 Every path enters through the same authorization layer in the API. There is no code path that
 reaches the blob store without first resolving a node the caller is allowed to read, share links

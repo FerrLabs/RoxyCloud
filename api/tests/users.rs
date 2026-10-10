@@ -45,7 +45,7 @@ async fn call(harness: &Harness, method: &str, path: &str, token: &str, body: &s
 
 async fn session(harness: &Harness, email: &str, role: Role) -> (Uuid, String) {
     let user = harness.account(email, role).await;
-    let token = harness.state.sessions.issue(user.id).expect("a token");
+    let token = harness.session(user.id).await;
     (user.id, token)
 }
 
@@ -163,11 +163,23 @@ database_test!(re_enabling_an_account_lets_it_back_in, harness, {
     )
     .await;
 
-    let after = call(&harness, "GET", "/v1/folders", &theirs, "").await;
+    let signed_in = call(
+        &harness,
+        "POST",
+        "/v1/auth/login",
+        "",
+        &format!(
+            r#"{{"email":"returning@example.com","password":"{}"}}"#,
+            common::PASSWORD
+        ),
+    )
+    .await;
+    assert_eq!(signed_in.status, StatusCode::OK, "{}", signed_in.body);
+    let old = call(&harness, "GET", "/v1/folders", &theirs, "").await;
     assert_eq!(
-        after.status,
-        StatusCode::OK,
-        "the token was never revoked, only the account it names was"
+        old.status,
+        StatusCode::UNAUTHORIZED,
+        "disabling ended the session, and enabling lets the person sign in rather than revive it"
     );
 });
 

@@ -8,7 +8,7 @@ use crate::attempts::{self, Scope};
 use crate::auth::{Admin, SessionCaller};
 use crate::error::ApiError;
 use crate::state::AppState;
-use crate::{password, users};
+use crate::{password, sessions, users};
 use stashden_core::role::Role;
 use stashden_core::user::{Email, User};
 
@@ -107,7 +107,21 @@ pub async fn disable(
             expected: "account other than your own",
         });
     }
-    Ok(Json(users::set_disabled(&state.db, id, true).await?))
+    let disabled = users::set_disabled(&state.db, id, true).await?;
+    sessions::revoke_all(&state.db, id, None).await?;
+    Ok(Json(disabled))
+}
+
+pub async fn sign_out_everywhere(
+    State(state): State<AppState>,
+    _: Admin,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    users::by_id(&state.db, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    sessions::revoke_all(&state.db, id, None).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn enable(
@@ -166,6 +180,7 @@ pub async fn reset_password(
     Json(request): Json<NewPassword>,
 ) -> Result<StatusCode, ApiError> {
     users::set_password(&state.db, id, &request.password).await?;
+    sessions::revoke_all(&state.db, id, None).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -176,9 +191,12 @@ pub async fn change_password(
     caller: SessionCaller,
     Json(request): Json<PasswordChange>,
 ) -> Result<StatusCode, ApiError> {
+    attempts::spend(&state.db, Scope::Login, caller.user.email.as_str()).await?;
     if !password::verify(&request.current, &caller.user.password_hash) {
         return Err(ApiError::InvalidCredentials);
     }
+    attempts::forget(&state.db, Scope::Login, caller.user.email.as_str()).await?;
     users::set_password(&state.db, caller.user.id, &request.password).await?;
+    sessions::revoke_all(&state.db, caller.user.id, Some(caller.session_id)).await?;
     Ok(StatusCode::NO_CONTENT)
 }

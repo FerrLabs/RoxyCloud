@@ -371,7 +371,7 @@ database_test!(purging_a_file_releases_its_history, harness, {
 
 database_test!(versions_are_listed_downloaded_and_restored, harness, {
     let owner = harness.account("http@example.com", Role::Member).await;
-    let token = harness.state.sessions.issue(owner.id).expect("a token");
+    let token = harness.session(owner.id).await;
 
     call(&harness, "PUT", "/v1/files/notes.md", &token, b"first").await;
     call(&harness, "PUT", "/v1/files/notes.md", &token, b"second").await;
@@ -428,7 +428,7 @@ database_test!(versions_are_listed_downloaded_and_restored, harness, {
 
 database_test!(a_restore_does_not_count_the_same_bytes_twice, harness, {
     let owner = harness.account("twice@example.com", Role::Member).await;
-    let token = harness.state.sessions.issue(owner.id).expect("a token");
+    let token = harness.session(owner.id).await;
     call(&harness, "PUT", "/v1/files/a.txt", &token, &[b'a'; 300]).await;
     call(&harness, "PUT", "/v1/files/a.txt", &token, &[b'b'; 100]).await;
     let (_, body) = call(&harness, "GET", "/v1/versions/a.txt", &token, b"").await;
@@ -458,7 +458,7 @@ database_test!(a_restore_does_not_count_the_same_bytes_twice, harness, {
 
 database_test!(a_version_is_only_reached_through_its_own_file, harness, {
     let owner = harness.account("own@example.com", Role::Member).await;
-    let token = harness.state.sessions.issue(owner.id).expect("a token");
+    let token = harness.session(owner.id).await;
 
     call(
         &harness,
@@ -506,7 +506,7 @@ database_test!(
         harness
             .grant(&owner, "photos", "guest@example.com", Access::Read)
             .await;
-        let token = harness.state.sessions.issue(guest.id).expect("a token");
+        let token = harness.session(guest.id).await;
         let shared = "Shared with me/photos/list.txt";
 
         let (status, body) = call(
@@ -548,7 +548,7 @@ database_test!(a_stranger_cannot_see_the_history, harness, {
     let stranger = harness.account("stranger@example.com", Role::Member).await;
     harness.write(owner.id, "a.txt", b"one").await;
     harness.write(owner.id, "a.txt", b"two").await;
-    let token = harness.state.sessions.issue(stranger.id).expect("a token");
+    let token = harness.session(stranger.id).await;
 
     let (status, _) = call(&harness, "GET", "/v1/versions/a.txt", &token, b"").await;
     assert_eq!(

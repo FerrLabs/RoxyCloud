@@ -127,7 +127,7 @@ pub async fn callback(
     }
 
     Ok(Json(Session {
-        token: state.sessions.issue(user.id)?,
+        token: state.sessions.open(&state.db, user.id).await?,
         expires_in: state.sessions.ttl_seconds(),
         user,
     }))

@@ -12,6 +12,7 @@ pub mod oidc;
 pub mod password;
 pub mod routes;
 pub mod search;
+pub mod sessions;
 pub mod settings;
 pub mod shares;
 pub mod state;
