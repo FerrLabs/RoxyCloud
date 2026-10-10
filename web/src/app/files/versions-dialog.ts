@@ -13,6 +13,7 @@ import {
 import { formatSize, type Node } from '../node';
 import { PLATFORM } from '../platform';
 import { Confirm } from '../shared/confirm';
+import { DownloadCancelled } from '../transfer';
 import { formatMoment, type Version } from '../version';
 
 @Component({
@@ -56,8 +57,16 @@ export class VersionsDialog {
       return;
     }
     await this.attempt(async () => {
-      const saved = await get(this.path(), version.id, this.node().name);
       const when = formatMoment(version.created_at);
+      let saved: string | null;
+      try {
+        saved = await get(this.path(), version.id, this.node().name);
+      } catch (cause: unknown) {
+        if (cause instanceof DownloadCancelled) {
+          return;
+        }
+        throw cause;
+      }
       this.announcement.set(
         saved === null
           ? `Downloaded the version from ${when}.`

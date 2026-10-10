@@ -97,6 +97,12 @@
   @if (failure(); as message) {
     <p class="banner failure" role="alert">{{ message }}</p>
   }
+  @if (sending(); as current) {
+    <p class="banner transfer">
+      <span class="what">Uploading {{ current.name }}</span>
+      <progress [value]="current.sent" [max]="current.total || 1"></progress>
+    </p>
+  }
   <p class="banner announcement" role="status" aria-live="polite">{{ announcement() }}</p>
 
   @if (listing.isLoading()) {

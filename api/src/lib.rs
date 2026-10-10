@@ -55,9 +55,19 @@ pub fn build_router(
         .allow_headers([
             header::AUTHORIZATION,
             header::CONTENT_TYPE,
+            header::IF_MATCH,
+            header::IF_NONE_MATCH,
             HeaderName::from_static(routes::shares::PASSWORD_HEADER),
+            HeaderName::from_static("upload-offset"),
         ])
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE]);
+        .expose_headers([header::ETAG, HeaderName::from_static("upload-offset")])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+        ]);
 
     // CORS wraps the REST surface alone: the layer answers every OPTIONS itself, which would take
     // the one WebDAV clients read to decide what the server supports.

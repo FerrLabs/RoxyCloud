@@ -10,6 +10,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { formatDate, formatSize } from '../node';
 import type { PublicEntry } from '../share';
+import { DownloadCancelled } from '../transfer';
 import { LinkIsBusy, LinkNeedsPassword, PublicLinks } from './links';
 
 @Component({
@@ -85,7 +86,9 @@ export class PublicLink {
     try {
       await this.links.download(this.token(), this.password(), below, target.name);
     } catch (cause: unknown) {
-      this.failure.set(cause instanceof Error ? cause.message : String(cause));
+      if (!(cause instanceof DownloadCancelled)) {
+        this.failure.set(cause instanceof Error ? cause.message : String(cause));
+      }
     } finally {
       this.busy.set(false);
     }

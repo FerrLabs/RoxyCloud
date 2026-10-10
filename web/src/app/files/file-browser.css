@@ -197,3 +197,23 @@
     opacity: 1;
   }
 }
+
+.banner.transfer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--surface-raised);
+  color: var(--ink-muted);
+}
+
+.banner.transfer .what {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.banner.transfer progress {
+  flex: 1;
+  min-width: 6rem;
+  accent-color: var(--accent);
+}
