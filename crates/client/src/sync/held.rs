@@ -97,10 +97,11 @@ impl Held {
         let Some(top) = &self.shelf else {
             return false;
         };
-        if path == top {
-            return true;
-        }
-        path.parent().as_ref() == Some(top) && !self.mounts.iter().any(|(mount, _)| mount == path)
+        let under_a_mount = self
+            .mounts
+            .iter()
+            .any(|(mount, _)| mount == path || path.is_inside(mount));
+        path == top || (path.is_inside(top) && !under_a_mount)
     }
 }
 
@@ -145,6 +146,19 @@ mod tests {
         ))));
         assert!(is_held(Action::CreateRemoteDirectory(at(
             "Shared with me/archive/2026"
+        ))));
+    }
+
+    #[test]
+    fn nothing_is_written_anywhere_under_a_shelf_folder_that_is_not_a_share() {
+        assert!(is_held(Action::Upload(at(
+            "Shared with me/drafts/deep/file.txt"
+        ))));
+        assert!(is_held(Action::CreateRemoteDirectory(at(
+            "Shared with me/drafts/sub"
+        ))));
+        assert!(!is_held(Action::Upload(at(
+            "Shared with me/inbox/deep/file.txt"
         ))));
     }
 
