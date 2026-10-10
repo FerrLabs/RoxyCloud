@@ -324,3 +324,37 @@ database_test!(
         assert_eq!(untouched, ["keep.txt"]);
     }
 );
+
+database_test!(
+    a_long_non_latin_display_name_does_not_block_a_hand_over,
+    harness,
+    {
+        let (_, admin) = person(&harness, "admin@example.com", Role::Admin).await;
+        let (leaving, _) = person(&harness, "long@example.com", Role::Member).await;
+        let (heir, heir_bearer) = person(&harness, "grace@example.com", Role::Member).await;
+        harness
+            .write(leaving, "a.txt", b"from the one with a long name")
+            .await;
+        sqlx::query("UPDATE users SET display_name = $2 WHERE id = $1")
+            .bind(leaving)
+            .bind("\u{8a9e}".repeat(100))
+            .execute(&harness.state.db)
+            .await
+            .expect("a hundred characters, which the display name limit allows");
+
+        let (status, body) = call(
+            &harness,
+            "DELETE",
+            &format!("/v1/users/{leaving}?hand_over_to={heir}"),
+            &admin,
+            "",
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+        let top = names(&harness, "/v1/folders", &heir_bearer).await;
+        assert_eq!(top.len(), 1, "{top:?}");
+        assert!(top[0].len() <= 255, "{} bytes", top[0].len());
+        assert!(top[0].starts_with('\u{8a9e}'));
+    }
+);

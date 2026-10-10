@@ -95,8 +95,17 @@ async fn hand_over(
     db::charge_quota(tx, recipient.id, used).await
 }
 
+const MAX_FOLDER_NAME_BYTES: usize = 240;
+
 fn folder_name(leaving: &User) -> String {
-    let who = format!("{} ({})", leaving.display_name.trim(), leaving.email);
+    fitted(&format!(
+        "{} ({})",
+        leaving.display_name.trim(),
+        leaving.email
+    ))
+}
+
+fn fitted(who: &str) -> String {
     let cleaned: String = who
         .chars()
         .map(|character| {
@@ -107,7 +116,11 @@ fn folder_name(leaving: &User) -> String {
             }
         })
         .collect();
-    cleaned.chars().take(120).collect()
+    let mut end = cleaned.len().min(MAX_FOLDER_NAME_BYTES);
+    while !cleaned.is_char_boundary(end) {
+        end -= 1;
+    }
+    cleaned[..end].to_owned()
 }
 
 async fn free_name(
@@ -150,4 +163,31 @@ async fn held_blobs(
     let mut blobs: Vec<BlobHash> = nodes.into_iter().filter_map(|(_, hash)| hash).collect();
     blobs.extend(versions::blobs_under(tx, &ids).await?);
     Ok(blobs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_name_that_is_not_too_long_is_kept_with_separators_made_harmless() {
+        assert_eq!(
+            fitted("Ada / Lovelace (ada@example.com)"),
+            "Ada - Lovelace (ada@example.com)"
+        );
+    }
+
+    #[test]
+    fn a_long_name_is_cut_by_bytes_on_a_character_boundary() {
+        let cjk = format!("{} (ada@example.com)", "\u{8a9e}".repeat(100));
+
+        let name = fitted(&cjk);
+
+        assert!(name.len() <= MAX_FOLDER_NAME_BYTES, "{} bytes", name.len());
+        assert!(name.starts_with('\u{8a9e}'));
+        assert!(
+            format!("{name} 1000").parse::<NodeName>().is_ok(),
+            "room is left for the number that makes a taken name free"
+        );
+    }
 }
