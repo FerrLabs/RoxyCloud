@@ -669,8 +669,8 @@ Changes made on the server reach the folder too: watching starts with a full pas
 every minute when nothing local has triggered one, so a file added from the web app or another
 machine arrives within a minute. The desktop app's sync works the same way.
 
-One thing it deliberately does not do: an empty local directory is not created on the server, since
-there is no endpoint for that yet.
+A new local directory is created on the server even when it is empty, parents before children and
+before the files that go into it. One the server later removes is removed here, not created again.
 
 Removing a folder locally removes it on the server, contents first and the folder itself last. It
 holds back when the server's copy has gained anything the last sync did not see, a file added from

@@ -7,6 +7,7 @@ use super::snapshot::{Entry, Snapshot};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     CreateLocalDirectory(RelPath),
+    CreateRemoteDirectory(RelPath),
     Download(RelPath),
     Upload(RelPath),
     DeleteLocal(RelPath),
@@ -66,6 +67,8 @@ pub fn reconcile(local: &Snapshot, remote: &Snapshot, base: &Snapshot, now: Date
             (Some(Entry::Directory), None) => {
                 if base.contains_key(path) {
                     removed.push(Action::RemoveLocalDirectory(path.clone()));
+                } else {
+                    created.push(Action::CreateRemoteDirectory(path.clone()));
                 }
             }
             (Some(left), Some(right)) if left.is_directory() != right.is_directory() => {
@@ -469,9 +472,39 @@ mod tests {
     }
 
     #[test]
-    fn a_local_directory_without_a_remote_counterpart_is_left_alone() {
+    fn a_new_local_directory_is_created_on_the_server() {
         let local = snapshot(&[("photos", Entry::Directory)]);
-        assert!(reconcile(&local, &Snapshot::new(), &Snapshot::new(), now()).is_empty());
+        assert_eq!(
+            reconcile(&local, &Snapshot::new(), &Snapshot::new(), now()).actions,
+            [Action::CreateRemoteDirectory(at("photos"))]
+        );
+    }
+
+    #[test]
+    fn a_directory_missing_from_the_server_after_a_sync_is_removed_here_not_recreated() {
+        let local = snapshot(&[("photos", Entry::Directory)]);
+        let base = snapshot(&[("photos", Entry::Directory)]);
+        assert_eq!(
+            reconcile(&local, &Snapshot::new(), &base, now()).actions,
+            [Action::RemoveLocalDirectory(at("photos"))]
+        );
+    }
+
+    #[test]
+    fn a_new_local_directory_comes_before_the_files_that_go_into_it() {
+        let local = snapshot(&[
+            ("photos", Entry::Directory),
+            ("photos/2026", Entry::Directory),
+            ("photos/2026/x.jpg", file(b"bytes")),
+        ]);
+        assert_eq!(
+            reconcile(&local, &Snapshot::new(), &Snapshot::new(), now()).actions,
+            [
+                Action::CreateRemoteDirectory(at("photos")),
+                Action::CreateRemoteDirectory(at("photos/2026")),
+                Action::Upload(at("photos/2026/x.jpg")),
+            ]
+        );
     }
 
     #[test]

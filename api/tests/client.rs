@@ -2,9 +2,9 @@ mod common;
 
 use chrono::TimeDelta;
 use reqwest::StatusCode;
-use stashden_client::Remote;
 use stashden_client::remote::RemoteError;
 use stashden_client::sync::{Entry, Expect, RelPath, Transport};
+use stashden_client::{Engine, Remote};
 use stashden_core::grant::{Access, NewGrant};
 use stashden_core::role::Role;
 use stashden_core::share::NewShare;
@@ -426,3 +426,33 @@ database_test!(a_client_searches_by_part_of_a_name, harness, {
     assert_eq!(hits[0].node.name, "budget 2026.md");
     assert_eq!(hits[0].path, "notes/budget 2026.md");
 });
+
+database_test!(
+    a_sync_pass_creates_an_empty_local_folder_on_the_server,
+    harness,
+    {
+        let owner = harness.account("syncdir@example.com", Role::Member).await;
+        let remote = connect(&harness, &owner).await;
+        let folder = tempfile::tempdir().expect("a local folder");
+        std::fs::create_dir_all(folder.path().join("photos/2026")).expect("an empty folder");
+        let mut engine = Engine::open(folder.path(), remote).expect("the engine opens");
+
+        let report = engine.sync_once().await.expect("syncing");
+
+        assert_eq!(report.failures, Vec::new(), "{report:?}");
+        assert_eq!(report.directories_created_remotely, 2);
+        let reading = connect(&harness, &owner).await;
+        let photos = reading.list("photos").await.expect("listing photos");
+        assert_eq!(
+            photos
+                .iter()
+                .map(|node| node.name.as_str())
+                .collect::<Vec<_>>(),
+            ["2026"]
+        );
+        assert!(
+            engine.sync_once().await.expect("syncing again").is_quiet(),
+            "created once, then agreed"
+        );
+    }
+);

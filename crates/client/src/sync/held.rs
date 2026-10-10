@@ -63,7 +63,11 @@ impl Held {
 
     fn holding<'a>(&self, action: &'a Action, uprooted: &[RelPath]) -> Option<&'a RelPath> {
         match action {
-            Action::Upload(path) if self.refuses_upload(path) => Some(path),
+            Action::Upload(path) | Action::CreateRemoteDirectory(path)
+                if self.refuses_upload(path) =>
+            {
+                Some(path)
+            }
             Action::DeleteRemote(path) | Action::RemoveRemoteDirectory(path)
                 if self.read_only(path)
                     || self.fixed(path)
@@ -138,6 +142,19 @@ mod tests {
         ))));
         assert!(is_held(Action::RemoveRemoteDirectory(at(
             "Shared with me/archive/2019"
+        ))));
+        assert!(is_held(Action::CreateRemoteDirectory(at(
+            "Shared with me/archive/2026"
+        ))));
+    }
+
+    #[test]
+    fn a_directory_is_not_created_loose_on_the_shelf_but_is_inside_a_write_share() {
+        assert!(is_held(Action::CreateRemoteDirectory(at(
+            "Shared with me/drafts"
+        ))));
+        assert!(!is_held(Action::CreateRemoteDirectory(at(
+            "Shared with me/inbox/drafts"
         ))));
     }
 

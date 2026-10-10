@@ -31,5 +31,10 @@ pub trait Transport {
 
     fn remove(&self, path: &RelPath) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
+    fn create_directory(
+        &self,
+        path: &RelPath,
+    ) -> impl Future<Output = Result<(), Self::Error>> + Send;
+
     fn held(&self) -> impl Future<Output = Result<Held, Self::Error>> + Send;
 }

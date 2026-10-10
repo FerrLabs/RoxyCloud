@@ -48,6 +48,7 @@ pub struct Report {
     pub deleted_locally: usize,
     pub deleted_remotely: usize,
     pub directories_created: usize,
+    pub directories_created_remotely: usize,
     pub directories_removed_locally: usize,
     pub directories_removed_remotely: usize,
     pub conflicts: Vec<RelPath>,
@@ -70,6 +71,7 @@ impl Report {
             && self.deleted_locally == 0
             && self.deleted_remotely == 0
             && self.directories_created == 0
+            && self.directories_created_remotely == 0
             && self.directories_removed_locally == 0
             && self.directories_removed_remotely == 0
             && self.conflicts.is_empty()
@@ -194,6 +196,14 @@ impl<T: Transport> Engine<T> {
                 create_directory(&path.to_path(&self.root))?;
                 self.state.record(path.clone(), Entry::Directory, None);
                 report.directories_created += 1;
+            }
+            Action::CreateRemoteDirectory(path) => {
+                self.transport
+                    .create_directory(path)
+                    .await
+                    .map_err(|source| source.to_string())?;
+                self.state.record(path.clone(), Entry::Directory, None);
+                report.directories_created_remotely += 1;
             }
             Action::RemoveLocalDirectory(path) => {
                 remove_directory(&path.to_path(&self.root))?;
@@ -347,6 +357,7 @@ fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
 fn subject(action: &Action) -> &RelPath {
     match action {
         Action::CreateLocalDirectory(path)
+        | Action::CreateRemoteDirectory(path)
         | Action::RemoveLocalDirectory(path)
         | Action::RemoveRemoteDirectory(path)
         | Action::Forget(path)

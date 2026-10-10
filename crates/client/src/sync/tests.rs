@@ -3,6 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use stashden_core::grant::Access;
 use tokio::sync::broadcast;
 
 use super::debounce::Debounce;
@@ -76,6 +77,10 @@ impl Transport for FakeServer {
             return fs::remove_dir_all(target);
         }
         fs::remove_file(target)
+    }
+
+    async fn create_directory(&self, path: &RelPath) -> Result<(), Self::Error> {
+        fs::create_dir_all(path.to_path(&self.root))
     }
 
     async fn held(&self) -> Result<Held, Self::Error> {
@@ -924,4 +929,63 @@ async fn an_edit_made_during_a_clash_goes_up_once_it_is_resolved() {
         pair.read_server("Notes.txt").as_deref(),
         Some(&b"edited during the clash"[..])
     );
+}
+
+#[tokio::test]
+async fn an_empty_local_folder_is_created_on_the_server() {
+    let pair = Pair::new("mkdir-remote");
+    fs::create_dir_all(pair.local.join("photos/2026")).expect("an empty folder");
+
+    let report = pair.engine().sync_once().await.expect("syncs");
+
+    assert_eq!(report.directories_created_remotely, 2);
+    assert!(pair.server.join("photos/2026").is_dir());
+    assert!(!report.is_quiet());
+}
+
+#[tokio::test]
+async fn a_created_folder_is_not_created_again_and_the_next_pass_is_quiet() {
+    let pair = Pair::new("mkdir-remote-once");
+    fs::create_dir_all(pair.local.join("photos")).expect("an empty folder");
+    pair.engine().sync_once().await.expect("first sync");
+
+    let report = pair.engine().sync_once().await.expect("second sync");
+
+    assert!(report.is_quiet(), "{report:?}");
+    assert_eq!(report.directories_created_remotely, 0);
+}
+
+#[tokio::test]
+async fn a_folder_removed_on_the_server_after_it_was_created_goes_here_too() {
+    let pair = Pair::new("mkdir-remote-removed");
+    fs::create_dir_all(pair.local.join("photos")).expect("an empty folder");
+    pair.engine().sync_once().await.expect("first sync");
+
+    fs::remove_dir(pair.server.join("photos")).expect("removed on the server");
+    let report = pair.engine().sync_once().await.expect("second sync");
+
+    assert_eq!(report.directories_removed_locally, 1);
+    assert!(!pair.local.join("photos").exists());
+    assert!(!pair.server.join("photos").exists(), "never recreated");
+}
+
+#[tokio::test]
+async fn a_folder_inside_a_read_only_share_is_held_not_created() {
+    let pair = Pair::new("mkdir-read-only");
+    pair.write_server("Shared with me/archive/old.txt", b"theirs");
+    pair.engine_holding(Held::from_mounts([("archive".to_owned(), Access::Read)]))
+        .sync_once()
+        .await
+        .expect("first sync");
+    fs::create_dir_all(pair.local.join("Shared with me/archive/2026")).expect("a new folder");
+
+    let report = pair
+        .engine_holding(Held::from_mounts([("archive".to_owned(), Access::Read)]))
+        .sync_once()
+        .await
+        .expect("second sync");
+
+    assert_eq!(report.directories_created_remotely, 0);
+    assert_eq!(report.held.len(), 1, "{report:?}");
+    assert!(!pair.server.join("Shared with me/archive/2026").exists());
 }
