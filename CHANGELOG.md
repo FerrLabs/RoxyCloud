@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.1] - 2026-10-10
+
+### Bug Fixes
+
+- fix(api): check room and access before an upload reaches the disk (#293)
+
 ## [0.35.0] - 2026-10-06
 
 ### Features
