@@ -5,7 +5,13 @@ import type { ManagedAccount, NewAccount } from './accounts/managed';
 import type { Given, NewGrant, Received } from './grant';
 import type { Hit, Node, Trashed } from './node';
 import type { Dropping, Outgoing } from './outgoing';
-import { saveStreaming, upload as uploadChunked, type Link, type Progress } from './transfer';
+import {
+  encodePath,
+  saveStreaming,
+  upload as uploadChunked,
+  type Link,
+  type Progress,
+} from './transfer';
 import type { Minted, NewShare, Share } from './share';
 import type { SyncCommand, Syncing } from './sync/syncing';
 import type { Version } from './version';
@@ -229,7 +235,7 @@ function browserPlatform(baseUrl: string): Platform {
     account: () => json<Account>('/v1/auth/me'),
     listFolder: (path) => json<Node[]>(`/v1/folders${encodePath(path)}`),
     read: async (path) => (await call(`/v1/files${encodePath(path)}`)).blob(),
-    upload: (path, file, progress) => uploadChunked(link, encodePath(path), file, progress),
+    upload: (path, file, progress) => uploadChunked(link, path, file, progress),
     download: async (path, name) => {
       await saveStreaming(() => call(`/v1/files${encodePath(path)}`), name);
       return null;
@@ -468,13 +474,7 @@ function addressOf(server: string): string {
   return /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
-export function encodePath(path: string): string {
-  const segments = path.split('/').filter((segment) => segment.length > 0);
-  if (segments.length === 0) {
-    return '';
-  }
-  return `/${segments.map(encodeURIComponent).join('/')}`;
-}
+export { encodePath };
 
 export function resolvePlatform(baseUrl: string): Platform {
   adoptLegacyKeys();

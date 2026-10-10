@@ -5,6 +5,14 @@ const FIRST_WAIT_MS = 500;
 
 export type Progress = (sent: number, total: number) => void;
 
+export function encodePath(path: string): string {
+  const segments = path.split('/').filter((segment) => segment.length > 0);
+  if (segments.length === 0) {
+    return '';
+  }
+  return `/${segments.map(encodeURIComponent).join('/')}`;
+}
+
 export type Link = {
   base: string;
   headers(): Record<string, string>;
@@ -76,7 +84,7 @@ export async function upload(
 ): Promise<void> {
   const total = file.size;
   if (total <= chunk) {
-    const reply = await exchange(link, 'PUT', `/v1/files${path}`, {}, file, (loaded) =>
+    const reply = await exchange(link, 'PUT', `/v1/files${encodePath(path)}`, {}, file, (loaded) =>
       progress?.(loaded, total),
     );
     await expectOk(link, reply);
