@@ -5764,7 +5764,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "stashden-api"
-version = "0.36.2"
+version = "0.36.3"
 dependencies = [
  "anyhow",
  "argon2",
@@ -5805,7 +5805,7 @@ dependencies = [
 
 [[package]]
 name = "stashden-app"
-version = "0.36.2"
+version = "0.36.3"
 dependencies = [
  "gethostname",
  "keyring",
@@ -5823,7 +5823,7 @@ dependencies = [
 
 [[package]]
 name = "stashden-cli"
-version = "0.36.2"
+version = "0.36.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -5835,7 +5835,7 @@ dependencies = [
 
 [[package]]
 name = "stashden-client"
-version = "0.36.2"
+version = "0.36.3"
 dependencies = [
  "blake3",
  "bytes",
@@ -5857,7 +5857,7 @@ dependencies = [
 
 [[package]]
 name = "stashden-core"
-version = "0.36.2"
+version = "0.36.3"
 dependencies = [
  "blake3",
  "chrono",

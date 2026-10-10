@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.3] - 2026-10-10
+
+### Bug Fixes
+
+- fix(sync): leave alone the names a local folder cannot hold (#298)
+
 ## [0.36.2] - 2026-10-10
 
 ### Bug Fixes
