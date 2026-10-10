@@ -178,3 +178,28 @@ database_test!(
         assert_eq!(patches.load(Ordering::SeqCst), 0, "not one byte was sent");
     }
 );
+
+database_test!(
+    a_chunk_size_of_zero_is_a_chunk_of_one_byte_not_a_loop,
+    harness,
+    {
+        let owner = harness.account("zero@example.com", Role::Member).await;
+        let remote = connect(&harness, &owner).await;
+        let bytes = contents(12);
+        let source = source_of(&bytes);
+
+        let node = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            remote.upload_chunked("zero.bin", source.path(), None, 0),
+        )
+        .await
+        .expect("an upload with a zero chunk finishes")
+        .expect("uploading");
+
+        assert_eq!(node.size, 12);
+        assert_eq!(
+            &remote.read("zero.bin").await.expect("reading")[..],
+            &bytes[..]
+        );
+    }
+);

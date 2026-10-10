@@ -39,6 +39,7 @@ impl Remote {
         expect: Option<&Expect>,
         chunk: u64,
     ) -> Result<Node, RemoteError> {
+        let chunk = chunk.max(1);
         let size = fs::metadata(source)
             .await
             .map_err(|error| RemoteError::io(source, error))?
@@ -89,7 +90,10 @@ impl Remote {
 
         while received < size {
             let take = chunk.min(size - received);
-            match self.send_chunk(session.id, &mut file, received, take).await {
+            match self
+                .send_chunk(session.id, &mut file, source, received, take)
+                .await
+            {
                 Chunk::Landed(next) => {
                     received = next;
                     failures = 0;
@@ -112,13 +116,17 @@ impl Remote {
         Ok(())
     }
 
-    async fn send_chunk(&self, id: Uuid, file: &mut fs::File, at: u64, take: u64) -> Chunk {
+    async fn send_chunk(
+        &self,
+        id: Uuid,
+        file: &mut fs::File,
+        source: &Path,
+        at: u64,
+        take: u64,
+    ) -> Chunk {
         let mut bytes = vec![0u8; usize::try_from(take).unwrap_or(0)];
         if let Err(error) = read_at(file, at, &mut bytes).await {
-            return Chunk::Fatal(RemoteError::Io {
-                path: std::path::PathBuf::new(),
-                source: error,
-            });
+            return Chunk::Fatal(RemoteError::io(source, error));
         }
 
         let sent = self
