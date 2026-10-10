@@ -144,13 +144,6 @@ pub async fn set_email(pool: &PgPool, id: Uuid, email: &Email) -> Result<User, A
             .await?
             .ok_or(ApiError::NotFound)?;
 
-    let taken = |err: sqlx::Error| match err {
-        sqlx::Error::Database(ref db) if db.is_unique_violation() => {
-            ApiError::Conflict(email.to_string())
-        }
-        other => other.into(),
-    };
-
     let user = sqlx::query_as::<_, User>(concat!(
         "UPDATE users SET email = $2 WHERE id = $1 RETURNING ",
         user_columns!()
@@ -159,14 +152,14 @@ pub async fn set_email(pool: &PgPool, id: Uuid, email: &Email) -> Result<User, A
     .bind(email.as_str())
     .fetch_one(&mut *tx)
     .await
-    .map_err(taken)?;
+    .map_err(|err| match err {
+        sqlx::Error::Database(ref db) if db.is_unique_violation() => {
+            ApiError::Conflict(email.to_string())
+        }
+        other => other.into(),
+    })?;
 
-    sqlx::query("UPDATE grants SET grantee_email = $2 WHERE grantee_email = $1")
-        .bind(&previous)
-        .bind(email.as_str())
-        .execute(&mut *tx)
-        .await
-        .map_err(taken)?;
+    crate::grants::reassign(&mut tx, &previous, email).await?;
 
     tx.commit().await?;
     Ok(user)

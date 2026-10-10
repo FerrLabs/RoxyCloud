@@ -195,7 +195,7 @@ database_test!(shares_follow_the_account_to_its_new_address, harness, {
     .await;
     assert_eq!(granted, StatusCode::CREATED);
 
-    call(
+    let (renamed, body) = call(
         &harness,
         "PUT",
         &format!("/v1/users/{guest_id}/email"),
@@ -203,6 +203,7 @@ database_test!(shares_follow_the_account_to_its_new_address, harness, {
         r#"{"email":"renamed-guest@example.com"}"#,
     )
     .await;
+    assert_eq!(renamed, StatusCode::OK, "{body}");
 
     let (status, listing) = call(
         &harness,
@@ -272,3 +273,99 @@ database_test!(
         );
     }
 );
+
+async fn share(harness: &Harness, bearer: &str, path: &str, email: &str, access: &str) {
+    let (status, body) = call(
+        harness,
+        "POST",
+        "/v1/grants",
+        Some(bearer),
+        &format!(r#"{{"path":"{path}","email":"{email}","access":"{access}"}}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+}
+
+database_test!(
+    a_rename_onto_an_address_that_already_has_shares_keeps_both_mounts,
+    harness,
+    {
+        let (alice, alice_bearer) = member(&harness, "alice@example.com", Role::Member).await;
+        let (bob, bob_bearer) = member(&harness, "bob@example.com", Role::Member).await;
+        let (_, admin) = member(&harness, "admin@example.com", Role::Admin).await;
+        let (guest_id, guest) = member(&harness, "old@example.com", Role::Member).await;
+        harness.write(alice, "photos/a.jpg", b"alice").await;
+        harness.write(bob, "photos/b.jpg", b"bob").await;
+        share(&harness, &alice_bearer, "photos", "old@example.com", "read").await;
+        share(&harness, &bob_bearer, "photos", "new@example.com", "write").await;
+
+        let (status, body) = call(
+            &harness,
+            "PUT",
+            &format!("/v1/users/{guest_id}/email"),
+            Some(&admin),
+            r#"{"email":"new@example.com"}"#,
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let mut mounts = names(&harness, "/v1/folders/Shared%20with%20me", &guest).await;
+        mounts.sort();
+        assert_eq!(mounts, ["photos", "photos (2)"]);
+    }
+);
+
+database_test!(
+    a_node_shared_with_both_addresses_ends_up_shared_once_with_the_higher_access,
+    harness,
+    {
+        let (owner, owner_bearer) = member(&harness, "owner@example.com", Role::Member).await;
+        let (_, admin) = member(&harness, "admin@example.com", Role::Admin).await;
+        let (guest_id, guest) = member(&harness, "old@example.com", Role::Member).await;
+        harness.write(owner, "photos/a.jpg", b"sand").await;
+        share(
+            &harness,
+            &owner_bearer,
+            "photos",
+            "old@example.com",
+            "write",
+        )
+        .await;
+        share(&harness, &owner_bearer, "photos", "new@example.com", "read").await;
+
+        let (status, body) = call(
+            &harness,
+            "PUT",
+            &format!("/v1/users/{guest_id}/email"),
+            Some(&admin),
+            r#"{"email":"new@example.com"}"#,
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(
+            names(&harness, "/v1/folders/Shared%20with%20me", &guest).await,
+            ["photos"]
+        );
+        let (written, _) = call(
+            &harness,
+            "PUT",
+            "/v1/files/Shared%20with%20me/photos/from-guest.txt",
+            Some(&guest),
+            "written through the surviving write share",
+        )
+        .await;
+        assert_eq!(written, StatusCode::CREATED);
+    }
+);
+
+async fn names(harness: &Harness, uri: &str, bearer: &str) -> Vec<String> {
+    let (status, listing) = call(harness, "GET", uri, Some(bearer), "").await;
+    assert_eq!(status, StatusCode::OK, "{listing}");
+    listing
+        .as_array()
+        .expect("a listing")
+        .iter()
+        .map(|node| node["name"].as_str().expect("a name").to_owned())
+        .collect()
+}
