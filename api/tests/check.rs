@@ -240,3 +240,26 @@ database_test!(
         assert!(findings.needs_a_person());
     }
 );
+
+database_test!(
+    a_blob_whose_count_fell_to_zero_is_still_looked_for_because_a_row_points_at_it,
+    harness,
+    {
+        let (_, hash) = lived_in(&harness).await;
+        sqlx::query("UPDATE blobs SET ref_count = 0, unreferenced_since = now() WHERE hash = $1")
+            .bind(hash)
+            .execute(&harness.state.db)
+            .await
+            .expect("tampering");
+        harness.state.blobs.remove(hash).await.expect("removing");
+
+        let findings = check(&harness, REPAIR).await;
+
+        assert_eq!(
+            findings.missing,
+            [hash],
+            "the count is what is wrong, so it cannot be what decides what to look for"
+        );
+        assert!(findings.needs_a_person());
+    }
+);

@@ -89,9 +89,11 @@ pub async fn run(
         ..Findings::default()
     };
 
-    let wanted = sqlx::query_scalar::<_, BlobHash>(
-        "SELECT hash FROM blobs WHERE ref_count > 0 ORDER BY hash",
-    )
+    let wanted = sqlx::query_scalar::<_, BlobHash>(concat!(
+        "SELECT hash FROM (",
+        expected_references!(),
+        ") referenced ORDER BY hash"
+    ))
     .fetch_all(pool)
     .await?;
     findings.checked_blobs = wanted.len();
