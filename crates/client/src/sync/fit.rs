@@ -74,6 +74,15 @@ pub fn unfit(local: &Snapshot, remote: &Snapshot, rules: Rules) -> BTreeMap<RelP
         }
     }
 
+    let folders: Vec<RelPath> = unfit.keys().cloned().collect();
+    for path in local.keys().chain(remote.keys()) {
+        if let Some(folder) = folders.iter().find(|folder| path.is_inside(folder)) {
+            unfit
+                .entry(path.clone())
+                .or_insert_with(|| format!("it is inside {folder}, which this folder cannot hold"));
+        }
+    }
+
     unfit
 }
 
@@ -213,6 +222,26 @@ mod tests {
         assert_eq!(
             unfit_paths(&[], &["Docs", "Docs/a.txt", "docs", "docs/a.txt"], WINDOWS),
             vec!["Docs", "Docs/a.txt", "docs", "docs/a.txt"]
+        );
+    }
+
+    #[test]
+    fn a_clashing_folder_takes_children_with_different_names_too() {
+        assert_eq!(
+            unfit_paths(&[], &["Docs", "Docs/a.txt", "docs", "docs/b.txt"], WINDOWS),
+            vec!["Docs", "Docs/a.txt", "docs", "docs/b.txt"]
+        );
+    }
+
+    #[test]
+    fn a_clash_deep_in_the_tree_takes_everything_under_it() {
+        assert_eq!(
+            unfit_paths(
+                &["top/Photos", "top/Photos/2026/beach.jpg"],
+                &["top/photos", "top/keep.txt"],
+                WINDOWS
+            ),
+            vec!["top/Photos", "top/Photos/2026/beach.jpg", "top/photos"]
         );
     }
 
