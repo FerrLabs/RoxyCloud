@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::remote::{Authorize, Remote, RemoteError, answered, check};
 use crate::sync::transport::Expect;
 
-pub const CHUNK: u64 = 8 * 1024 * 1024;
+pub(crate) const CHUNK: u64 = 8 * 1024 * 1024;
 
 const ATTEMPTS: u32 = 5;
 const FIRST_WAIT: Duration = Duration::from_millis(500);
@@ -39,7 +39,7 @@ impl Remote {
         expect: Option<&Expect>,
         chunk: u64,
     ) -> Result<Node, RemoteError> {
-        let chunk = chunk.max(1);
+        let chunk = if chunk == 0 { CHUNK } else { chunk };
         let size = fs::metadata(source)
             .await
             .map_err(|error| RemoteError::io(source, error))?
