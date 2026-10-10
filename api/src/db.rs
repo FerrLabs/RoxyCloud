@@ -510,22 +510,25 @@ pub async fn room_for(
     owner_id: Uuid,
     size: i64,
 ) -> Result<(), ApiError> {
-    let fits = sqlx::query_scalar::<_, bool>(
-        // Compared this way round so a declared size near the top of the range does not overflow
-        // the addition and answer 500 where it meant 507.
-        "SELECT $2 <= bytes_max - bytes_used FROM quotas WHERE owner_id = $1",
+    if room_left(tx, owner_id)
+        .await?
+        .is_some_and(|room| size > room)
+    {
+        return Err(ApiError::QuotaExceeded);
+    }
+    Ok(())
+}
+
+pub async fn room_left(
+    tx: &mut Transaction<'_, Postgres>,
+    owner_id: Uuid,
+) -> Result<Option<i64>, ApiError> {
+    Ok(sqlx::query_scalar::<_, i64>(
+        "SELECT bytes_max - bytes_used FROM quotas WHERE owner_id = $1",
     )
     .bind(owner_id)
-    .bind(size)
     .fetch_optional(&mut **tx)
-    .await?
-    .unwrap_or(true);
-
-    if fits {
-        Ok(())
-    } else {
-        Err(ApiError::QuotaExceeded)
-    }
+    .await?)
 }
 
 pub(crate) async fn charge_quota(

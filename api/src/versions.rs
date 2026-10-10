@@ -74,6 +74,18 @@ pub(crate) async fn keep(
     Ok(())
 }
 
+pub(crate) async fn held_by(
+    tx: &mut Transaction<'_, Postgres>,
+    node_id: Uuid,
+) -> Result<i64, ApiError> {
+    Ok(sqlx::query_scalar::<_, i64>(
+        "SELECT COALESCE(SUM(size), 0)::BIGINT FROM versions WHERE node_id = $1",
+    )
+    .bind(node_id)
+    .fetch_one(&mut **tx)
+    .await?)
+}
+
 pub(crate) async fn make_room(
     tx: &mut Transaction<'_, Postgres>,
     owner_id: Uuid,

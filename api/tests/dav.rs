@@ -541,32 +541,52 @@ database_test!(a_copy_onto_the_folder_holding_it_is_refused, harness, {
     assert_eq!(read.body, "still here afterwards");
 });
 
-database_test!(bytes_from_a_refused_upload_are_collectable, harness, {
-    let (_, auth) = credential(&harness, "orphan@example.com", Role::Member).await;
-    let contents = b"uploaded into a folder that is not there";
+database_test!(
+    an_upload_into_a_missing_folder_never_reaches_the_disk,
+    harness,
+    {
+        let (_, auth) = credential(&harness, "orphan@example.com", Role::Member).await;
+        let contents = b"uploaded into a folder that is not there";
 
-    let answer = dav(
-        &harness,
-        "PUT",
-        "/dav/absent/x.txt",
-        &auth,
-        &[],
-        "uploaded into a folder that is not there",
-    )
-    .await;
+        let answer = dav(
+            &harness,
+            "PUT",
+            "/dav/absent/x.txt",
+            &auth,
+            &[],
+            "uploaded into a folder that is not there",
+        )
+        .await;
 
-    assert_eq!(answer.status, StatusCode::CONFLICT);
-    assert_eq!(
-        harness.blob(blake3::hash(contents).into()).await,
-        Some((0, true)),
-        "the bytes reached the disk before the refusal, so something has to know they are there"
-    );
-    assert!(
-        harness
-            .blob_file_exists(blake3::hash(contents).into())
-            .await
-    );
-});
+        assert_eq!(answer.status, StatusCode::CONFLICT);
+        assert_eq!(harness.blob(blake3::hash(contents).into()).await, None);
+        assert!(
+            !harness
+                .blob_file_exists(blake3::hash(contents).into())
+                .await,
+            "the destination is checked before the body is read"
+        );
+    }
+);
+
+database_test!(
+    a_dav_upload_past_the_quota_never_reaches_the_disk,
+    harness,
+    {
+        let (owner, auth) = credential(&harness, "full@example.com", Role::Member).await;
+        harness.root(owner).await;
+        harness.set_quota(owner, 10).await;
+        let contents = "more than ten bytes of something";
+
+        let answer = dav(&harness, "PUT", "/dav/x.txt", &auth, &[], contents).await;
+
+        assert_eq!(answer.status, StatusCode::INSUFFICIENT_STORAGE);
+        assert_eq!(
+            harness.blob(blake3::hash(contents.as_bytes()).into()).await,
+            None
+        );
+    }
+);
 
 database_test!(
     a_property_from_another_namespace_is_answered_under_it,

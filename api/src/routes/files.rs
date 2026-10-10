@@ -1,7 +1,7 @@
 use axum::Json;
 use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::{HeaderName, HeaderValue, StatusCode, header};
+use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
@@ -10,8 +10,8 @@ use crate::access::{self, Place};
 use crate::auth::{Caller, Writer};
 use crate::db;
 use crate::error::ApiError;
+use crate::incoming::{self, Received};
 use crate::state::AppState;
-use crate::storage;
 use crate::trash;
 use stashden_core::blob::BlobHash;
 use stashden_core::name::parse_path;
@@ -21,6 +21,7 @@ pub async fn put(
     State(state): State<AppState>,
     caller: Writer,
     Path(path): Path<String>,
+    headers: HeaderMap,
     body: Body,
 ) -> Result<Response, ApiError> {
     let segments = parse_path(&path)?;
@@ -30,12 +31,19 @@ pub async fn put(
         });
     }
 
-    let written = state
-        .blobs
-        .write(storage::upload(body.into_data_stream()))
+    let room = {
+        let mut tx = state.db.begin().await?;
+        let (parent, name) = access::file_target(
+            &mut tx,
+            &caller.user,
+            &segments,
+            true,
+            state.default_quota_bytes,
+        )
         .await?;
-    let size = i64::try_from(written.size).map_err(|_| ApiError::QuotaExceeded)?;
-    db::register_blob(&state.db, written.hash, size).await?;
+        incoming::room(&mut tx, &state, &parent, &name).await?
+    };
+    let Received { written, size } = incoming::receive(&state, &headers, body, room).await?;
 
     let mut tx = state.db.begin().await?;
     let (parent, name) = access::file_target(

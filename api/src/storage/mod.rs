@@ -28,6 +28,8 @@ pub enum StorageError {
     Io(#[from] std::io::Error),
     #[error("object store request failed: {0}")]
     Remote(String),
+    #[error("the upload is larger than the room left for it")]
+    OverLimit,
 }
 
 /// Bytes on their way in. Boxed because the trait is used through `dyn`, and adapted from whatever
@@ -43,6 +45,22 @@ where
     E: std::error::Error + Send + Sync + 'static,
 {
     Box::pin(chunks.map(|chunk| chunk.map_err(|err| StorageError::Upstream(Box::new(err)))))
+}
+
+pub fn upload_within<S, E>(chunks: S, limit: u64) -> Upload
+where
+    S: Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: std::error::Error + Send + Sync + 'static,
+{
+    let mut received = 0u64;
+    Box::pin(upload(chunks).map(move |chunk| {
+        let chunk = chunk?;
+        received = received.saturating_add(chunk.len() as u64);
+        if received > limit {
+            return Err(StorageError::OverLimit);
+        }
+        Ok(chunk)
+    }))
 }
 
 #[derive(Debug, Clone)]
