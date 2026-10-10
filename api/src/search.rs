@@ -1,23 +1,12 @@
-use serde::Serialize;
 use sqlx::PgPool;
 
 use crate::error::ApiError;
 use stashden_core::grant::SHARED_WITH_ME;
-use stashden_core::node::Node;
+pub use stashden_core::node::Hit;
 use stashden_core::user::User;
 
 pub const DEFAULT_LIMIT: i64 = 50;
 pub const MAX_LIMIT: i64 = 200;
-
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct Hit {
-    #[sqlx(flatten)]
-    #[serde(flatten)]
-    pub node: Node,
-    /// Where the match sits, relative to the account's root. A name on its own tells somebody they
-    /// have a file called `notes.md` without telling them which of the four it is.
-    pub path: String,
-}
 
 /// Substring match on the name, over the caller's live tree and the folders shared with them,
 /// prefix matches first. Shared folders are walked downward from each mount, so a search costs the

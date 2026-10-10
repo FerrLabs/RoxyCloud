@@ -208,6 +208,44 @@ pub async fn delete(
     Ok(StatusCode::NO_CONTENT)
 }
 
+pub async fn create_folder(
+    State(state): State<AppState>,
+    caller: Writer,
+    Path(path): Path<String>,
+) -> Result<Response, ApiError> {
+    let segments = parse_path(&path)?;
+    let Some((name, parents)) = segments.split_last() else {
+        return Err(ApiError::WrongKind {
+            expected: "folder path",
+        });
+    };
+
+    let mut tx = state.db.begin().await?;
+    let parent = access::directory_for_write(
+        &mut tx,
+        &caller.user,
+        parents,
+        true,
+        state.default_quota_bytes,
+    )
+    .await?;
+    access::refuse_reserved(&parent, name)?;
+    if db::child(&mut tx, parent.id, name).await?.is_some() {
+        return Err(ApiError::Conflict(name.to_string()));
+    }
+    let created = db::create_directories(
+        &mut tx,
+        parent.owner_id,
+        &parent,
+        std::slice::from_ref(name),
+    )
+    .await?;
+    tx.commit().await?;
+
+    let etag = etag_header(&created)?;
+    Ok((StatusCode::CREATED, [(header::ETAG, etag)], Json(created)).into_response())
+}
+
 pub async fn list(
     State(state): State<AppState>,
     caller: Caller,

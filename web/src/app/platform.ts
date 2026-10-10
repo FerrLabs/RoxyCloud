@@ -3,7 +3,7 @@ import type { Account, Role } from './account';
 import type { AppPassword, MintedPassword } from './account/app-password';
 import type { ManagedAccount, NewAccount } from './accounts/managed';
 import type { Given, NewGrant, Received } from './grant';
-import type { Node, Trashed } from './node';
+import type { Hit, Node, Trashed } from './node';
 import type { Dropping, Outgoing } from './outgoing';
 import type { Minted, NewShare, Share } from './share';
 import type { SyncCommand, Syncing } from './sync/syncing';
@@ -52,6 +52,8 @@ export interface Platform {
   download(path: string, name: string): Promise<string | null>;
   remove(path: string): Promise<void>;
   rename(from: string, to: string): Promise<Node>;
+  createFolder?(path: string): Promise<Node>;
+  search?(query: string): Promise<Hit[]>;
   upload?(path: string, file: File): Promise<void>;
   pickUploads?(): Promise<Outgoing[]>;
   watchDrops?(listener: (dropping: Dropping) => void): Promise<() => void>;
@@ -229,6 +231,8 @@ function browserPlatform(baseUrl: string): Platform {
     remove: async (path) => {
       await call(`/v1/files${encodePath(path)}`, { method: 'DELETE' });
     },
+    createFolder: (path) => json<Node>(`/v1/folders${encodePath(path)}`, { method: 'POST' }),
+    search: (query) => json<Hit[]>(`/v1/search?q=${encodeURIComponent(query)}`),
     rename: (from, to) =>
       json<Node>('/v1/move', {
         method: 'POST',
@@ -393,6 +397,8 @@ function desktopPlatform(fallback: string): Platform {
       const { invoke } = await core();
       return invoke<Node>('move_node', { from, to });
     },
+    createFolder: (path) => command<Node>('create_folder', { path }),
+    search: (query) => command<Hit[]>('search_nodes', { query }),
     listTrash: () => command<Trashed[]>('list_trash'),
     restoreFromTrash: (id) => command<Node>('restore_from_trash', { id }),
     purgeFromTrash: (id) => command<void>('purge_from_trash', { id }),

@@ -1,11 +1,11 @@
 use std::path::Path;
 
-use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
+use percent_encoding::{AsciiSet, CONTROLS, NON_ALPHANUMERIC, utf8_percent_encode};
 use reqwest::{Client, RequestBuilder, StatusCode};
 use serde::Deserialize;
 use stashden_core::app_password::Minted;
 use stashden_core::name::{InvalidNodeName, parse_path};
-use stashden_core::node::{Node, Trashed};
+use stashden_core::node::{Hit, Node, Trashed};
 use uuid::Uuid;
 
 const PATH_SEGMENT: &AsciiSet = &CONTROLS
@@ -239,6 +239,34 @@ impl Remote {
         }
         check(response.status(), &format!("{from} or {to}"))?;
         Ok(response.json().await?)
+    }
+
+    pub async fn create_folder(&self, path: &str) -> Result<Node, RemoteError> {
+        let url = self.endpoint("folders", path)?;
+        let response = self.http.post(&url).authorized(self).send().await?;
+        answered(response, path)
+            .await?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn search(&self, query: &str) -> Result<Vec<Hit>, RemoteError> {
+        let response = self
+            .http
+            .get(format!(
+                "{}/v1/search?q={}",
+                self.base,
+                utf8_percent_encode(query, NON_ALPHANUMERIC)
+            ))
+            .authorized(self)
+            .send()
+            .await?;
+        answered(response, "the search")
+            .await?
+            .json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn trash(&self) -> Result<Vec<Trashed>, RemoteError> {

@@ -380,3 +380,49 @@ database_test!(an_upload_over_a_version_it_never_saw_is_refused, harness, {
         b"edited elsewhere"
     );
 });
+
+database_test!(a_client_creates_a_folder_and_it_lists, harness, {
+    let owner = harness.account("mkdir@example.com", Role::Member).await;
+    let remote = connect(&harness, &owner).await;
+
+    let created = remote
+        .create_folder("photos/2026")
+        .await
+        .expect("creating the folder");
+
+    assert_eq!(created.name, "2026");
+    let listed = remote.list("photos").await.expect("listing");
+    assert_eq!(
+        listed
+            .iter()
+            .map(|node| node.name.as_str())
+            .collect::<Vec<_>>(),
+        ["2026"]
+    );
+    assert!(matches!(
+        remote.create_folder("photos/2026").await,
+        Err(RemoteError::Refused {
+            status: StatusCode::CONFLICT,
+            ..
+        })
+    ));
+});
+
+database_test!(a_client_searches_by_part_of_a_name, harness, {
+    let owner = harness.account("find@example.com", Role::Member).await;
+    harness
+        .write(owner.id, "notes/budget 2026.md", b"numbers")
+        .await;
+    harness
+        .write(owner.id, "notes/other.md", b"unrelated")
+        .await;
+    let remote = connect(&harness, &owner).await;
+
+    let hits = remote.search("budget & 2026").await.expect("searching");
+    assert!(hits.is_empty(), "the ampersand is part of the term");
+
+    let hits = remote.search("budget").await.expect("searching");
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].node.name, "budget 2026.md");
+    assert_eq!(hits[0].path, "notes/budget 2026.md");
+});

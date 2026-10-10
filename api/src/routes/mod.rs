@@ -83,7 +83,10 @@ pub fn router(state: AppState) -> Router {
             get(versions::content).post(versions::restore),
         )
         .route("/v1/folders", get(files::list_root))
-        .route("/v1/folders/{*path}", get(files::list))
+        .route(
+            "/v1/folders/{*path}",
+            get(files::list).post(files::create_folder),
+        )
         .route(
             "/v1/files/{*path}",
             put(files::put).get(files::get).delete(files::delete),

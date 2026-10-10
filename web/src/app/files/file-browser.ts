@@ -22,6 +22,7 @@ import { Confirm } from '../shared/confirm';
 import { Prompt } from '../shared/prompt';
 import { Breadcrumb } from './breadcrumb';
 import { Preview } from './preview';
+import { SearchPanel } from './search-panel';
 import { ShareDialog } from './share-dialog';
 import { SharesPanel } from './shares-panel';
 import { TrashPanel } from './trash-panel';
@@ -35,6 +36,7 @@ import { VersionsDialog } from './versions-dialog';
     Confirm,
     Preview,
     Prompt,
+    SearchPanel,
     ShareDialog,
     SharesPanel,
     TrashPanel,
@@ -106,6 +108,10 @@ export class FileBrowser {
   protected readonly canLeave = computed(
     () => this.platform.withdrawGrant !== undefined && this.where().kind === 'shelf',
   );
+  protected readonly canCreateFolder = computed(
+    () => this.platform.createFolder !== undefined && this.canChange(),
+  );
+  protected readonly canSearch = this.platform.search !== undefined;
   protected readonly canSeeLinks = computed(() => this.platform.listShares !== undefined);
   protected readonly canSeeTrash = this.platform.listTrash !== undefined;
   protected readonly canSeeVersions = this.platform.listVersions !== undefined;
@@ -119,6 +125,8 @@ export class FileBrowser {
   protected readonly doomed = signal<Node | null>(null);
   protected readonly leaving = signal<Received | null>(null);
   protected readonly renaming = signal<Node | null>(null);
+  protected readonly naming = signal(false);
+  protected readonly searching = signal(false);
   protected readonly opened = signal<Node | null>(null);
   protected readonly sharing = signal<Node | null>(null);
   protected readonly versioning = signal<Node | null>(null);
@@ -137,6 +145,7 @@ export class FileBrowser {
       this.failure.set(null);
       this.opened.set(null);
       this.renaming.set(null);
+      this.naming.set(false);
       this.sharing.set(null);
       this.versioning.set(null);
     });
@@ -230,6 +239,25 @@ export class FileBrowser {
       );
       this.listing.reload();
     });
+  }
+
+  protected async createFolder(name: string): Promise<void> {
+    this.naming.set(false);
+    const create = this.platform.createFolder;
+    if (create === undefined) {
+      return;
+    }
+    const path = childOf(this.path(), name);
+    await this.attempt(`creating ${name}`, async () => {
+      await create(path);
+      this.announcement.set(`Created ${name}`);
+      this.listing.reload();
+    });
+  }
+
+  protected goTo(link: string[]): void {
+    this.searching.set(false);
+    void this.router.navigate(link);
   }
 
   protected async remove(node: Node): Promise<void> {
