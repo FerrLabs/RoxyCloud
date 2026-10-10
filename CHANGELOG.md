@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.39.0] - 2026-10-10
+
+### Features
+
+- feat(client): upload large files in resumable chunks (#303)
+
 ## [0.38.1] - 2026-10-10
 
 ### Bug Fixes
