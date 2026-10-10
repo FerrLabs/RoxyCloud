@@ -180,12 +180,14 @@ database_test!(
 );
 
 database_test!(
-    a_chunk_size_of_zero_is_a_chunk_of_one_byte_not_a_loop,
+    a_chunk_size_of_zero_means_the_default_chunk_not_a_loop,
     harness,
     {
         let owner = harness.account("zero@example.com", Role::Member).await;
+        harness.root(owner.id).await;
+        harness.set_quota(owner.id, 64 * 1024 * 1024).await;
         let remote = connect(&harness, &owner).await;
-        let bytes = contents(12);
+        let bytes = contents(9 * 1024 * 1024);
         let source = source_of(&bytes);
 
         let node = tokio::time::timeout(
@@ -196,7 +198,7 @@ database_test!(
         .expect("an upload with a zero chunk finishes")
         .expect("uploading");
 
-        assert_eq!(node.size, 12);
+        assert_eq!(node.size, 9 * 1024 * 1024);
         assert_eq!(
             &remote.read("zero.bin").await.expect("reading")[..],
             &bytes[..]
