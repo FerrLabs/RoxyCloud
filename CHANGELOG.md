@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.42.2] - 2026-10-10
+
+### Refactoring
+
+- refactor(accounts): derive the hand-over folder name limit from the node name limit (#313)
+
 ## [0.42.1] - 2026-10-10
 
 ### Bug Fixes
