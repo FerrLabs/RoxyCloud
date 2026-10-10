@@ -8,6 +8,7 @@ export type SyncReport = {
   conflicts: string[];
   blocked: string[];
   held: string[];
+  unsupported: { path: string; reason: string }[];
   skipped: string[];
   failures: { path: string; reason: string }[];
 };
@@ -38,6 +39,7 @@ export function needsAttention(report: SyncReport): boolean {
     report.conflicts.length > 0 ||
     report.blocked.length > 0 ||
     report.held.length > 0 ||
+    report.unsupported.length > 0 ||
     report.skipped.length > 0 ||
     report.failures.length > 0
   );

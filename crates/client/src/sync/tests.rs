@@ -7,6 +7,7 @@ use tokio::sync::broadcast;
 
 use super::debounce::Debounce;
 use super::engine::{Engine, Report};
+use super::fit::{Rules, folds_case};
 use super::held::Held;
 use super::local;
 use super::path::RelPath;
@@ -787,5 +788,140 @@ async fn a_folder_with_real_files_left_in_it_is_still_not_removed() {
     assert_eq!(
         pair.read_local("photos/new.jpg").as_deref(),
         Some(&b"added meanwhile"[..])
+    );
+}
+
+const LIKE_WINDOWS: Rules = Rules {
+    windows_names: true,
+    folds_case: true,
+};
+
+fn server_holds_every_name(pair: &Pair) -> bool {
+    !cfg!(windows) && !folds_case(&pair.server)
+}
+
+#[tokio::test]
+async fn a_server_name_windows_refuses_is_reported_and_left_alone() {
+    let pair = Pair::new("windows-name");
+    if !server_holds_every_name(&pair) {
+        return;
+    }
+    pair.write_server("notes/why?.txt", b"question");
+    pair.write_server("notes/fine.txt", b"answer");
+
+    let report = pair
+        .engine()
+        .holding_names_by(LIKE_WINDOWS)
+        .sync_once()
+        .await
+        .expect("syncs");
+
+    assert_eq!(report.downloaded, 1);
+    assert_eq!(report.failures, Vec::new(), "not a failure on every pass");
+    assert_eq!(report.unsupported.len(), 1, "{report:?}");
+    assert_eq!(report.unsupported[0].path.as_str(), "notes/why?.txt");
+    assert_eq!(
+        pair.read_server("notes/why?.txt").as_deref(),
+        Some(&b"question"[..]),
+        "missing here because it cannot exist here, not because it was deleted"
+    );
+}
+
+#[tokio::test]
+async fn two_server_names_one_folder_cannot_tell_apart_are_both_left_alone() {
+    let pair = Pair::new("case-clash");
+    if !server_holds_every_name(&pair) {
+        return;
+    }
+    pair.write_server("A.txt", b"upper");
+    pair.write_server("a.txt", b"lower");
+
+    let report = pair
+        .engine()
+        .holding_names_by(LIKE_WINDOWS)
+        .sync_once()
+        .await
+        .expect("syncs");
+
+    assert_eq!(report.downloaded, 0);
+    assert_eq!(report.unsupported.len(), 2, "{report:?}");
+    assert_eq!(pair.read_server("A.txt").as_deref(), Some(&b"upper"[..]));
+    assert_eq!(pair.read_server("a.txt").as_deref(), Some(&b"lower"[..]));
+}
+
+#[tokio::test]
+async fn a_clash_appearing_after_a_sync_deletes_nothing() {
+    let pair = Pair::new("case-clash-later");
+    if !server_holds_every_name(&pair) {
+        return;
+    }
+    pair.write_local("Notes.txt", b"synced");
+    pair.engine()
+        .holding_names_by(LIKE_WINDOWS)
+        .sync_once()
+        .await
+        .expect("first sync");
+
+    pair.write_server("notes.txt", b"added from a case-sensitive machine");
+    let report = pair
+        .engine()
+        .holding_names_by(LIKE_WINDOWS)
+        .sync_once()
+        .await
+        .expect("second sync");
+
+    assert_eq!(report.deleted_locally, 0);
+    assert_eq!(report.deleted_remotely, 0);
+    assert_eq!(
+        pair.read_local("Notes.txt").as_deref(),
+        Some(&b"synced"[..])
+    );
+    assert_eq!(
+        pair.read_server("Notes.txt").as_deref(),
+        Some(&b"synced"[..])
+    );
+    assert_eq!(
+        pair.read_server("notes.txt").as_deref(),
+        Some(&b"added from a case-sensitive machine"[..])
+    );
+}
+
+#[tokio::test]
+async fn an_edit_made_during_a_clash_goes_up_once_it_is_resolved() {
+    let pair = Pair::new("case-clash-resolved");
+    if !server_holds_every_name(&pair) {
+        return;
+    }
+    pair.write_local("Notes.txt", b"synced");
+    pair.engine()
+        .holding_names_by(LIKE_WINDOWS)
+        .sync_once()
+        .await
+        .expect("first sync");
+    pair.write_server("notes.txt", b"added from a case-sensitive machine");
+    pair.engine()
+        .holding_names_by(LIKE_WINDOWS)
+        .sync_once()
+        .await
+        .expect("sync during the clash");
+
+    pair.write_local("Notes.txt", b"edited during the clash");
+    fs::remove_file(pair.server.join("notes.txt")).expect("resolved on the server");
+    let report = pair
+        .engine()
+        .holding_names_by(LIKE_WINDOWS)
+        .sync_once()
+        .await
+        .expect("sync after the clash");
+
+    assert_eq!(
+        report.conflicts,
+        Vec::new(),
+        "the server copy never changed"
+    );
+    assert_eq!(report.uploaded, 1);
+    assert_eq!(
+        pair.read_server("Notes.txt").as_deref(),
+        Some(&b"edited during the clash"[..])
     );
 }

@@ -620,6 +620,12 @@ What operating systems and editors leave in a folder is not synced in either dir
 `._*` files, `Thumbs.db`, `ehthumbs.db`, `desktop.ini`, Office's `~$*` lock files, LibreOffice's
 `.~lock.*#` and unfinished `*.stashpart` downloads. One already on the server stays there untouched.
 
+A name the local folder cannot hold is left alone on both sides and listed as "not here" on every
+pass: on Windows, a name with `< > : " | ? *`, one ending in a dot or a space, or a device name such
+as `CON` or `COM1`; and on a folder that ignores case (Windows, and macOS by default), two names
+that differ only in case or in how an accent is encoded, such as `Notes.txt` and `notes.txt`. Rename
+one of them, from the web app or a machine that can hold both, and the next pass picks them up.
+
 State lives in `.stashden-sync.json` inside the folder, which is what makes a second run cheap and
 what tells a deletion apart from a file that was never there. Delete it to start from a full
 comparison again.

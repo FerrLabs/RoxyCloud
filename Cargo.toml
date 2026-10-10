@@ -49,6 +49,7 @@ percent-encoding = "2"
 notify = "8"
 clap = { version = "4", features = ["derive", "env"] }
 argon2 = "0.6"
+unicode-normalization = "0.1"
 
 [profile.release]
 strip = "symbols"
