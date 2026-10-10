@@ -4,6 +4,7 @@ use chrono::TimeDelta;
 use reqwest::StatusCode;
 use stashden_client::Remote;
 use stashden_client::remote::RemoteError;
+use stashden_client::sync::{Entry, Expect, RelPath, Transport};
 use stashden_core::grant::{Access, NewGrant};
 use stashden_core::role::Role;
 use stashden_core::share::NewShare;
@@ -351,4 +352,31 @@ database_test!(a_client_that_logs_out_is_signed_out, harness, {
         remote.list("").await,
         Err(RemoteError::Unauthenticated)
     ));
+});
+
+database_test!(an_upload_over_a_version_it_never_saw_is_refused, harness, {
+    let owner = harness.account("race@example.com", Role::Member).await;
+    harness.write(owner.id, "a.txt", b"listed").await;
+    let remote = connect(&harness, &owner).await;
+    let listed = remote.walk().await.expect("walking the tree");
+    let path = RelPath::parse("a.txt").expect("a path");
+    let Some(Entry::File { etag, .. }) = listed.get(&path) else {
+        panic!("a.txt was listed as a file");
+    };
+    harness.write(owner.id, "a.txt", b"edited elsewhere").await;
+    let source = tempfile::NamedTempFile::new().expect("a scratch file");
+    std::fs::write(source.path(), b"edited here").expect("writing the source");
+
+    let refused = remote
+        .upload_from(&path, source.path(), &Expect::Etag(etag.clone()))
+        .await;
+
+    assert!(
+        matches!(refused, Err(RemoteError::Changed(_))),
+        "{refused:?}"
+    );
+    assert_eq!(
+        &remote.read("a.txt").await.expect("reading")[..],
+        b"edited elsewhere"
+    );
 });

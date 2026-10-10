@@ -44,6 +44,8 @@ pub enum ApiError {
     InvalidEmail(#[from] stashden_core::user::InvalidEmail),
     #[error("quota exceeded")]
     QuotaExceeded,
+    #[error("the file changed since this client last saw it")]
+    PreconditionFailed,
     #[error("this upload is at {expected} bytes")]
     OffsetMismatch { expected: i64 },
     #[error("this upload has {received} of {expected} bytes")]
@@ -104,6 +106,7 @@ impl ApiError {
             | Self::WrongKind { .. }
             | Self::NotAnImage(_) => StatusCode::BAD_REQUEST,
             Self::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
+            Self::PreconditionFailed => StatusCode::PRECONDITION_FAILED,
             Self::TooManySessions { .. } | Self::TooManyAttempts { .. } => {
                 StatusCode::TOO_MANY_REQUESTS
             }

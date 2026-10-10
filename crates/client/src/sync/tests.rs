@@ -10,14 +10,20 @@ use super::engine::{Engine, Report};
 use super::held::Held;
 use super::local;
 use super::path::RelPath;
+use super::snapshot::Entry;
 use super::snapshot::Snapshot;
 use super::state::{LEGACY_STATE_FILE_NAME, STATE_FILE_NAME, SyncState};
-use super::transport::Transport;
+use super::transport::{Expect, Transport};
 use super::watch::{Command, DEFAULT_POLL, Status, watch};
 
 struct FakeServer {
     root: PathBuf,
     held: Held,
+    before_upload: Option<Box<dyn Fn() + Send + Sync>>,
+}
+
+fn changed(path: &RelPath) -> io::Error {
+    io::Error::other(format!("{path} changed on the server since it was listed"))
 }
 
 #[expect(
@@ -37,8 +43,27 @@ impl Transport for FakeServer {
         fs::copy(path.to_path(&self.root), destination).map(|_| ())
     }
 
-    async fn upload_from(&self, path: &RelPath, source: &Path) -> Result<(), Self::Error> {
+    async fn upload_from(
+        &self,
+        path: &RelPath,
+        source: &Path,
+        expect: &Expect,
+    ) -> Result<(), Self::Error> {
+        if let Some(interfere) = &self.before_upload {
+            interfere();
+        }
         let destination = path.to_path(&self.root);
+        let current = fs::read(&destination).ok().map(|bytes| {
+            Entry::file(
+                blake3::hash(&bytes).into(),
+                u64::try_from(bytes.len()).expect("small test file"),
+            )
+        });
+        match (expect, current) {
+            (Expect::Absent, None) => {}
+            (Expect::Etag(wanted), Some(Entry::File { etag, .. })) if *wanted == etag => {}
+            _ => return Err(changed(path)),
+        }
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -86,6 +111,19 @@ impl Pair {
             FakeServer {
                 root: self.server.clone(),
                 held,
+                before_upload: None,
+            },
+        )
+        .expect("the engine opens")
+    }
+
+    fn engine_racing(&self, interfere: impl Fn() + Send + Sync + 'static) -> Engine<FakeServer> {
+        Engine::open(
+            self.local.clone(),
+            FakeServer {
+                root: self.server.clone(),
+                held: Held::default(),
+                before_upload: Some(Box::new(interfere)),
             },
         )
         .expect("the engine opens")
@@ -575,4 +613,64 @@ async fn the_watcher_brings_down_a_server_change_without_a_local_one() {
     );
 
     session.stop().await;
+}
+
+#[tokio::test]
+async fn a_server_edit_during_the_pass_is_not_overwritten() {
+    let pair = Pair::new("lost-update");
+    pair.write_local("a.txt", b"agreed");
+    pair.engine().sync_once().await.expect("first sync");
+
+    pair.write_local("a.txt", b"edited here");
+    let server = pair.server.clone();
+    let report = pair
+        .engine_racing(move || write(&server, "a.txt", b"edited there"))
+        .sync_once()
+        .await
+        .expect("second sync");
+
+    assert_eq!(report.uploaded, 0);
+    assert_eq!(report.failures.len(), 1, "{report:?}");
+    assert_eq!(
+        pair.read_server("a.txt").as_deref(),
+        Some(&b"edited there"[..]),
+        "an edit the pass never saw is not replaced"
+    );
+
+    let report = pair.engine().sync_once().await.expect("third sync");
+
+    assert_eq!(report.conflicts.len(), 1, "{report:?}");
+    assert_eq!(
+        pair.read_local("a.txt").as_deref(),
+        Some(&b"edited there"[..])
+    );
+    let kept = pair
+        .local_names()
+        .into_iter()
+        .find(|name| name.contains("conflict"))
+        .expect("the local edit is kept under another name");
+    assert_eq!(pair.read_local(&kept).as_deref(), Some(&b"edited here"[..]));
+    assert_eq!(
+        pair.read_server(&kept).as_deref(),
+        Some(&b"edited here"[..])
+    );
+}
+
+#[tokio::test]
+async fn a_server_file_created_during_the_pass_is_not_overwritten() {
+    let pair = Pair::new("lost-create");
+    pair.write_local("a.txt", b"created here");
+    let server = pair.server.clone();
+
+    let report = pair
+        .engine_racing(move || write(&server, "a.txt", b"created there"))
+        .sync_once()
+        .await
+        .expect("syncs");
+
+    assert_eq!(report.uploaded, 0);
+    assert_eq!(
+        pair.read_server("a.txt").as_deref(),
+        Some(&b"created there"[..])
+    );
 }

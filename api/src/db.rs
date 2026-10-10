@@ -91,7 +91,7 @@ pub async fn child(
     .map_err(Into::into)
 }
 
-async fn child_for_update(
+pub(crate) async fn child_for_update(
     tx: &mut Transaction<'_, Postgres>,
     parent_id: Uuid,
     name: &NodeName,

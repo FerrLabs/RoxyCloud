@@ -12,7 +12,7 @@ use crate::remote::{Authorize, Remote, RemoteError, check};
 use crate::sync::held::Held;
 use crate::sync::path::RelPath;
 use crate::sync::snapshot::{Entry, Snapshot};
-use crate::sync::transport::Transport;
+use crate::sync::transport::{Expect, Transport};
 use stashden_core::grant::{Access, Received};
 use stashden_core::node::{Node, NodeKind};
 use stashden_core::user::User;
@@ -53,15 +53,27 @@ pub(crate) async fn save(
 
 impl Remote {
     pub async fn upload(&self, path: &str, source: &Path) -> Result<Node, RemoteError> {
+        self.put_file(path, source, None).await
+    }
+
+    async fn put_file(
+        &self,
+        path: &str,
+        source: &Path,
+        expect: Option<&Expect>,
+    ) -> Result<Node, RemoteError> {
         let url = self.endpoint("files", path)?;
         let file = fs::File::open(source)
             .await
             .map_err(|source_error| RemoteError::io(source, source_error))?;
 
-        let response = self
-            .http()
-            .put(&url)
-            .authorized(self)
+        let request = self.http().put(&url).authorized(self);
+        let request = match expect {
+            None => request,
+            Some(Expect::Absent) => request.header(reqwest::header::IF_NONE_MATCH, "*"),
+            Some(Expect::Etag(etag)) => request.header(reqwest::header::IF_MATCH, etag),
+        };
+        let response = request
             .body(Body::wrap_stream(ReaderStream::new(file)))
             .send()
             .await?;
@@ -158,8 +170,15 @@ impl Transport for Remote {
         self.download(path.as_str(), destination).await
     }
 
-    async fn upload_from(&self, path: &RelPath, source: &Path) -> Result<(), Self::Error> {
-        self.upload(path.as_str(), source).await.map(|_| ())
+    async fn upload_from(
+        &self,
+        path: &RelPath,
+        source: &Path,
+        expect: &Expect,
+    ) -> Result<(), Self::Error> {
+        self.put_file(path.as_str(), source, Some(expect))
+            .await
+            .map(|_| ())
     }
 
     async fn remove(&self, path: &RelPath) -> Result<(), Self::Error> {

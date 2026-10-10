@@ -10,7 +10,7 @@ use super::path::RelPath;
 use super::plan::{Action, reconcile};
 use super::snapshot::Entry;
 use super::state::{STATE_FILE_NAME, StateError, SyncState, adopt_legacy};
-use super::transport::Transport;
+use super::transport::{Expect, Transport};
 
 const PARTIAL_SUFFIX: &str = ".stashpart";
 
@@ -186,7 +186,7 @@ impl<T: Transport> Engine<T> {
                 report.downloaded += 1;
             }
             Action::Upload(path) => {
-                self.upload(path, scan).await?;
+                self.upload(path, scan, remote).await?;
                 report.uploaded += 1;
             }
             Action::DeleteLocal(path) => {
@@ -223,7 +223,7 @@ impl<T: Transport> Engine<T> {
                     return Err("the local copy vanished mid-sync".to_owned());
                 };
                 self.transport
-                    .upload_from(local_copy, &to)
+                    .upload_from(local_copy, &to, &Expect::Absent)
                     .await
                     .map_err(|source| source.to_string())?;
                 self.state.record(
@@ -280,14 +280,23 @@ impl<T: Transport> Engine<T> {
         Ok(())
     }
 
-    async fn upload(&mut self, path: &RelPath, scan: &LocalScan) -> Result<(), String> {
+    async fn upload(
+        &mut self,
+        path: &RelPath,
+        scan: &LocalScan,
+        remote: &super::snapshot::Snapshot,
+    ) -> Result<(), String> {
         let Some(scanned) = scan.entries.get(path) else {
             return Err("the local copy vanished mid-sync".to_owned());
         };
 
+        let expect = match remote.get(path) {
+            Some(Entry::File { etag, .. }) => Expect::Etag(etag.clone()),
+            _ => Expect::Absent,
+        };
         let source = path.to_path(&self.root);
         self.transport
-            .upload_from(path, &source)
+            .upload_from(path, &source, &expect)
             .await
             .map_err(|error| error.to_string())?;
 

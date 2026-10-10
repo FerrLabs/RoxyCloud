@@ -232,7 +232,7 @@ POST   /v1/auth/oidc/start  begin an authorization code flow
 POST   /v1/auth/oidc/callback  finish one, answering a session token
 GET    /v1/folders            list the root
 GET    /v1/folders/{*path}    list a directory
-PUT    /v1/files/{*path}      upload, creating parent directories
+PUT    /v1/files/{*path}      upload, creating parent directories; honours If-Match and If-None-Match: *
 GET    /v1/files/{*path}      download
 DELETE /v1/files/{*path}      move to trash
 POST   /v1/move               rename a node, or move it under another directory
@@ -623,6 +623,10 @@ comparison again.
 When a file changed on both sides, both copies are kept: the server's version keeps the name, and
 the local one is renamed `name (conflict <timestamp>).ext` and uploaded under that name. Nothing is
 overwritten and nothing waits for an answer.
+
+An upload names the version the pass listed (`If-Match`, or `If-None-Match: *` for a new file), so an
+edit that reaches the server between the listing and the upload is refused with 412 instead of being
+replaced. The pass reports it, and the next one sees both sides changed and keeps both.
 
 `--watch` keeps it running instead, syncing as the folder changes:
 
