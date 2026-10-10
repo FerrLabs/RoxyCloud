@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
 
 use crate::error::ApiError;
@@ -40,7 +40,7 @@ pub async fn revoke(pool: &PgPool, id: Uuid) -> Result<(), ApiError> {
 }
 
 pub async fn revoke_all(
-    pool: &PgPool,
+    executor: impl PgExecutor<'_>,
     user_id: Uuid,
     keeping: Option<Uuid>,
 ) -> Result<u64, ApiError> {
@@ -48,7 +48,7 @@ pub async fn revoke_all(
         sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND id IS DISTINCT FROM $2")
             .bind(user_id)
             .bind(keeping)
-            .execute(pool)
+            .execute(executor)
             .await?
             .rows_affected(),
     )

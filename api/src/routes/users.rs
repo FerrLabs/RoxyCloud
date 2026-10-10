@@ -107,8 +107,10 @@ pub async fn disable(
             expected: "account other than your own",
         });
     }
-    let disabled = users::set_disabled(&state.db, id, true).await?;
-    sessions::revoke_all(&state.db, id, None).await?;
+    let mut tx = state.db.begin().await?;
+    let disabled = users::set_disabled(&mut *tx, id, true).await?;
+    sessions::revoke_all(&mut *tx, id, None).await?;
+    tx.commit().await?;
     Ok(Json(disabled))
 }
 
@@ -179,8 +181,10 @@ pub async fn reset_password(
     Path(id): Path<Uuid>,
     Json(request): Json<NewPassword>,
 ) -> Result<StatusCode, ApiError> {
-    users::set_password(&state.db, id, &request.password).await?;
-    sessions::revoke_all(&state.db, id, None).await?;
+    let mut tx = state.db.begin().await?;
+    users::set_password(&mut *tx, id, &request.password).await?;
+    sessions::revoke_all(&mut *tx, id, None).await?;
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -196,7 +200,9 @@ pub async fn change_password(
         return Err(ApiError::InvalidCredentials);
     }
     attempts::forget(&state.db, Scope::Login, caller.user.email.as_str()).await?;
-    users::set_password(&state.db, caller.user.id, &request.password).await?;
-    sessions::revoke_all(&state.db, caller.user.id, Some(caller.session_id)).await?;
+    let mut tx = state.db.begin().await?;
+    users::set_password(&mut *tx, caller.user.id, &request.password).await?;
+    sessions::revoke_all(&mut *tx, caller.user.id, Some(caller.session_id)).await?;
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }

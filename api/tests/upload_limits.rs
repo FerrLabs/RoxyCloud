@@ -19,7 +19,7 @@ async fn member(harness: &Harness, email: &str, quota: i64) -> (Uuid, String) {
     let user = harness.account(email, Role::Member).await;
     harness.root(user.id).await;
     harness.set_quota(user.id, quota).await;
-    let token = harness.state.sessions.issue(user.id).expect("a token");
+    let token = harness.session(user.id).await;
     (user.id, format!("Bearer {token}"))
 }
 
