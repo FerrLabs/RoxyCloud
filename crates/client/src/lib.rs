@@ -1,4 +1,5 @@
 pub mod remote;
+mod resumable;
 mod sharing;
 pub mod sync;
 mod transfer;

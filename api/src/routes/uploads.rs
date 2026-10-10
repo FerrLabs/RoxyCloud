@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::access;
 use crate::auth::{Caller, Writer};
 use crate::error::ApiError;
+use crate::precondition::Precondition;
 use crate::state::AppState;
 use crate::{db, storage, uploads};
 use stashden_core::name::parse_path;
@@ -27,6 +28,7 @@ pub struct NewUpload {
 pub async fn begin(
     State(state): State<AppState>,
     caller: Writer,
+    headers: HeaderMap,
     Json(request): Json<NewUpload>,
 ) -> Result<(StatusCode, Json<uploads::Session>), ApiError> {
     let segments = parse_path(&request.path)?;
@@ -42,6 +44,20 @@ pub async fn begin(
     let holder =
         access::quota_holder(&mut tx, &caller.user, &segments, state.default_quota_bytes).await?;
     db::room_for(&mut tx, holder, request.size).await?;
+    let existing = match access::file_target(
+        &mut tx,
+        &caller.user,
+        &segments,
+        false,
+        state.default_quota_bytes,
+    )
+    .await
+    {
+        Ok((parent, name)) => db::child(&mut tx, parent.id, &name).await?,
+        Err(ApiError::NotFound) => None,
+        Err(other) => return Err(other),
+    };
+    Precondition::from_headers(&headers).check(existing.as_ref())?;
     tx.commit().await?;
 
     let session = uploads::begin(
@@ -114,6 +130,7 @@ pub async fn append(
 pub async fn finish(
     State(state): State<AppState>,
     caller: Writer,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Response, ApiError> {
     let session = uploads::of(&state.db, caller.user_id(), id).await?;
@@ -144,6 +161,11 @@ pub async fn finish(
         state.default_quota_bytes,
     )
     .await?;
+    Precondition::from_headers(&headers).check(
+        db::child_for_update(&mut tx, parent.id, &name)
+            .await?
+            .as_ref(),
+    )?;
     let node = db::put_file(
         &mut tx,
         parent.owner_id,
