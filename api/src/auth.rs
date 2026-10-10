@@ -85,8 +85,6 @@ impl Sessions {
     }
 }
 
-/// The account behind a session token, loaded rather than taken on the token's word: a session
-/// outliving the account it names is how a disabled person keeps reading until their token expires.
 const BASIC: GeneralPurpose = GeneralPurpose::new(
     &base64::alphabet::STANDARD,
     GeneralPurposeConfig::new().with_decode_padding_mode(DecodePaddingMode::Indifferent),
@@ -390,24 +388,6 @@ mod tests {
     }
 
     fn base64_url(raw: &[u8]) -> String {
-        use std::fmt::Write as _;
-        const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-        let mut out = String::new();
-        for chunk in raw.chunks(3) {
-            let b = [
-                chunk[0],
-                chunk.get(1).copied().unwrap_or(0),
-                chunk.get(2).copied().unwrap_or(0),
-            ];
-            let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
-            for i in 0..=chunk.len() {
-                let _ = write!(
-                    out,
-                    "{}",
-                    ALPHABET[((n >> (18 - 6 * i)) & 63) as usize] as char
-                );
-            }
-        }
-        out
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(raw)
     }
 }
