@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.0] - 2026-10-10
+
+### Features
+
+- feat(sync): create a new local folder on the server, empty or not (#301)
+
 ## [0.37.0] - 2026-10-10
 
 ### Features
