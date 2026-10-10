@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.39.1] - 2026-10-10
+
+### Bug Fixes
+
+- fix(client): clamp the chunk size and name the file when a chunk cannot be read (#306)
+
 ## [0.39.0] - 2026-10-10
 
 ### Features
