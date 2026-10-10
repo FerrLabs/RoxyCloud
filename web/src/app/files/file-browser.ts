@@ -16,10 +16,11 @@ import { Session } from '../account';
 import { childOf, linkTo } from '../folder';
 import { SHARED_WITH_ME, describeOrigin, whereIs, type Received } from '../grant';
 import { byKindThenName, formatDate, formatSize, type Node } from '../node';
-import { fromFiles, type Dropping, type Outgoing } from '../outgoing';
+import { chosenFromDrop, fromChosen, type Dropping, type Outgoing } from '../outgoing';
 import { PLATFORM } from '../platform';
 import { Confirm } from '../shared/confirm';
 import { Prompt } from '../shared/prompt';
+import { DownloadCancelled } from '../transfer';
 import { Breadcrumb } from './breadcrumb';
 import { Preview } from './preview';
 import { SearchPanel } from './search-panel';
@@ -120,6 +121,7 @@ export class FileBrowser {
   );
   protected readonly dragging = signal(false);
   protected readonly pending = signal(0);
+  protected readonly sending = signal<{ name: string; sent: number; total: number } | null>(null);
   protected readonly announcement = signal<string | null>(null);
   protected readonly failure = signal<string | null>(null);
   protected readonly doomed = signal<Node | null>(null);
@@ -224,8 +226,14 @@ export class FileBrowser {
 
   protected async download(node: Node): Promise<void> {
     await this.attempt(`downloading ${node.name}`, async () => {
-      const saved = await this.platform.download(childOf(this.path(), node.name), node.name);
-      this.announcement.set(saved ? `Saved ${node.name} to ${saved}` : `Downloaded ${node.name}`);
+      try {
+        const saved = await this.platform.download(childOf(this.path(), node.name), node.name);
+        this.announcement.set(saved ? `Saved ${node.name} to ${saved}` : `Downloaded ${node.name}`);
+      } catch (cause: unknown) {
+        if (!(cause instanceof DownloadCancelled)) {
+          throw cause;
+        }
+      }
     });
   }
 
@@ -274,14 +282,18 @@ export class FileBrowser {
     this.pending.set(items.length);
     let sent = 0;
     for (const item of items) {
+      this.sending.set({ name: item.name, sent: 0, total: 0 });
       const done = await this.attempt(`uploading ${item.name}`, async () => {
-        await item.send(childOf(this.path(), item.name));
+        await item.send(childOf(this.path(), item.name), (progress, total) =>
+          this.sending.set({ name: item.name, sent: progress, total }),
+        );
       });
       if (done) {
         sent += 1;
       }
       this.pending.update((left) => left - 1);
     }
+    this.sending.set(null);
 
     if (sent > 0) {
       this.announcement.set(sent === 1 ? 'Uploaded 1 file' : `Uploaded ${sent} files`);
@@ -307,11 +319,16 @@ export class FileBrowser {
     }
     event.preventDefault();
     this.dragging.set(false);
-    const files = Array.from(event.dataTransfer?.files ?? []);
+    const transfer = event.dataTransfer;
     const upload = this.platform.upload;
-    if (upload !== undefined && files.length > 0) {
-      void this.upload(fromFiles(upload, files));
+    if (transfer === null || upload === undefined) {
+      return;
     }
+    void chosenFromDrop(transfer).then((chosen) => {
+      if (chosen.length > 0) {
+        void this.upload(fromChosen(upload, chosen));
+      }
+    });
   }
 
   private onNativeDrop(dropping: Dropping): void {

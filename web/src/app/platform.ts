@@ -5,6 +5,7 @@ import type { ManagedAccount, NewAccount } from './accounts/managed';
 import type { Given, NewGrant, Received } from './grant';
 import type { Hit, Node, Trashed } from './node';
 import type { Dropping, Outgoing } from './outgoing';
+import { saveStreaming, upload as uploadChunked, type Link, type Progress } from './transfer';
 import type { Minted, NewShare, Share } from './share';
 import type { SyncCommand, Syncing } from './sync/syncing';
 import type { Version } from './version';
@@ -54,7 +55,7 @@ export interface Platform {
   rename(from: string, to: string): Promise<Node>;
   createFolder?(path: string): Promise<Node>;
   search?(query: string): Promise<Hit[]>;
-  upload?(path: string, file: File): Promise<void>;
+  upload?(path: string, file: File, progress?: Progress): Promise<void>;
   pickUploads?(): Promise<Outgoing[]>;
   watchDrops?(listener: (dropping: Dropping) => void): Promise<() => void>;
   listShares?(): Promise<Share[]>;
@@ -131,6 +132,13 @@ function browserPlatform(baseUrl: string): Platform {
 
   const json = async <T>(path: string, init?: RequestInit): Promise<T> =>
     (await (await call(path, init)).json()) as T;
+
+  const link: Link = {
+    base: baseUrl,
+    headers: bearer,
+    fail: async (status, text) =>
+      new RequestFailed(status, await messageFor(new Response(text, { status }))),
+  };
 
   return {
     kind: 'browser',
@@ -221,11 +229,9 @@ function browserPlatform(baseUrl: string): Platform {
     account: () => json<Account>('/v1/auth/me'),
     listFolder: (path) => json<Node[]>(`/v1/folders${encodePath(path)}`),
     read: async (path) => (await call(`/v1/files${encodePath(path)}`)).blob(),
-    upload: async (path, file) => {
-      await call(`/v1/files${encodePath(path)}`, { method: 'PUT', body: file });
-    },
+    upload: (path, file, progress) => uploadChunked(link, encodePath(path), file, progress),
     download: async (path, name) => {
-      save(await (await call(`/v1/files${encodePath(path)}`)).blob(), name);
+      await saveStreaming(() => call(`/v1/files${encodePath(path)}`), name);
       return null;
     },
     remove: async (path) => {
@@ -263,7 +269,7 @@ function browserPlatform(baseUrl: string): Platform {
     listVersions: (path) => json<Version[]>(`/v1/versions${encodePath(path)}`),
     downloadVersion: async (path, id, name) => {
       const address = `/v1/version/${encodeURIComponent(id)}${encodePath(path)}`;
-      save(await (await call(address)).blob(), name);
+      await saveStreaming(() => call(address), name);
       return null;
     },
     restoreVersion: (path, id) =>
@@ -278,15 +284,6 @@ function browserPlatform(baseUrl: string): Platform {
       await call('/v1/trash', { method: 'DELETE' });
     },
   };
-}
-
-function save(blob: Blob, name: string): void {
-  const href = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = href;
-  link.download = name;
-  link.click();
-  URL.revokeObjectURL(href);
 }
 
 async function messageFor(response: Response): Promise<string> {

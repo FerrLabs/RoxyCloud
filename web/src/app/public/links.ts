@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { encodePath } from '../platform';
+import { saveStreaming } from '../transfer';
 import type { Linked } from '../share';
 
 export class LinkNeedsPassword extends Error {
@@ -33,13 +34,10 @@ export class PublicLinks {
   }
 
   async download(token: string, password: string, path: string, name: string): Promise<void> {
-    const response = await this.get(token, `/content${encodePath(path)}`, password);
-    const href = URL.createObjectURL(await response.blob());
-    const link = document.createElement('a');
-    link.href = href;
-    link.download = name;
-    link.click();
-    URL.revokeObjectURL(href);
+    await saveStreaming(
+      () => this.get(token, `/content${encodePath(path)}`, password),
+      name,
+    );
   }
 
   private async get(token: string, at: string, password: string): Promise<Response> {

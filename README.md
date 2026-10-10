@@ -551,6 +551,15 @@ searched, and `limit` and `offset` page through the results, capped at 200 at a 
 This is names only. Searching inside documents needs text extraction per format, and that is a
 different feature rather than a bigger version of this one.
 
+In the browser, a file above 8 MiB goes up through a resumable session in 8 MiB chunks, with a
+progress bar, and a chunk the connection drops is asked about and carried on from rather than sent
+again from the start. Upload folder, or dropping a folder on the window, keeps the folder's layout;
+an empty folder inside it is not sent, since only files are listed. Downloads go straight to disk
+through the browser's save dialog where it has one (Chromium based browsers), a shared link
+included, and are held in memory before saving in the others. When the web app is served from
+another origin, `CORS_ALLOWED_ORIGINS` lets `PATCH`, `If-Match`, `If-None-Match` and `Upload-Offset`
+through.
+
 In the web app and the desktop app, New folder asks for a name, where a path with `/` makes folders
 inside folders, and Search lists what matches with the folder each result sits in. Choosing a result
 opens that folder, or the folder itself when the match is a folder.

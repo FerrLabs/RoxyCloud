@@ -5,4 +5,10 @@
     Upload files
   }
 </button>
+@if (picksInBrowser) {
+  <button type="button" class="ghost" [disabled]="pending() > 0" (click)="openFolder()">
+    Upload folder
+  </button>
+}
 <input #picker type="file" multiple hidden (change)="pick($event)" />
+<input #folderPicker type="file" webkitdirectory hidden (change)="pick($event)" />

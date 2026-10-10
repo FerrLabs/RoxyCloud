@@ -24,6 +24,7 @@ export class UploadTarget {
   readonly failed = output<string>();
 
   private readonly input = viewChild.required<ElementRef<HTMLInputElement>>('picker');
+  private readonly folder = viewChild.required<ElementRef<HTMLInputElement>>('folderPicker');
 
   protected async open(): Promise<void> {
     const pickNatively = this.platform.pickUploads;
@@ -39,6 +40,12 @@ export class UploadTarget {
     } catch (cause: unknown) {
       this.failed.emit(cause instanceof Error ? cause.message : String(cause));
     }
+  }
+
+  protected readonly picksInBrowser = this.platform.pickUploads === undefined;
+
+  protected openFolder(): void {
+    this.folder().nativeElement.click();
   }
 
   protected pick(event: Event): void {
