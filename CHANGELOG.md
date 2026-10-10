@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.0] - 2026-10-10
+
+### Features
+
+- feat(web): create folders and search from the file manager (#300)
+
 ## [0.36.4] - 2026-10-10
 
 ### Refactoring
