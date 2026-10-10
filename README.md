@@ -333,7 +333,8 @@ An upload is checked before its body is read: a destination the caller cannot wr
 folder that is not there, is refused first, and so is a `Content-Length` larger than the room left
 (counting what the file and its versions would give back). A body with no length, or one longer
 than it said, is cut off with 507 as soon as it passes that room, so a full account cannot fill the
-disk with bytes that would only have been refused.
+disk with bytes that would only have been refused. A resumable chunk stops the same way at the size
+its session was opened with.
 
 In the web app a history button on each file opens its versions with their date and size, to
 download one or restore it. Restore shows only where the file can be written. The desktop app has

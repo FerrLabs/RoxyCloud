@@ -1,7 +1,11 @@
 mod common;
 
+use std::time::Duration;
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
+use bytes::Bytes;
+use serde_json::Value;
 use stashden_api::build_router;
 use stashden_core::role::Role;
 use tower::ServiceExt;
@@ -161,4 +165,69 @@ database_test!(an_overwrite_can_use_the_room_its_history_frees, harness, {
         "a save that drops old versions to fit was accepted before the early check existed"
     );
     assert_eq!(harness.used_bytes(owner).await, 400);
+});
+
+fn endless() -> Body {
+    Body::from_stream(futures::stream::repeat_with(|| {
+        Ok::<_, std::io::Error>(Bytes::from_static(&[9; 4096]))
+    }))
+}
+
+async fn send_endless(harness: &Harness, method: &str, uri: &str, bearer: &str) -> StatusCode {
+    let mut request = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::AUTHORIZATION, bearer);
+    if method == "PATCH" {
+        request = request.header("upload-offset", "0");
+    }
+    let answered = build_router(harness.state.clone(), &[], None)
+        .oneshot(request.body(endless()).expect("a well formed request"));
+    tokio::time::timeout(Duration::from_secs(10), answered)
+        .await
+        .expect("an endless body is cut off rather than written forever")
+        .expect("the router answers")
+        .status()
+}
+
+database_test!(an_endless_body_is_cut_off_at_the_quota, harness, {
+    let (_, bearer) = member(&harness, "endless@example.com", 100_000).await;
+
+    let status = send_endless(&harness, "PUT", "/v1/files/endless.bin", &bearer).await;
+
+    assert_eq!(status, StatusCode::INSUFFICIENT_STORAGE);
+});
+
+database_test!(a_resumable_chunk_stops_at_the_size_it_declared, harness, {
+    let (_, bearer) = member(&harness, "resumable@example.com", 100_000).await;
+    let opened = build_router(harness.state.clone(), &[], None)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/uploads")
+                .header(header::AUTHORIZATION, &bearer)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"path":"small.bin","size":10}"#))
+                .expect("a well formed request"),
+        )
+        .await
+        .expect("the router answers");
+    assert_eq!(opened.status(), StatusCode::CREATED);
+    let body = http_body_util::BodyExt::collect(opened.into_body())
+        .await
+        .expect("a body")
+        .to_bytes();
+    let id = serde_json::from_slice::<Value>(&body).expect("json")["id"]
+        .as_str()
+        .expect("an upload id")
+        .to_owned();
+
+    let status = send_endless(&harness, "PATCH", &format!("/v1/uploads/{id}"), &bearer).await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        harness.staged_uploads().await,
+        0,
+        "a session that was lied to about its size keeps nothing on disk"
+    );
 });

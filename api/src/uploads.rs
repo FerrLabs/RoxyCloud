@@ -52,6 +52,11 @@ pub struct Staging {
     root: PathBuf,
 }
 
+pub enum Wrote {
+    Reached(u64),
+    PastTheLimit,
+}
+
 impl Staging {
     pub async fn open(root: impl Into<PathBuf>) -> Result<Self, ApiError> {
         let root = root.into();
@@ -85,8 +90,9 @@ impl Staging {
         &self,
         staged: &str,
         offset: u64,
+        limit: u64,
         mut chunks: S,
-    ) -> Result<u64, ApiError>
+    ) -> Result<Wrote, ApiError>
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin,
         E: std::error::Error + Send + Sync + 'static,
@@ -105,6 +111,9 @@ impl Staging {
             let chunk = chunk.map_err(|err| {
                 ApiError::Storage(crate::storage::StorageError::Upstream(Box::new(err)))
             })?;
+            if written + chunk.len() as u64 > limit {
+                return Ok(Wrote::PastTheLimit);
+            }
             file.write_all(&chunk).await?;
             written += chunk.len() as u64;
         }
@@ -113,7 +122,7 @@ impl Staging {
         // What this request wrote, not what the file measures. A writer whose claim lapsed
         // mid-body leaves its own head further along, and the length would count the zeros
         // between the two heads as arrived.
-        Ok(offset + written)
+        Ok(Wrote::Reached(offset + written))
     }
 
     async fn discard(&self, staged: &str) {
@@ -230,6 +239,29 @@ pub async fn of(pool: &PgPool, owner_id: Uuid, id: Uuid) -> Result<Session, ApiE
     .ok_or(ApiError::NotFound)
 }
 
+async fn refuse_overflow(
+    pool: &PgPool,
+    staging: &Staging,
+    session: &Session,
+    writer: Uuid,
+) -> Result<Session, ApiError> {
+    // Scoped like the recording UPDATE in `append` rather than an unconditional delete: an
+    // over-sending writer that no longer holds the session would otherwise take the row and
+    // the file away from whoever does, and leave them a 404 on their next chunk.
+    let ours = sqlx::query("DELETE FROM uploads WHERE id = $1 AND writer = $2")
+        .bind(session.id)
+        .bind(writer)
+        .execute(pool)
+        .await?;
+    if ours.rows_affected() == 0 {
+        return Err(ApiError::AlreadyWriting);
+    }
+    staging.discard(&session.staged).await;
+    Err(ApiError::WrongKind {
+        expected: "no more than the size the session was opened with",
+    })
+}
+
 /// Appends at `offset`, which has to be the offset the session is actually at. A client that lost
 /// the connection mid-chunk knows what it sent, not what arrived, so the mismatch is reported with
 /// the real offset rather than refused blindly.
@@ -259,7 +291,8 @@ where
     // The write and the renewal of its claim, whichever ends first. A body that outlives its claim
     // would otherwise be writing through a file handle the session has since handed to somebody
     // else, and its bytes would land inside the region that writer goes on to record.
-    let writing = staging.write_at(&session.staged, at, chunks);
+    let room = u64::try_from(session.size - offset).unwrap_or(0);
+    let writing = staging.write_at(&session.staged, at, room, chunks);
     let renewing = renew(pool, session.id, writer);
     tokio::pin!(writing, renewing);
 
@@ -268,30 +301,15 @@ where
         () = &mut renewing => return Err(ApiError::AlreadyWriting),
     };
     let received = match written {
-        Ok(received) => i64::try_from(received).map_err(|_| ApiError::QuotaExceeded)?,
+        Ok(Wrote::Reached(received)) => {
+            i64::try_from(received).map_err(|_| ApiError::QuotaExceeded)?
+        }
+        Ok(Wrote::PastTheLimit) => return refuse_overflow(pool, staging, session, writer).await,
         Err(err) => {
             release(pool, session.id, writer).await;
             return Err(err);
         }
     };
-
-    if received > session.size {
-        // Scoped like the recording UPDATE below rather than an unconditional delete: an
-        // over-sending writer that no longer holds the session would otherwise take the row and
-        // the file away from whoever does, and leave them a 404 on their next chunk.
-        let ours = sqlx::query("DELETE FROM uploads WHERE id = $1 AND writer = $2")
-            .bind(session.id)
-            .bind(writer)
-            .execute(pool)
-            .await?;
-        if ours.rows_affected() == 0 {
-            return Err(ApiError::AlreadyWriting);
-        }
-        staging.discard(&session.staged).await;
-        return Err(ApiError::WrongKind {
-            expected: "no more than the size the session was opened with",
-        });
-    }
 
     // Scoped to the holder, behind the renewal above: a writer that lost the claim records nothing
     // and does not clear the claim of whoever holds it now.

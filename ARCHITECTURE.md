@@ -344,7 +344,8 @@ sequenceDiagram
     C->>T: PUT /dav/photos/x.jpg
     T->>A: forwarded
     A->>A: authenticate (session JWT or app password)
-    A->>A: stream body, hash with BLAKE3
+    A->>P: check destination, locks and room left
+    A->>A: stream body, hash with BLAKE3, cut off past the room
     A->>B: write blob if digest unknown
     A->>P: upsert node, bump ref_count, charge quota
     A-->>C: 201 with ETag
