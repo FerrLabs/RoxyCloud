@@ -11,11 +11,12 @@ import { linkTo } from './folder';
 import type { Credentials } from './login-form/credentials';
 import { LoginForm } from './login-form/login-form';
 import { PLATFORM, RequestFailed } from './platform';
+import { Prompt } from './shared/prompt';
 import { SHARE_PREFIX } from './share';
 
 @Component({
   selector: 'rx-root',
-  imports: [AccountMenu, AppPasswords, ChangePassword, LoginForm, RouterOutlet, Update],
+  imports: [AccountMenu, AppPasswords, ChangePassword, LoginForm, Prompt, RouterOutlet, Update],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -40,6 +41,7 @@ export class App {
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
   protected readonly changing = signal(false);
+  protected readonly naming = signal(false);
   protected readonly notice = signal<string | null>(null);
   protected readonly listingAppPasswords = signal(false);
   protected readonly updating = signal(false);
@@ -95,6 +97,22 @@ export class App {
   protected changePassword(): void {
     this.notice.set(null);
     this.changing.set(true);
+  }
+
+  protected async rename(displayName: string): Promise<void> {
+    this.naming.set(false);
+    const update = this.platform.updateProfile;
+    if (update === undefined) {
+      return;
+    }
+    try {
+      this.session.account.set(await update(displayName));
+      this.error.set(null);
+      this.notice.set('Your display name has been changed.');
+    } catch (cause: unknown) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      this.error.set(`Your display name was not changed: ${message}`);
+    }
   }
 
   protected noteChanged(): void {

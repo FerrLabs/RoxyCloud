@@ -55,6 +55,7 @@ export interface Platform {
   resetPassword?(id: string, password: string): Promise<void>;
   deleteAccount?(id: string, handOverTo: string | null): Promise<void>;
   account(): Promise<Account>;
+  updateProfile?(displayName: string): Promise<Account>;
   listFolder(path: string): Promise<Node[]>;
   read(path: string): Promise<Blob>;
   download(path: string, name: string): Promise<string | null>;
@@ -238,6 +239,12 @@ function browserPlatform(baseUrl: string): Platform {
       });
     },
     account: () => json<Account>('/v1/auth/me'),
+    updateProfile: (displayName) =>
+      json<Account>('/v1/auth/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: displayName }),
+      }),
     listFolder: (path) => json<Node[]>(`/v1/folders${encodePath(path)}`),
     read: async (path) => (await call(`/v1/files${encodePath(path)}`)).blob(),
     upload: (path, file, progress) => uploadChunked(link, path, file, progress),
@@ -405,6 +412,7 @@ function desktopPlatform(fallback: string): Platform {
       const { invoke } = await core();
       return invoke<Node>('move_node', { from, to });
     },
+    updateProfile: (displayName) => command<Account>('update_profile', { displayName }),
     createFolder: (path) => command<Node>('create_folder', { path }),
     search: (query) => command<Hit[]>('search_nodes', { query }),
     listTrash: () => command<Trashed[]>('list_trash'),

@@ -12,6 +12,7 @@ pub mod incoming;
 pub mod oidc;
 pub mod password;
 pub mod precondition;
+pub mod recovery;
 pub mod routes;
 pub mod search;
 pub mod sessions;

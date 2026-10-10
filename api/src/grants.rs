@@ -119,6 +119,63 @@ async fn free_mount_name(
     Ok(candidate)
 }
 
+pub async fn reassign(
+    tx: &mut Transaction<'_, Postgres>,
+    previous: &str,
+    new: &Email,
+) -> Result<(), ApiError> {
+    let mut addresses = [previous.to_owned(), new.as_str().to_owned()];
+    addresses.sort();
+    for address in addresses {
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('grants:' || $1, 0))")
+            .bind(address)
+            .execute(&mut **tx)
+            .await?;
+    }
+
+    let moving = sqlx::query_as::<_, (Uuid, Uuid, Access, String)>(
+        "SELECT id, node_id, access, mount_name FROM grants
+         WHERE grantee_email = $1 ORDER BY created_at",
+    )
+    .bind(previous)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    for (id, node_id, access, mount_name) in moving {
+        let already = sqlx::query_as::<_, (Uuid, Access)>(
+            "SELECT id, access FROM grants WHERE grantee_email = $1 AND node_id = $2",
+        )
+        .bind(new.as_str())
+        .bind(node_id)
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        if let Some((existing, existing_access)) = already {
+            if access.may_write() && !existing_access.may_write() {
+                sqlx::query("UPDATE grants SET access = $2 WHERE id = $1")
+                    .bind(existing)
+                    .bind(access)
+                    .execute(&mut **tx)
+                    .await?;
+            }
+            sqlx::query("DELETE FROM grants WHERE id = $1")
+                .bind(id)
+                .execute(&mut **tx)
+                .await?;
+            continue;
+        }
+
+        let mount_name = free_mount_name(tx, new, &mount_name).await?;
+        sqlx::query("UPDATE grants SET grantee_email = $2, mount_name = $3 WHERE id = $1")
+            .bind(id)
+            .bind(new.as_str())
+            .bind(mount_name)
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(())
+}
+
 fn numbered(name: &str, ordinal: u32) -> String {
     let suffix = format!(" ({ordinal})");
     let mut cut = MAX_NAME_LEN.saturating_sub(suffix.len()).min(name.len());

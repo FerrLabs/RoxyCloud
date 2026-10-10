@@ -30,6 +30,9 @@
       @if (canSync) {
         <button type="button" role="menuitem" (click)="openSync()">Sync a folder</button>
       }
+      @if (canEditProfile) {
+        <button type="button" role="menuitem" (click)="editProfile()">Change display name</button>
+      }
       @if (canChangePassword) {
         <button type="button" role="menuitem" (click)="changePassword()">Change password</button>
       }

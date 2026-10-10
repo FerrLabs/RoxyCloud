@@ -41,6 +41,11 @@ pub struct NewPassword {
 }
 
 #[derive(Deserialize)]
+pub struct NewEmail {
+    email: String,
+}
+
+#[derive(Deserialize)]
 pub struct PasswordChange {
     current: String,
     password: String,
@@ -143,6 +148,16 @@ pub async fn delete(
     )
     .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn set_email(
+    State(state): State<AppState>,
+    _: Admin,
+    Path(id): Path<Uuid>,
+    Json(request): Json<NewEmail>,
+) -> Result<Json<User>, ApiError> {
+    let email: Email = request.email.parse()?;
+    Ok(Json(users::set_email(&state.db, id, &email).await?))
 }
 
 pub async fn sign_out_everywhere(
