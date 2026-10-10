@@ -89,6 +89,22 @@ impl Remote {
         Ok(response.json().await?)
     }
 
+    pub async fn update_display_name(&self, name: &str) -> Result<User, RemoteError> {
+        let url = format!("{}/v1/auth/me", self.base());
+        let response = self
+            .http()
+            .put(&url)
+            .authorized(self)
+            .json(&serde_json::json!({ "display_name": name }))
+            .send()
+            .await?;
+        crate::remote::answered(response, "the authenticated account")
+            .await?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
     pub async fn read(&self, path: &str) -> Result<bytes::Bytes, RemoteError> {
         let url = self.endpoint("files", path)?;
         let response = self.http().get(&url).authorized(self).send().await?;

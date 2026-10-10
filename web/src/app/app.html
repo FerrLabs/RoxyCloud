@@ -10,6 +10,7 @@
       @if (connected()) {
         <rx-account-menu
           (changingPassword)="changePassword()"
+          (editingProfile)="naming.set(true)"
           (openingAppPasswords)="listingAppPasswords.set(true)"
           (checkingForUpdates)="updating.set(true)"
           (signedOut)="signOut()"
@@ -44,6 +45,17 @@
 
   @if (updating()) {
     <rx-update (dismissed)="updating.set(false)" />
+  }
+
+  @if (naming()) {
+    <rx-prompt
+      heading="Display name"
+      label="Name"
+      action="Save"
+      [value]="session.account()?.display_name ?? ''"
+      (submitted)="rename($event)"
+      (dismissed)="naming.set(false)"
+    />
   }
 
   @if (changing()) {

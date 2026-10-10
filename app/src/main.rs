@@ -169,6 +169,16 @@ async fn list_folder(desktop: State<'_, Desktop>, path: String) -> Result<Vec<No
 }
 
 #[tauri::command]
+async fn update_profile(
+    desktop: State<'_, Desktop>,
+    display_name: String,
+) -> Result<User, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.update_display_name(&display_name).await?)
+}
+
+#[tauri::command]
 async fn account(desktop: State<'_, Desktop>) -> Result<User, String> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
@@ -431,6 +441,7 @@ fn main() {
             sign_out,
             list_folder,
             account,
+            update_profile,
             read_file,
             download_file,
             move_node,

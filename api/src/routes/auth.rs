@@ -70,6 +70,21 @@ pub async fn logout(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Deserialize)]
+pub struct ProfileUpdate {
+    display_name: String,
+}
+
+pub async fn update_profile(
+    State(state): State<AppState>,
+    caller: SessionCaller,
+    Json(request): Json<ProfileUpdate>,
+) -> Result<Json<User>, ApiError> {
+    Ok(Json(
+        users::set_display_name(&state.db, caller.user_id(), &request.display_name).await?,
+    ))
+}
+
 pub async fn me(State(state): State<AppState>, caller: Caller) -> Result<Json<User>, ApiError> {
     users::by_id(&state.db, caller.user_id())
         .await?

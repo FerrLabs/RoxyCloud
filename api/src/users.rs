@@ -115,6 +115,63 @@ pub async fn set_disabled(
     .ok_or(ApiError::NotFound)
 }
 
+const MAX_DISPLAY_NAME_CHARS: usize = 100;
+
+pub async fn set_display_name(pool: &PgPool, id: Uuid, name: &str) -> Result<User, ApiError> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > MAX_DISPLAY_NAME_CHARS {
+        return Err(ApiError::WrongKind {
+            expected: "display name of 1 to 100 characters",
+        });
+    }
+    sqlx::query_as::<_, User>(concat!(
+        "UPDATE users SET display_name = $2 WHERE id = $1 RETURNING ",
+        user_columns!()
+    ))
+    .bind(id)
+    .bind(name)
+    .fetch_optional(pool)
+    .await?
+    .ok_or(ApiError::NotFound)
+}
+
+pub async fn set_email(pool: &PgPool, id: Uuid, email: &Email) -> Result<User, ApiError> {
+    let mut tx = pool.begin().await?;
+    let previous =
+        sqlx::query_scalar::<_, String>("SELECT email FROM users WHERE id = $1 FOR UPDATE")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(ApiError::NotFound)?;
+
+    let taken = |err: sqlx::Error| match err {
+        sqlx::Error::Database(ref db) if db.is_unique_violation() => {
+            ApiError::Conflict(email.to_string())
+        }
+        other => other.into(),
+    };
+
+    let user = sqlx::query_as::<_, User>(concat!(
+        "UPDATE users SET email = $2 WHERE id = $1 RETURNING ",
+        user_columns!()
+    ))
+    .bind(id)
+    .bind(email.as_str())
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(taken)?;
+
+    sqlx::query("UPDATE grants SET grantee_email = $2 WHERE grantee_email = $1")
+        .bind(&previous)
+        .bind(email.as_str())
+        .execute(&mut *tx)
+        .await
+        .map_err(taken)?;
+
+    tx.commit().await?;
+    Ok(user)
+}
+
 pub async fn set_role(pool: &PgPool, id: Uuid, role: Role) -> Result<User, ApiError> {
     sqlx::query_as::<_, User>(concat!(
         "UPDATE users SET role = $2 WHERE id = $1 RETURNING ",

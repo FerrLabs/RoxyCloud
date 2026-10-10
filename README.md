@@ -225,6 +225,7 @@ chart's default image needs no override.
 GET    /health
 POST   /v1/auth/login       exchange email and password for a session token
 GET    /v1/auth/me          the authenticated account
+PUT    /v1/auth/me          change your display name
 POST   /v1/auth/logout      end this session
 GET    /v1/auth/methods     what this installation offers to sign in with
 PUT    /v1/auth/methods     turn password login off or on            (admin)
@@ -258,6 +259,7 @@ POST   /v1/users/{id}/enable  let it back in                           (admin)
 PUT    /v1/users/{id}/role    admin, member or reader                  (admin)
 PUT    /v1/users/{id}/quota   how many bytes it may hold               (admin)
 PUT    /v1/users/{id}/password reset it and end its sessions           (admin)
+PUT    /v1/users/{id}/email   change the address, and the shares made to it (admin)
 DELETE /v1/users/{id}/sessions sign it out everywhere                  (admin)
 POST   /v1/users/{id}/unlock  let a locked out account try again       (admin)
 GET    /v1/grants             what this account shares with other accounts
@@ -632,6 +634,24 @@ to create the administrator, then log in:
 ```bash
 cargo run -p stashden-cli -- login you@example.com --password '...'
 ```
+
+A person changes their own display name from the account menu. The address is the administrator's to
+change, because it is what an identity provider's sign-in is matched against, and an address a
+person could set for themselves without proving they own it would send somebody else's sign-in into
+their account. Changing it moves the shares made to the old address along with it.
+
+An administrator who has lost their password, with nobody else to reset it, runs the server binary
+where its environment is set, which is how the container's own `DATABASE_URL` is picked up. With
+the compose file, `-T` keeps standard input attached:
+
+```bash
+printf '%s\n' 'a new password of twelve characters or more' \
+  | docker compose -f deploy/docker-compose.yml exec -T api stashden-api reset-password you@example.com
+```
+
+It sets the password from the first line of standard input, signs the account out everywhere and
+clears a lockout from too many wrong guesses. The password goes in on standard input so that it is
+not left in the process list or the shell history by an argument.
 
 ## Syncing a folder
 
