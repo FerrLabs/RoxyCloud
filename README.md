@@ -232,6 +232,7 @@ POST   /v1/auth/oidc/start  begin an authorization code flow
 POST   /v1/auth/oidc/callback  finish one, answering a session token
 GET    /v1/folders            list the root
 GET    /v1/folders/{*path}    list a directory
+POST   /v1/folders/{*path}    create one, and the ones above it; 409 if the name is taken
 PUT    /v1/files/{*path}      upload, creating parent directories; honours If-Match and If-None-Match: *
 GET    /v1/files/{*path}      download
 DELETE /v1/files/{*path}      move to trash
@@ -540,6 +541,10 @@ searched, and `limit` and `offset` page through the results, capped at 200 at a 
 
 This is names only. Searching inside documents needs text extraction per format, and that is a
 different feature rather than a bigger version of this one.
+
+In the web app and the desktop app, New folder asks for a name, where a path with `/` makes folders
+inside folders, and Search lists what matches with the folder each result sits in. Choosing a result
+opens that folder, or the folder itself when the match is a folder.
 
 A provider signs people in alongside passwords rather than instead of them, because a self-hoster
 with no identity provider still needs a way in. `POST /v1/auth/oidc/start` answers an authorization

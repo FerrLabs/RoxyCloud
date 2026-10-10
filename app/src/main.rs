@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use stashden_client::sync::watch::Session as SyncSession;
 use stashden_client::{Remote, RemoteError, free_path};
 use stashden_core::grant::{Given, NewGrant, Received};
-use stashden_core::node::{Node, Trashed};
+use stashden_core::node::{Hit, Node, Trashed};
 use stashden_core::share::{Minted, NewShare, Share};
 use stashden_core::user::User;
 use stashden_core::version::Version;
@@ -259,6 +259,20 @@ async fn move_node(desktop: State<'_, Desktop>, from: String, to: String) -> Res
 }
 
 #[tauri::command]
+async fn create_folder(desktop: State<'_, Desktop>, path: String) -> Result<Node, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.create_folder(&path).await?)
+}
+
+#[tauri::command]
+async fn search_nodes(desktop: State<'_, Desktop>, query: String) -> Result<Vec<Hit>, Failure> {
+    let guard = desktop.remote.lock().await;
+    let remote = guard.as_ref().ok_or("not connected to a server")?;
+    Ok(remote.search(&query).await?)
+}
+
+#[tauri::command]
 async fn delete_node(desktop: State<'_, Desktop>, path: String) -> Result<(), String> {
     let guard = desktop.remote.lock().await;
     let remote = guard.as_ref().ok_or("not connected to a server")?;
@@ -421,6 +435,8 @@ fn main() {
             download_file,
             move_node,
             delete_node,
+            create_folder,
+            search_nodes,
             list_trash,
             restore_from_trash,
             purge_from_trash,

@@ -15,6 +15,8 @@ export type Node = {
 
 export type Trashed = Node & { expires_at?: string };
 
+export type Hit = Node & { path: string };
+
 const UNITS = ['B', 'kB', 'MB', 'GB', 'TB'] as const;
 
 export function formatSize(bytes: number): string {

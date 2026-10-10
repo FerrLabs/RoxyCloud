@@ -18,6 +18,15 @@ pub enum NodeKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "postgres", derive(sqlx::FromRow))]
+pub struct Hit {
+    #[cfg_attr(feature = "postgres", sqlx(flatten))]
+    #[serde(flatten)]
+    pub node: Node,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "postgres", derive(sqlx::FromRow))]
 pub struct Node {
     pub id: Uuid,
     pub owner_id: Uuid,

@@ -16,6 +16,16 @@
       >
         Refresh
       </button>
+      @if (canSearch) {
+        <button
+          type="button"
+          class="ghost"
+          [attr.aria-expanded]="searching()"
+          (click)="searching.set(!searching())"
+        >
+          Search
+        </button>
+      }
       @if (canSeeLinks()) {
         <button
           type="button"
@@ -36,6 +46,9 @@
           Trash
         </button>
       }
+      @if (canCreateFolder()) {
+        <button type="button" class="ghost" (click)="naming.set(true)">New folder</button>
+      }
       @if (canUpload()) {
         <rx-upload-target
           [pending]="pending()"
@@ -45,6 +58,10 @@
       }
     </span>
   </div>
+
+  @if (searching()) {
+    <rx-search-panel (chosen)="goTo($event)" (closed)="searching.set(false)" />
+  }
 
   @if (showingLinks()) {
     <rx-shares-panel [version]="published()" (closed)="showingLinks.set(false)" />
@@ -327,6 +344,17 @@
     action="Rename"
     (submitted)="rename(node, $event)"
     (dismissed)="renaming.set(null)"
+  />
+}
+
+@if (naming()) {
+  <rx-prompt
+    heading="New folder"
+    label="Name"
+    hint="Type a path with / to make folders inside folders."
+    action="Create"
+    (submitted)="createFolder($event)"
+    (dismissed)="naming.set(false)"
   />
 }
 

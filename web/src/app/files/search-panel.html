@@ -1,0 +1,47 @@
+<section class="panel" aria-labelledby="rx-search-heading" (keydown)="onKeydown($event)">
+  <div class="bar">
+    <h2 id="rx-search-heading">Search</h2>
+    <button type="button" class="ghost" (click)="closed.emit()">Close</button>
+  </div>
+
+  <form class="query" role="search" (submit)="$event.preventDefault(); search()">
+    <label class="visually-hidden" for="rx-search-term">Part of a name</label>
+    <input
+      #field
+      id="rx-search-term"
+      type="search"
+      autocomplete="off"
+      placeholder="Part of a file or folder name"
+      [value]="term()"
+      (input)="term.set($any($event.target).value)"
+    />
+    <button type="submit" class="primary" [disabled]="busy() || term().trim().length === 0">
+      Search
+    </button>
+  </form>
+
+  @if (failure(); as message) {
+    <p class="failure" role="alert">{{ message }}</p>
+  }
+
+  <div aria-live="polite">
+    @if (busy()) {
+      <p class="state" aria-busy="true">Searching</p>
+    } @else if (searched(); as term) {
+      @if (hits().length === 0) {
+        <p class="state">Nothing is named like "{{ term }}".</p>
+      } @else {
+        <ul class="listing">
+          @for (hit of hits(); track hit.id) {
+            <li>
+              <button type="button" class="hit" (click)="choose(hit)">
+                <span class="name">{{ hit.name }}</span>
+                <span class="detail">{{ describe(hit) }}, in {{ where(hit) }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    }
+  </div>
+</section>
