@@ -53,10 +53,11 @@ pub(crate) async fn save(
 
 impl Remote {
     pub async fn upload(&self, path: &str, source: &Path) -> Result<Node, RemoteError> {
-        self.put_file(path, source, None).await
+        self.upload_chunked(path, source, None, crate::resumable::CHUNK)
+            .await
     }
 
-    async fn put_file(
+    pub(crate) async fn put_file(
         &self,
         path: &str,
         source: &Path,
@@ -176,7 +177,7 @@ impl Transport for Remote {
         source: &Path,
         expect: &Expect,
     ) -> Result<(), Self::Error> {
-        self.put_file(path.as_str(), source, Some(expect))
+        self.upload_chunked(path.as_str(), source, Some(expect), crate::resumable::CHUNK)
             .await
             .map(|_| ())
     }

@@ -489,6 +489,15 @@ for a path and a size, `PATCH` appends at `Upload-Offset`, and a client that los
 A chunk at the wrong offset is refused with the real one in the `Upload-Offset` header, so resyncing
 costs no extra round trip. `POST /v1/uploads/{id}/finish` hashes what arrived and places it.
 
+The command line, sync and the desktop app use it themselves: a file above 8 MiB goes up in 8 MiB
+chunks, and after a chunk that failed or whose answer never came back the client asks the server
+where the session got to and carries on from there, up to five times in a row, instead of starting
+again. It does not look for a session left by an earlier run, because nothing ties its bytes to the
+file as it is now. A session that cannot finish is abandoned, so a failing file does not use up the
+eight an account may hold. `If-Match` and `If-None-Match: *` are honoured when the session opens, so
+a name that is already taken is refused before anything is sent, and again at `finish`, where the
+write happens.
+
 The digest is taken by rehashing the staged file at the end rather than carrying a hasher between
 requests, because a hasher state persisted across two processes is a second thing that can disagree
 with the bytes. An account may hold eight sessions open at once, counted and inserted under the same lock so that

@@ -681,3 +681,115 @@ database_test!(a_session_nobody_came_back_to_is_swept, harness, {
     assert_eq!(swept, 1, "the row going is not the same as the bytes going");
     assert_eq!(harness.staged_uploads().await, 0);
 });
+
+async fn finish_with(
+    harness: &Harness,
+    bearer: &str,
+    id: &str,
+    condition: &[(&str, &str)],
+) -> Answer {
+    call(
+        harness,
+        "POST",
+        &format!("/v1/uploads/{id}/finish"),
+        bearer,
+        condition,
+        Vec::new(),
+    )
+    .await
+}
+
+async fn begin_with(
+    harness: &Harness,
+    bearer: &str,
+    path: &str,
+    size: usize,
+    condition: &[(&str, &str)],
+) -> Answer {
+    call(
+        harness,
+        "POST",
+        "/v1/uploads",
+        bearer,
+        condition,
+        format!(r#"{{"path":"{path}","size":{size}}}"#).into_bytes(),
+    )
+    .await
+}
+
+database_test!(
+    a_resumable_upload_over_a_version_it_never_saw_is_refused,
+    harness,
+    {
+        let (owner, bearer) = session(&harness, "stale-upload@example.com", Role::Member).await;
+        let seen = harness.write(owner, "a.bin", b"listed").await;
+        let opened = begin_with(&harness, &bearer, "a.bin", 11, &[("if-match", &seen.etag)]).await;
+        assert_eq!(opened.status, StatusCode::CREATED, "{}", opened.body);
+        let upload = opened.id();
+        send(&harness, &bearer, &upload, 0, b"edited here").await;
+        harness.write(owner, "a.bin", b"edited elsewhere").await;
+
+        let finished = finish_with(&harness, &bearer, &upload, &[("if-match", &seen.etag)]).await;
+
+        assert_eq!(
+            finished.status,
+            StatusCode::PRECONDITION_FAILED,
+            "{}",
+            finished.body
+        );
+        let node = harness.resolve(owner, "a.bin").await;
+        assert_eq!(
+            node.blob_hash,
+            Some(blake3::hash(b"edited elsewhere").into()),
+            "the edit the client never saw is not replaced"
+        );
+    }
+);
+
+database_test!(a_resumable_upload_naming_the_current_etag_lands, harness, {
+    let (owner, bearer) = session(&harness, "current-upload@example.com", Role::Member).await;
+    let seen = harness.write(owner, "a.bin", b"listed").await;
+    let upload = begin_with(&harness, &bearer, "a.bin", 11, &[("if-match", &seen.etag)])
+        .await
+        .id();
+    send(&harness, &bearer, &upload, 0, b"edited here").await;
+
+    let finished = finish_with(&harness, &bearer, &upload, &[("if-match", &seen.etag)]).await;
+
+    assert_eq!(finished.status, StatusCode::CREATED, "{}", finished.body);
+});
+
+database_test!(
+    a_new_file_upload_is_refused_at_the_start_when_the_name_is_taken,
+    harness,
+    {
+        let (owner, bearer) = session(&harness, "taken-upload@example.com", Role::Member).await;
+        harness.write(owner, "a.bin", b"already here").await;
+
+        let opened = begin_with(&harness, &bearer, "a.bin", 11, &[("if-none-match", "*")]).await;
+
+        assert_eq!(
+            opened.status,
+            StatusCode::PRECONDITION_FAILED,
+            "a client does not send a gigabyte to be told the name was taken"
+        );
+        assert_eq!(harness.staged_uploads().await, 0);
+    }
+);
+
+database_test!(
+    opening_an_upload_into_a_missing_folder_creates_nothing,
+    harness,
+    {
+        let (owner, bearer) = session(&harness, "mkdirless@example.com", Role::Member).await;
+
+        let opened = begin_with(&harness, &bearer, "new/deep/a.bin", 3, &[]).await;
+
+        assert_eq!(opened.status, StatusCode::CREATED, "{}", opened.body);
+        assert_eq!(
+            harness.live_nodes(owner).await,
+            0,
+            "the folders above the file wait for the upload to finish"
+        );
+    }
+);
