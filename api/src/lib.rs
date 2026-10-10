@@ -2,6 +2,7 @@ pub mod access;
 pub mod app_passwords;
 pub mod attempts;
 pub mod auth;
+pub mod check;
 pub mod config;
 pub mod dav;
 pub mod db;

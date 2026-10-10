@@ -211,6 +211,12 @@ volume for the blobs and an optional ingress. It does not bundle Postgres. It se
 since the image carries it. `deploy/helm/stashden/README.md` has the values and the reasoning, and
 what a release installed from the former `roxycloud` chart needs to upgrade.
 
+The database and the blob store have to be backed up together, the database first, and a restore
+should end with `stashden-api check`, which finds a blob missing from the store, one whose bytes
+have rotted, a reference count or a quota that has drifted, and repairs the last two with
+`--repair`. `docs/backup-and-restore.md` has the order, the commands for compose and S3, and what
+the check reports.
+
 ```bash
 helm install stashden oci://ghcr.io/ferrlabs/charts/stashden   --set database.url='postgres://stashden:password@postgres/stashden'   --set jwt.secret="$(openssl rand -hex 32)"
 ```

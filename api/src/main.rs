@@ -7,6 +7,7 @@ use stashden_core::user::Email;
 use tracing::{info, warn};
 
 const RESET_PASSWORD: &str = "reset-password";
+const CHECK: &str = "check";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -17,7 +18,12 @@ async fn main() -> Result<()> {
     if let Some(command) = arguments.next() {
         return match command.as_str() {
             RESET_PASSWORD => reset_password(&cfg, arguments.next()).await,
-            other => anyhow::bail!("unknown command {other}; the one there is: {RESET_PASSWORD}"),
+            CHECK => check(&cfg, arguments.collect()).await,
+            other => {
+                anyhow::bail!(
+                    "unknown command {other}; the ones there are: {RESET_PASSWORD}, {CHECK}"
+                )
+            }
         };
     }
 
@@ -51,6 +57,67 @@ async fn main() -> Result<()> {
         .await
         .with_context(|| format!("binding {bind}"))?;
     axum::serve(listener, app).await.context("serving")?;
+    Ok(())
+}
+
+async fn check(cfg: &Config, flags: Vec<String>) -> Result<()> {
+    let mut options = stashden_api::check::Options::default();
+    for flag in &flags {
+        match flag.as_str() {
+            "--verify-content" => options.verify_content = true,
+            "--repair" => options.repair = true,
+            other => anyhow::bail!(
+                "unknown option {other}; the ones there are: --verify-content, --repair"
+            ),
+        }
+    }
+
+    let state = AppState::from_config(cfg).await?;
+    let findings = stashden_api::check::run(&state.db, state.blobs.as_ref(), options)
+        .await
+        .context("checking the instance")?;
+
+    for hash in &findings.missing {
+        println!("blob {}: referenced, but not in the store", hash.to_hex());
+    }
+    for hash in &findings.corrupt {
+        println!("blob {}: its bytes no longer match its hash", hash.to_hex());
+    }
+    for wrong in &findings.wrong_counts {
+        println!(
+            "blob {}: reference count {}, should be {}",
+            wrong.hash.to_hex(),
+            wrong.stored,
+            wrong.expected
+        );
+    }
+    for wrong in &findings.wrong_usage {
+        println!(
+            "account {}: usage {} bytes, should be {}",
+            wrong.owner_id, wrong.stored, wrong.expected
+        );
+    }
+
+    let content = if options.verify_content {
+        "bytes and hashes"
+    } else {
+        "presence"
+    };
+    println!("checked {} blobs for {content}", findings.checked_blobs);
+    if findings.repaired {
+        println!("reference counts and usage corrected");
+    }
+    if findings.needs_a_person() {
+        anyhow::bail!(
+            "{} blobs are missing and {} corrupt: restore them from a backup",
+            findings.missing.len(),
+            findings.corrupt.len()
+        );
+    }
+    if !findings.is_clean() {
+        anyhow::bail!("counts or usage are off: run it again with --repair");
+    }
+    println!("clean");
     Ok(())
 }
 
