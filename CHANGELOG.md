@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.40.1] - 2026-10-10
+
+### Bug Fixes
+
+- fix(client): a chunk size of zero means the default chunk (#308)
+
 ## [0.40.0] - 2026-10-10
 
 ### Features
