@@ -14,9 +14,12 @@ use super::{href, locking, path_of, propfind, transfer};
 use crate::access::{self, Place};
 use crate::db;
 use crate::error::ApiError;
+use crate::incoming::{self, Received};
 use crate::routes::files::never_rendered;
 use crate::state::AppState;
 use crate::trash;
+use sqlx::{Postgres, Transaction};
+use stashden_core::name::NodeName;
 use stashden_core::node::{Node, NodeKind};
 
 pub(super) const ALLOWED: &str =
@@ -374,6 +377,37 @@ async fn read(
         .into_response())
 }
 
+struct Destination {
+    parent: Node,
+    name: NodeName,
+    existed: bool,
+}
+
+async fn destination(
+    tx: &mut Transaction<'_, Postgres>,
+    state: &AppState,
+    caller: &DavCaller,
+    path: &[NodeName],
+    submitted: &[String],
+) -> Result<Option<Destination>, ApiError> {
+    let (parent, name) =
+        match access::file_target(tx, &caller.0, path, false, state.default_quota_bytes).await {
+            Ok(target) => target,
+            Err(ApiError::NotFound) => return Ok(None),
+            Err(other) => return Err(other),
+        };
+    let existing = db::child(tx, parent.id, &name).await?;
+    match &existing {
+        Some(node) => locks::allows(tx, node, submitted).await?,
+        None => locks::allows(tx, &parent, submitted).await?,
+    }
+    Ok(Some(Destination {
+        parent,
+        name,
+        existed: existing.is_some(),
+    }))
+}
+
 async fn put(state: AppState, caller: DavCaller, request: Request) -> Result<Response, ApiError> {
     if !caller.0.may_write() {
         return Err(ApiError::Forbidden);
@@ -385,36 +419,26 @@ async fn put(state: AppState, caller: DavCaller, request: Request) -> Result<Res
         return Ok(refused());
     }
 
-    let written = state
-        .blobs
-        .write(crate::storage::upload(
-            request.into_body().into_data_stream(),
-        ))
-        .await?;
-    let size = i64::try_from(written.size).map_err(|_| ApiError::QuotaExceeded)?;
-    db::register_blob(&state.db, written.hash, size).await?;
+    let room = {
+        let mut tx = state.db.begin().await?;
+        let Some(destination) = destination(&mut tx, &state, &caller, &path, &submitted).await?
+        else {
+            return Ok(StatusCode::CONFLICT.into_response());
+        };
+        incoming::room(&mut tx, &state, &destination.parent, &destination.name).await?
+    };
+    let (parts, body) = request.into_parts();
+    let Received { written, size } = incoming::receive(&state, &parts.headers, body, room).await?;
 
     let mut tx = state.db.begin().await?;
-    // Unlike the REST upload, WebDAV does not invent the directories above a file.
-    let (parent, name) = match access::file_target(
-        &mut tx,
-        &caller.0,
-        &path,
-        false,
-        state.default_quota_bytes,
-    )
-    .await
-    {
-        Ok(target) => target,
-        Err(ApiError::NotFound) => return Ok(StatusCode::CONFLICT.into_response()),
-        Err(other) => return Err(other),
+    let Some(Destination {
+        parent,
+        name,
+        existed,
+    }) = destination(&mut tx, &state, &caller, &path, &submitted).await?
+    else {
+        return Ok(StatusCode::CONFLICT.into_response());
     };
-    let existing = db::child(&mut tx, parent.id, &name).await?;
-    let existed = existing.is_some();
-    match &existing {
-        Some(node) => locks::allows(&mut tx, node, &submitted).await?,
-        None => locks::allows(&mut tx, &parent, &submitted).await?,
-    }
     let node = db::put_file(
         &mut tx,
         parent.owner_id,
