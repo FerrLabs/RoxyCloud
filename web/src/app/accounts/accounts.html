@@ -56,12 +56,24 @@
           <button type="button" class="ghost" (click)="unlock(account)">Unlock</button>
           @if (account.id === me()) {
             <span></span>
-          } @else if (account.disabled_at === undefined) {
-            <button type="button" class="ghost danger" (click)="disabling.set(account)">
-              Disable
-            </button>
+            <span></span>
           } @else {
-            <button type="button" class="ghost" (click)="setDisabled(account, false)">Enable</button>
+            @if (canDelete) {
+              <button type="button" class="ghost danger" (click)="deleting.set(account)">
+                Delete
+              </button>
+            } @else {
+              <span></span>
+            }
+            @if (account.disabled_at === undefined) {
+              <button type="button" class="ghost danger" (click)="disabling.set(account)">
+                Disable
+              </button>
+            } @else {
+              <button type="button" class="ghost" (click)="setDisabled(account, false)">
+                Enable
+              </button>
+            }
           }
         </li>
       }
@@ -78,6 +90,15 @@
     [account]="account"
     (submitted)="setQuota(account, $event)"
     (dismissed)="quota.set(null)"
+  />
+}
+
+@if (deleting(); as account) {
+  <rx-delete-account
+    [account]="account"
+    [others]="accounts.value() ?? []"
+    (submitted)="remove(account, $event)"
+    (dismissed)="deleting.set(null)"
   />
 }
 

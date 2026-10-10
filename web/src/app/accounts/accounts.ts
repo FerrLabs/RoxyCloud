@@ -13,13 +13,14 @@ import { linkTo } from '../folder';
 import { PLATFORM } from '../platform';
 import { Confirm } from '../shared/confirm';
 import { AccountPassword } from './account-password';
+import { DeleteAccountDialog } from './delete-account';
 import { NewAccountDialog } from './new-account';
 import { QuotaDialog } from './quota';
 import { ROLES, describeUsage, type ManagedAccount } from './managed';
 
 @Component({
   selector: 'rx-accounts',
-  imports: [AccountPassword, Confirm, NewAccountDialog, QuotaDialog],
+  imports: [AccountPassword, Confirm, DeleteAccountDialog, NewAccountDialog, QuotaDialog],
   templateUrl: './accounts.html',
   styleUrl: './accounts.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,6 +46,8 @@ export class Accounts {
   protected readonly adding = signal(false);
   protected readonly disabling = signal<ManagedAccount | null>(null);
   protected readonly quota = signal<ManagedAccount | null>(null);
+  protected readonly deleting = signal<ManagedAccount | null>(null);
+  protected readonly canDelete = this.platform.deleteAccount !== undefined;
   protected readonly resetting = signal<ManagedAccount | null>(null);
   protected readonly password = signal<{ heading: string; secret: string } | null>(null);
 
@@ -76,6 +79,14 @@ export class Accounts {
       this.announcement.set(
         disabled ? `${account.email} is disabled` : `${account.email} can sign in again`,
       );
+    });
+  }
+
+  protected async remove(account: ManagedAccount, handOverTo: string | null): Promise<void> {
+    this.deleting.set(null);
+    await this.attempt(`deleting ${account.email}`, async () => {
+      await this.platform.deleteAccount?.(account.id, handOverTo);
+      this.announcement.set(`${account.email} is deleted`);
     });
   }
 

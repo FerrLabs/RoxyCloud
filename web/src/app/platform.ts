@@ -53,6 +53,7 @@ export interface Platform {
   setDisabled?(id: string, disabled: boolean): Promise<void>;
   unlockAccount?(id: string): Promise<void>;
   resetPassword?(id: string, password: string): Promise<void>;
+  deleteAccount?(id: string, handOverTo: string | null): Promise<void>;
   account(): Promise<Account>;
   listFolder(path: string): Promise<Node[]>;
   read(path: string): Promise<Blob>;
@@ -224,6 +225,10 @@ function browserPlatform(baseUrl: string): Platform {
     },
     unlockAccount: async (id) => {
       await call(`/v1/users/${encodeURIComponent(id)}/unlock`, { method: 'POST' });
+    },
+    deleteAccount: async (id, handOverTo) => {
+      const query = handOverTo === null ? '' : `?hand_over_to=${encodeURIComponent(handOverTo)}`;
+      await call(`/v1/users/${encodeURIComponent(id)}${query}`, { method: 'DELETE' });
     },
     resetPassword: async (id, password) => {
       await call(`/v1/users/${encodeURIComponent(id)}/password`, {

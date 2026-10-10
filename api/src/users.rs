@@ -24,6 +24,18 @@ pub async fn by_email(pool: &PgPool, email: &Email) -> Result<Option<User>, ApiE
     .map_err(Into::into)
 }
 
+pub async fn by_id_in(tx: &mut Transaction<'_, Postgres>, id: Uuid) -> Result<User, ApiError> {
+    sqlx::query_as::<_, User>(concat!(
+        "SELECT ",
+        user_columns!(),
+        " FROM users WHERE id = $1 FOR UPDATE"
+    ))
+    .bind(id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(ApiError::NotFound)
+}
+
 pub async fn by_id(pool: &PgPool, id: Uuid) -> Result<Option<User>, ApiError> {
     sqlx::query_as::<_, User>(concat!(
         "SELECT ",

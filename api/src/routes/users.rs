@@ -1,5 +1,5 @@
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -112,6 +112,37 @@ pub async fn disable(
     sessions::revoke_all(&mut *tx, id, None).await?;
     tx.commit().await?;
     Ok(Json(disabled))
+}
+
+#[derive(Deserialize)]
+pub struct Departure {
+    hand_over_to: Option<Uuid>,
+}
+
+pub async fn delete(
+    State(state): State<AppState>,
+    admin: Admin,
+    Path(id): Path<Uuid>,
+    Query(departure): Query<Departure>,
+) -> Result<StatusCode, ApiError> {
+    if admin.user.id == id {
+        return Err(ApiError::WrongKind {
+            expected: "account other than your own",
+        });
+    }
+    if departure.hand_over_to == Some(id) {
+        return Err(ApiError::WrongKind {
+            expected: "account other than the one being deleted to hand the files to",
+        });
+    }
+    crate::departure::remove(
+        &state.db,
+        id,
+        departure.hand_over_to,
+        state.default_quota_bytes,
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn sign_out_everywhere(

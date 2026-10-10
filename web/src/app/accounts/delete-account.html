@@ -1,0 +1,23 @@
+<dialog #dialog (cancel)="dismiss()">
+  <form method="dialog" (submit)="$event.preventDefault(); submit()">
+    <h2>Delete {{ account().email }}?</h2>
+    <label>
+      Their files
+      <select [value]="recipient()" (change)="recipient.set($any($event.target).value)">
+        <option value="">Delete them with the account</option>
+        @for (other of candidates(); track other.id) {
+          <option [value]="other.id">Hand them to {{ other.display_name }} ({{ other.email }})</option>
+        }
+      </select>
+    </label>
+    <p class="hint">
+      They hold {{ usage() }}. Handing them over puts everything in a folder named after this
+      account in the other one's files, and counts against that account's quota. Their trash is
+      emptied either way, and the links and shares they made stop working. This cannot be undone.
+    </p>
+    <div class="actions">
+      <button type="button" class="ghost" (click)="dismiss()">Cancel</button>
+      <button type="submit" class="danger">Delete the account</button>
+    </div>
+  </form>
+</dialog>
