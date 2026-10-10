@@ -128,7 +128,9 @@ impl<T: Transport> Engine<T> {
         local.retain(|path, _| !unfit.contains_key(path));
         remote.retain(|path, _| !unfit.contains_key(path));
 
-        let plan = held.apply(reconcile(&local, &remote, &self.state.base(), Utc::now()));
+        let mut base = self.state.base();
+        base.retain(|path, _| !unfit.contains_key(path));
+        let plan = held.apply(reconcile(&local, &remote, &base, Utc::now()));
 
         let mut report = Report {
             blocked: plan.blocked,
