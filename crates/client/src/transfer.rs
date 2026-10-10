@@ -185,6 +185,10 @@ impl Transport for Remote {
         self.delete(path.as_str()).await
     }
 
+    async fn create_directory(&self, path: &RelPath) -> Result<(), Self::Error> {
+        self.create_folder(path.as_str()).await.map(|_| ())
+    }
+
     async fn held(&self) -> Result<Held, Self::Error> {
         held_from(self.grants_received().await)
     }
