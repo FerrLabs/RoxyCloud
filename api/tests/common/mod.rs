@@ -430,6 +430,10 @@ impl Harness {
             .expect("setting the quota");
     }
 
+    pub fn blob_file(&self, hash: BlobHash) -> PathBuf {
+        self.local.path_for(hash)
+    }
+
     pub async fn blob_file_exists(&self, hash: BlobHash) -> bool {
         tokio::fs::try_exists(self.local.path_for(hash))
             .await
