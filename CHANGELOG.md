@@ -4,6 +4,12 @@ All notable changes to `roxycloud` will be documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.1] - 2026-10-10
+
+### Bug Fixes
+
+- fix(sync): refuse an upload over a server version the pass never saw (#296)
+
 ## [0.36.0] - 2026-10-10
 
 ### Features
