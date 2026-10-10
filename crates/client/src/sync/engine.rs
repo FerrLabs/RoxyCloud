@@ -347,7 +347,14 @@ fn create_directory(path: &Path) -> Result<(), String> {
 }
 
 fn remove_directory(path: &Path) -> Result<(), String> {
-    fs::remove_dir(path).map_err(|source| format!("removing {}: {source}", path.display()))
+    let failed = |source: io::Error| format!("removing {}: {source}", path.display());
+    for entry in fs::read_dir(path).map_err(failed)? {
+        let entry = entry.map_err(failed)?;
+        if entry.file_name().to_str().is_some_and(ignore::is_ignored) && entry.path().is_file() {
+            fs::remove_file(entry.path()).map_err(failed)?;
+        }
+    }
+    fs::remove_dir(path).map_err(failed)
 }
 
 fn remove_file(path: &Path) -> Result<(), String> {

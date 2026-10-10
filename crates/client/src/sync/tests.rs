@@ -749,3 +749,43 @@ async fn junk_synced_by_an_older_client_is_left_where_it_is() {
         "missing locally because it is ignored, not because it was deleted"
     );
 }
+
+#[tokio::test]
+async fn a_folder_removed_on_the_server_goes_even_with_junk_in_it() {
+    let pair = Pair::new("ignore-rmdir");
+    pair.write_local("photos/beach.jpg", b"sand");
+    pair.engine().sync_once().await.expect("first sync");
+    pair.write_local("photos/.DS_Store", b"finder opened it");
+
+    fs::remove_dir_all(pair.server.join("photos")).expect("removed on the server");
+    let report = pair.engine().sync_once().await.expect("second sync");
+
+    assert_eq!(report.failures, Vec::new());
+    assert_eq!(report.directories_removed_locally, 1);
+    assert!(!pair.local.join("photos").exists());
+    assert!(
+        pair.engine()
+            .sync_once()
+            .await
+            .expect("third sync")
+            .is_quiet(),
+        "the removal is done, not planned again on every pass"
+    );
+}
+
+#[tokio::test]
+async fn a_folder_with_real_files_left_in_it_is_still_not_removed() {
+    let pair = Pair::new("ignore-rmdir-kept");
+    pair.write_local("photos/beach.jpg", b"sand");
+    pair.engine().sync_once().await.expect("first sync");
+    pair.write_local("photos/.DS_Store", b"finder");
+
+    fs::remove_dir_all(pair.server.join("photos")).expect("removed on the server");
+    pair.write_local("photos/new.jpg", b"added meanwhile");
+    pair.engine().sync_once().await.expect("second sync");
+
+    assert_eq!(
+        pair.read_local("photos/new.jpg").as_deref(),
+        Some(&b"added meanwhile"[..])
+    );
+}
