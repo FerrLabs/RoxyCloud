@@ -23,6 +23,7 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/v1/auth/login", post(auth::login))
         .route("/v1/auth/me", get(auth::me))
+        .route("/v1/auth/logout", post(auth::logout))
         .route(
             "/v1/auth/methods",
             get(oidc::methods).put(oidc::set_methods),
@@ -46,6 +47,10 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/users/{id}/role", put(users::set_role))
         .route("/v1/users/{id}/quota", put(users::set_quota))
         .route("/v1/users/{id}/password", put(users::reset_password))
+        .route(
+            "/v1/users/{id}/sessions",
+            delete(users::sign_out_everywhere),
+        )
         .route("/v1/grants", get(grants::list).post(grants::create))
         .route("/v1/grants/received", get(grants::received))
         .route("/v1/grants/{id}", delete(grants::withdraw))

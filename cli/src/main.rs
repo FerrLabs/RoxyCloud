@@ -109,6 +109,11 @@ async fn main() -> Result<()> {
                         .mint_app_password(name)
                         .await
                         .context("minting the app password")?;
+                    if let Err(error) = remote.logout().await {
+                        eprintln!(
+                            "the session used to mint it stays open until it expires: {error}"
+                        );
+                    }
                     println!("STASHDEN_EMAIL={email}");
                     println!("STASHDEN_APP_PASSWORD={}", minted.secret);
                 }

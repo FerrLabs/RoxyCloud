@@ -116,6 +116,14 @@ impl Harness {
         user
     }
 
+    pub async fn session(&self, user: Uuid) -> String {
+        self.state
+            .sessions
+            .open(&self.state.db, user)
+            .await
+            .expect("opening a session")
+    }
+
     pub async fn root(&self, owner: Uuid) -> Node {
         let mut tx = self.state.db.begin().await.expect("begin");
         let root = db::ensure_root(&mut tx, owner, self.state.default_quota_bytes)

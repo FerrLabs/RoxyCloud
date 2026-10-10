@@ -1,13 +1,14 @@
 use axum::Json;
 use axum::extract::State;
+use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use stashden_core::user::{Email, User};
 
 use crate::attempts::{self, Scope};
-use crate::auth::Caller;
+use crate::auth::{Caller, SessionCaller};
 use crate::error::ApiError;
 use crate::state::AppState;
-use crate::{password, users};
+use crate::{password, sessions, users};
 
 #[derive(Deserialize)]
 pub struct Credentials {
@@ -55,10 +56,18 @@ pub async fn login(
     attempts::forget(&state.db, Scope::Login, email.as_str()).await?;
 
     Ok(Json(Session {
-        token: state.sessions.issue(user.id)?,
+        token: state.sessions.open(&state.db, user.id).await?,
         expires_in: state.sessions.ttl_seconds(),
         user,
     }))
+}
+
+pub async fn logout(
+    State(state): State<AppState>,
+    caller: SessionCaller,
+) -> Result<StatusCode, ApiError> {
+    sessions::revoke(&state.db, caller.session_id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn me(State(state): State<AppState>, caller: Caller) -> Result<Json<User>, ApiError> {

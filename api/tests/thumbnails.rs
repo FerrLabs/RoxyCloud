@@ -58,7 +58,7 @@ async fn get(harness: &Harness, bearer: &str, path: &str) -> Answer {
 
 async fn session(harness: &Harness, email: &str) -> (Uuid, String) {
     let user = harness.account(email, Role::Member).await;
-    let token = harness.state.sessions.issue(user.id).expect("a token");
+    let token = harness.session(user.id).await;
     (user.id, token)
 }
 

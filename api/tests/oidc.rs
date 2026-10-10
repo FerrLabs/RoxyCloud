@@ -230,7 +230,7 @@ database_test!(password_login_can_be_turned_off_and_back_on, harness, {
 
 database_test!(turning_off_the_only_way_in_is_refused, harness, {
     let admin = harness.account("admin@example.com", Role::Admin).await;
-    let bearer = harness.state.sessions.issue(admin.id).expect("a token");
+    let bearer = harness.session(admin.id).await;
 
     let (status, _) = call(
         &harness,
@@ -261,7 +261,7 @@ database_test!(the_sign_in_screen_is_told_what_it_may_offer, harness, {
 
 database_test!(only_an_administrator_changes_how_people_sign_in, harness, {
     let member = harness.account("member@example.com", Role::Member).await;
-    let bearer = harness.state.sessions.issue(member.id).expect("a token");
+    let bearer = harness.session(member.id).await;
 
     let (status, _) = call(
         &harness,

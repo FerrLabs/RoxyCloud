@@ -1,4 +1,4 @@
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::{PgExecutor, PgPool, Postgres, Transaction};
 use stashden_core::role::Role;
 use stashden_core::user::{Email, User};
 use uuid::Uuid;
@@ -85,7 +85,11 @@ pub async fn list(pool: &PgPool) -> Result<Vec<User>, ApiError> {
     .map_err(Into::into)
 }
 
-pub async fn set_disabled(pool: &PgPool, id: Uuid, disabled: bool) -> Result<User, ApiError> {
+pub async fn set_disabled(
+    executor: impl PgExecutor<'_>,
+    id: Uuid,
+    disabled: bool,
+) -> Result<User, ApiError> {
     sqlx::query_as::<_, User>(concat!(
         "UPDATE users SET disabled_at = CASE WHEN $2 THEN now() ELSE NULL END
          WHERE id = $1
@@ -94,7 +98,7 @@ pub async fn set_disabled(pool: &PgPool, id: Uuid, disabled: bool) -> Result<Use
     ))
     .bind(id)
     .bind(disabled)
-    .fetch_optional(pool)
+    .fetch_optional(executor)
     .await?
     .ok_or(ApiError::NotFound)
 }
@@ -111,14 +115,18 @@ pub async fn set_role(pool: &PgPool, id: Uuid, role: Role) -> Result<User, ApiEr
     .ok_or(ApiError::NotFound)
 }
 
-pub async fn set_password(pool: &PgPool, id: Uuid, plaintext: &str) -> Result<(), ApiError> {
+pub async fn set_password(
+    executor: impl PgExecutor<'_>,
+    id: Uuid,
+    plaintext: &str,
+) -> Result<(), ApiError> {
     password::check_strength(plaintext, password::MIN_ACCOUNT_PASSWORD_LEN)?;
     let hash = password::hash(plaintext)?;
 
     let changed = sqlx::query("UPDATE users SET password_hash = $2 WHERE id = $1")
         .bind(id)
         .bind(hash)
-        .execute(pool)
+        .execute(executor)
         .await?;
 
     if changed.rows_affected() == 0 {

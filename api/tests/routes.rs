@@ -50,7 +50,7 @@ fn move_request(token: &str, from: &str, to: &str) -> Request<Body> {
 
 database_test!(a_first_upload_answers_created, harness, {
     let owner = harness.account("first@example.com", Role::Member).await;
-    let token = harness.state.sessions.issue(owner.id).expect("a token");
+    let token = harness.session(owner.id).await;
 
     let (status, _) = call(
         &harness,
@@ -73,7 +73,7 @@ database_test!(a_first_upload_answers_created, harness, {
 database_test!(a_reader_may_read, harness, {
     let reader = harness.account("reader@example.com", Role::Reader).await;
     harness.write(reader.id, "a.txt", b"already there").await;
-    let token = harness.state.sessions.issue(reader.id).expect("a token");
+    let token = harness.session(reader.id).await;
 
     let (status, body) = call(
         &harness,
@@ -90,7 +90,7 @@ database_test!(a_reader_may_read, harness, {
 
 database_test!(a_reader_may_not_upload, harness, {
     let reader = harness.account("noupload@example.com", Role::Reader).await;
-    let token = harness.state.sessions.issue(reader.id).expect("a token");
+    let token = harness.session(reader.id).await;
 
     let (status, _) = call(
         &harness,
@@ -106,7 +106,7 @@ database_test!(a_reader_may_not_delete, harness, {
     harness
         .write(reader.id, "a.txt", b"still here afterwards")
         .await;
-    let token = harness.state.sessions.issue(reader.id).expect("a token");
+    let token = harness.session(reader.id).await;
 
     let (status, _) = call(
         &harness,
@@ -125,7 +125,7 @@ database_test!(a_reader_may_not_delete, harness, {
 
 database_test!(a_member_may_write_and_delete, harness, {
     let member = harness.account("member@example.com", Role::Member).await;
-    let token = harness.state.sessions.issue(member.id).expect("a token");
+    let token = harness.session(member.id).await;
 
     let (created, _) = call(
         &harness,
@@ -147,7 +147,7 @@ database_test!(
     harness,
     {
         let member = harness.account("disabled@example.com", Role::Member).await;
-        let token = harness.state.sessions.issue(member.id).expect("a token");
+        let token = harness.session(member.id).await;
         sqlx::query("UPDATE users SET disabled_at = now() WHERE id = $1")
             .bind(member.id)
             .execute(&harness.state.db)
@@ -189,7 +189,7 @@ database_test!(a_request_without_a_token_is_refused, harness, {
 
 database_test!(a_path_that_climbs_out_of_the_root_is_refused, harness, {
     let member = harness.account("traversal@example.com", Role::Member).await;
-    let token = harness.state.sessions.issue(member.id).expect("a token");
+    let token = harness.session(member.id).await;
 
     let (status, _) = call(
         &harness,
@@ -208,7 +208,7 @@ database_test!(a_path_that_climbs_out_of_the_root_is_refused, harness, {
 database_test!(a_move_answers_with_the_moved_node, harness, {
     let member = harness.account("mover@example.com", Role::Member).await;
     harness.write(member.id, "inbox/a.txt", b"moving out").await;
-    let token = harness.state.sessions.issue(member.id).expect("a token");
+    let token = harness.session(member.id).await;
 
     let response = send(&harness, move_request(&token, "/inbox/a.txt", "/b.txt")).await;
 
@@ -234,7 +234,7 @@ database_test!(a_move_answers_with_the_moved_node, harness, {
 database_test!(a_reader_may_not_move, harness, {
     let reader = harness.account("nomove@example.com", Role::Reader).await;
     harness.write(reader.id, "a.txt", b"stays put").await;
-    let token = harness.state.sessions.issue(reader.id).expect("a token");
+    let token = harness.session(reader.id).await;
 
     let (status, _) = call(&harness, move_request(&token, "/a.txt", "/b.txt")).await;
 
@@ -247,7 +247,7 @@ database_test!(a_move_onto_an_occupied_name_answers_conflict, harness, {
     let member = harness.account("clash@example.com", Role::Member).await;
     harness.write(member.id, "a.txt", b"the occupant").await;
     harness.write(member.id, "b.txt", b"the arrival").await;
-    let token = harness.state.sessions.issue(member.id).expect("a token");
+    let token = harness.session(member.id).await;
 
     let (status, _) = call(&harness, move_request(&token, "/b.txt", "/a.txt")).await;
 
@@ -262,7 +262,7 @@ database_test!(
         harness
             .write(member.id, "a.txt", b"has nowhere to go")
             .await;
-        let token = harness.state.sessions.issue(member.id).expect("a token");
+        let token = harness.session(member.id).await;
 
         let (status, _) = call(&harness, move_request(&token, "/a.txt", "/absent/a.txt")).await;
 
@@ -279,7 +279,7 @@ database_test!(the_trash_lists_what_the_caller_deleted, harness, {
     harness.write(member.id, "photos/x.txt", b"deep").await;
     let photos = harness.resolve(member.id, "photos").await;
     harness.trash(&photos).await;
-    let token = harness.state.sessions.issue(member.id).expect("a token");
+    let token = harness.session(member.id).await;
 
     let (status, body) = call(
         &harness,
@@ -300,7 +300,7 @@ database_test!(a_restore_answers_with_the_node, harness, {
     let member = harness.account("restore@example.com", Role::Member).await;
     let node = harness.write(member.id, "notes.md", b"back again").await;
     harness.trash(&node).await;
-    let token = harness.state.sessions.issue(member.id).expect("a token");
+    let token = harness.session(member.id).await;
 
     let (status, body) = call(
         &harness,
@@ -323,7 +323,7 @@ database_test!(a_purge_answers_no_content, harness, {
     let member = harness.account("purge@example.com", Role::Member).await;
     let node = harness.write(member.id, "gone.txt", b"for good").await;
     harness.trash(&node).await;
-    let token = harness.state.sessions.issue(member.id).expect("a token");
+    let token = harness.session(member.id).await;
 
     let (status, _) = call(
         &harness,
@@ -347,7 +347,7 @@ database_test!(a_reader_may_not_restore, harness, {
         .write(reader.id, "a.txt", b"stays in the trash")
         .await;
     harness.trash(&node).await;
-    let token = harness.state.sessions.issue(reader.id).expect("a token");
+    let token = harness.session(reader.id).await;
 
     let (status, _) = call(
         &harness,
@@ -370,7 +370,7 @@ database_test!(
     {
         let member = harness.account("nothere@example.com", Role::Member).await;
         let node = harness.write(member.id, "live.txt", b"still here").await;
-        let token = harness.state.sessions.issue(member.id).expect("a token");
+        let token = harness.session(member.id).await;
 
         let (status, _) = call(
             &harness,
@@ -502,7 +502,7 @@ database_test!(a_path_outside_the_web_root_is_refused, harness, {
 
 database_test!(an_uploaded_page_never_comes_back_as_one, harness, {
     let member = harness.account("stored@example.com", Role::Member).await;
-    let token = harness.state.sessions.issue(member.id).expect("a token");
+    let token = harness.session(member.id).await;
     let page = "<script>fetch('/v1/auth/me').then(console.log)</script>";
 
     let (created, _) = call(
@@ -545,7 +545,7 @@ database_test!(an_uploaded_page_never_comes_back_as_one, harness, {
 
 database_test!(an_app_password_is_minted_listed_and_revoked, harness, {
     let member = harness.account("creds@example.com", Role::Member).await;
-    let token = harness.state.sessions.issue(member.id).expect("a token");
+    let token = harness.session(member.id).await;
 
     let (status, body) = call(
         &harness,
@@ -627,7 +627,7 @@ database_test!(
     harness,
     {
         let member = harness.account("stale@example.com", Role::Member).await;
-        let token = harness.state.sessions.issue(member.id).expect("a token");
+        let token = harness.session(member.id).await;
         sqlx::query("UPDATE users SET disabled_at = now() WHERE id = $1")
             .bind(member.id)
             .execute(&harness.state.db)

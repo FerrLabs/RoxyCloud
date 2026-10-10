@@ -4,18 +4,27 @@ use axum::http::request::Parts;
 use chrono::{Duration, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::app_passwords;
 use crate::dav::auth::basic_credentials;
 use crate::error::ApiError;
+use crate::sessions;
 use crate::state::AppState;
 use stashden_core::user::User;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
     sub: Uuid,
+    sid: Uuid,
     exp: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Verified {
+    pub user_id: Uuid,
+    pub session_id: Uuid,
 }
 
 pub struct Sessions {
@@ -45,19 +54,28 @@ impl Sessions {
         }
     }
 
-    pub fn issue(&self, user_id: Uuid) -> Result<String, SignFailed> {
+    pub async fn open(&self, pool: &PgPool, user_id: Uuid) -> Result<String, ApiError> {
+        let session_id = sessions::create(pool, user_id, Utc::now() + self.ttl).await?;
+        Ok(self.issue(user_id, session_id)?)
+    }
+
+    fn issue(&self, user_id: Uuid, session_id: Uuid) -> Result<String, SignFailed> {
         let claims = Claims {
             sub: user_id,
+            sid: session_id,
             exp: (Utc::now() + self.ttl).timestamp(),
         };
         encode(&Header::new(Algorithm::HS256), &claims, &self.encoding).map_err(|_| SignFailed)
     }
 
     #[must_use]
-    pub fn verify(&self, token: &str) -> Option<Uuid> {
+    pub fn verify(&self, token: &str) -> Option<Verified> {
         decode::<Claims>(token, &self.decoding, &self.validation)
             .ok()
-            .map(|data| data.claims.sub)
+            .map(|data| Verified {
+                user_id: data.claims.sub,
+                session_id: data.claims.sid,
+            })
     }
 
     #[must_use]
@@ -70,7 +88,7 @@ impl Sessions {
 /// outliving the account it names is how a disabled person keeps reading until their token expires.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Credential {
-    Session,
+    Session(Uuid),
     AppPassword(Uuid),
 }
 
@@ -127,7 +145,7 @@ impl FromRequestParts<AppState> for Admin {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let SessionCaller { user } = SessionCaller::from_request_parts(parts, state).await?;
+        let SessionCaller { user, .. } = SessionCaller::from_request_parts(parts, state).await?;
         if !user.may_administer() {
             return Err(ApiError::Forbidden);
         }
@@ -138,6 +156,7 @@ impl FromRequestParts<AppState> for Admin {
 #[derive(Debug, Clone)]
 pub struct SessionCaller {
     pub user: User,
+    pub session_id: Uuid,
 }
 
 impl SessionCaller {
@@ -155,10 +174,13 @@ impl FromRequestParts<AppState> for SessionCaller {
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
         let caller = Caller::from_request_parts(parts, state).await?;
-        if caller.via != Credential::Session {
+        let Credential::Session(session_id) = caller.via else {
             return Err(ApiError::SessionRequired);
-        }
-        Ok(Self { user: caller.user })
+        };
+        Ok(Self {
+            user: caller.user,
+            session_id,
+        })
     }
 }
 
@@ -176,14 +198,17 @@ impl FromRequestParts<AppState> for Caller {
             .and_then(|value| value.strip_prefix("Bearer "));
 
         let (user, via) = if let Some(token) = bearer {
-            let user_id = state
+            let verified = state
                 .sessions
                 .verify(token.trim())
                 .ok_or(ApiError::Unauthenticated)?;
-            let user = crate::users::by_id(&state.db, user_id)
+            if !sessions::is_live(&state.db, verified.session_id, verified.user_id).await? {
+                return Err(ApiError::Unauthenticated);
+            }
+            let user = crate::users::by_id(&state.db, verified.user_id)
                 .await?
                 .ok_or(ApiError::Unauthenticated)?;
-            (user, Credential::Session)
+            (user, Credential::Session(verified.session_id))
         } else {
             let (email, secret) = basic_credentials(parts).ok_or(ApiError::Unauthenticated)?;
             let (user, id) = app_passwords::authenticate(&state.db, &email, &secret)
@@ -211,14 +236,19 @@ mod tests {
     fn a_freshly_issued_token_names_its_user() {
         let user_id = Uuid::now_v7();
         let sessions = sessions(Duration::hours(1));
-        let token = sessions.issue(user_id).expect("signs");
-        assert_eq!(sessions.verify(&token), Some(user_id));
+        let token = sessions.issue(user_id, Uuid::now_v7()).expect("signs");
+        assert_eq!(
+            sessions.verify(&token).map(|verified| verified.user_id),
+            Some(user_id)
+        );
     }
 
     #[test]
     fn an_expired_token_is_refused() {
         let sessions = sessions(Duration::hours(-1));
-        let token = sessions.issue(Uuid::now_v7()).expect("signs");
+        let token = sessions
+            .issue(Uuid::now_v7(), Uuid::now_v7())
+            .expect("signs");
         assert_eq!(sessions.verify(&token), None);
     }
 
@@ -226,9 +256,9 @@ mod tests {
     fn expiry_tolerance_stays_within_the_declared_clock_skew() {
         let user_id = Uuid::now_v7();
         let inside = sessions(Duration::seconds(-1));
-        let token = inside.issue(user_id).expect("signs");
+        let token = inside.issue(user_id, Uuid::now_v7()).expect("signs");
         assert_eq!(
-            inside.verify(&token),
+            inside.verify(&token).map(|verified| verified.user_id),
             Some(user_id),
             "clock skew is allowed"
         );
@@ -236,14 +266,14 @@ mod tests {
         let outside = sessions(Duration::seconds(
             -2 * i64::try_from(CLOCK_SKEW_LEEWAY_SECONDS).expect("small constant"),
         ));
-        let token = outside.issue(user_id).expect("signs");
+        let token = outside.issue(user_id, Uuid::now_v7()).expect("signs");
         assert_eq!(outside.verify(&token), None, "beyond skew must be refused");
     }
 
     #[test]
     fn a_token_signed_with_another_secret_is_refused() {
         let token = sessions(Duration::hours(1))
-            .issue(Uuid::now_v7())
+            .issue(Uuid::now_v7(), Uuid::now_v7())
             .expect("signs");
         let attacker = Sessions::new("other-secret", Duration::hours(1));
         assert_eq!(attacker.verify(&token), None);
@@ -252,7 +282,9 @@ mod tests {
     #[test]
     fn a_tampered_token_is_refused() {
         let sessions = sessions(Duration::hours(1));
-        let token = sessions.issue(Uuid::now_v7()).expect("signs");
+        let token = sessions
+            .issue(Uuid::now_v7(), Uuid::now_v7())
+            .expect("signs");
         let mut tampered = token.clone();
         let last = tampered.pop().expect("a signed token is never empty");
         tampered.push(if last == 'A' { 'B' } else { 'A' });
@@ -277,7 +309,8 @@ mod tests {
             base64_url(br#"{"alg":"none","typ":"JWT"}"#),
             base64_url(
                 format!(
-                    r#"{{"sub":"{}","exp":{}}}"#,
+                    r#"{{"sub":"{}","sid":"{}","exp":{}}}"#,
+                    Uuid::now_v7(),
                     Uuid::now_v7(),
                     (Utc::now() + Duration::hours(1)).timestamp()
                 )

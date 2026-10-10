@@ -225,6 +225,7 @@ chart's default image needs no override.
 GET    /health
 POST   /v1/auth/login       exchange email and password for a session token
 GET    /v1/auth/me          the authenticated account
+POST   /v1/auth/logout      end this session
 GET    /v1/auth/methods     what this installation offers to sign in with
 PUT    /v1/auth/methods     turn password login off or on            (admin)
 POST   /v1/auth/oidc/start  begin an authorization code flow
@@ -254,7 +255,8 @@ POST   /v1/users/{id}/disable end its sessions and refuse it at login  (admin)
 POST   /v1/users/{id}/enable  let it back in                           (admin)
 PUT    /v1/users/{id}/role    admin, member or reader                  (admin)
 PUT    /v1/users/{id}/quota   how many bytes it may hold               (admin)
-PUT    /v1/users/{id}/password reset it without knowing the old one    (admin)
+PUT    /v1/users/{id}/password reset it and end its sessions           (admin)
+DELETE /v1/users/{id}/sessions sign it out everywhere                  (admin)
 POST   /v1/users/{id}/unlock  let a locked out account try again       (admin)
 GET    /v1/grants             what this account shares with other accounts
 POST   /v1/grants             share a folder or a file with one, read or write
@@ -396,9 +398,9 @@ including a wrong password on a link that does not exist, because a link that sa
 tells whoever guessed a token that they guessed it.
 
 The header carries the account: the display name, opening a menu with the address it belongs to, its
-role, a password change and a way to sign out. Signing out forgets the token rather than asking the
-server, since a session token is only stored in the browser, and changing a password does not end
-sessions elsewhere.
+role, a password change and a way to sign out. Signing out ends the session on the server, so a
+copy of the token stops working too. Changing the password signs out every other session and keeps
+the one that changed it, and the current password is guessed against the same limiter as login.
 
 In the web app the share action sits next to rename and delete, and a Sharing button lists the
 links the account has published, with the expiry, when each was last opened, and a revoke, then what

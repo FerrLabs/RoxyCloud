@@ -175,6 +175,17 @@ impl Remote {
         Ok(())
     }
 
+    pub async fn logout(&self) -> Result<(), RemoteError> {
+        let response = self
+            .http
+            .post(format!("{}/v1/auth/logout", self.base))
+            .authorized(self)
+            .send()
+            .await?;
+        answered(response, "this session").await?;
+        Ok(())
+    }
+
     pub async fn revoke_own_app_password(&self) -> Result<(), RemoteError> {
         let response = self
             .http

@@ -43,6 +43,7 @@ async fn login(
         .mint_app_password(&format!("Stashden desktop on {}", this_computer()))
         .await
         .map_err(|error| error.to_string())?;
+    let _ = session.logout().await;
 
     let credentials = Credentials {
         server,

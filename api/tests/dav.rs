@@ -106,7 +106,7 @@ database_test!(a_client_without_a_credential_is_asked_for_one, harness, {
 
 database_test!(a_session_token_is_not_a_webdav_credential, harness, {
     let user = harness.account("session@example.com", Role::Member).await;
-    let token = harness.state.sessions.issue(user.id).expect("a token");
+    let token = harness.session(user.id).await;
 
     let answer = dav(
         &harness,

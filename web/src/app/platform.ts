@@ -142,7 +142,17 @@ function browserPlatform(baseUrl: string): Platform {
       localStorage.setItem(TOKEN_KEY, session.token);
       return null;
     },
-    signOut: () => localStorage.removeItem(TOKEN_KEY),
+    signOut: async () => {
+      try {
+        await call('/v1/auth/logout', { method: 'POST' });
+      } catch (cause) {
+        if (!(cause instanceof RequestFailed && cause.status === 401)) {
+          throw cause;
+        }
+      } finally {
+        localStorage.removeItem(TOKEN_KEY);
+      }
+    },
     changePassword: async (current, password) => {
       const response = await fetch(`${baseUrl}/v1/auth/password`, {
         method: 'PUT',

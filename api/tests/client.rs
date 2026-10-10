@@ -13,7 +13,7 @@ use common::{Harness, serve};
 
 async fn connect(harness: &Harness, account: &User) -> Remote {
     let base = serve(harness.state.clone()).await;
-    let token = harness.state.sessions.issue(account.id).expect("a token");
+    let token = harness.session(account.id).await;
     Remote::new(&base, token).expect("a client")
 }
 
@@ -24,7 +24,7 @@ database_test!(the_client_reads_the_trash_with_its_expiry, harness, {
     let mut kept_a_month = harness.state.clone();
     kept_a_month.trash_retention = Some(TimeDelta::days(30));
     let base = serve(kept_a_month).await;
-    let token = harness.state.sessions.issue(owner.id).expect("a token");
+    let token = harness.session(owner.id).await;
     let remote = Remote::new(&base, token).expect("a client");
 
     let trashed = remote.trash().await.expect("listing the trash");
@@ -271,11 +271,7 @@ database_test!(an_app_password_client_reads_and_writes_files, harness, {
         .await;
     harness.write(owner.id, "notes/plan.md", b"the plan").await;
     let base = serve(harness.state.clone()).await;
-    let session = Remote::new(
-        &base,
-        harness.state.sessions.issue(owner.id).expect("a token"),
-    )
-    .expect("a client");
+    let session = Remote::new(&base, harness.session(owner.id).await).expect("a client");
     let minted = session
         .mint_app_password("sync on the server")
         .await
@@ -307,11 +303,7 @@ database_test!(an_app_password_client_reads_and_writes_files, harness, {
 database_test!(an_app_password_client_cannot_mint_another, harness, {
     let owner = harness.account("nested@example.com", Role::Member).await;
     let base = serve(harness.state.clone()).await;
-    let session = Remote::new(
-        &base,
-        harness.state.sessions.issue(owner.id).expect("a token"),
-    )
-    .expect("a client");
+    let session = Remote::new(&base, harness.session(owner.id).await).expect("a client");
     let minted = session.mint_app_password("first").await.expect("minting");
     let unattended =
         Remote::with_app_password(&base, "nested@example.com", minted.secret).expect("a client");
@@ -329,11 +321,7 @@ database_test!(a_revoked_app_password_client_is_signed_out, harness, {
         .account("revoked-client@example.com", Role::Member)
         .await;
     let base = serve(harness.state.clone()).await;
-    let session = Remote::new(
-        &base,
-        harness.state.sessions.issue(owner.id).expect("a token"),
-    )
-    .expect("a client");
+    let session = Remote::new(&base, harness.session(owner.id).await).expect("a client");
     let minted = session
         .mint_app_password("a lost laptop")
         .await
@@ -348,6 +336,19 @@ database_test!(a_revoked_app_password_client_is_signed_out, harness, {
 
     assert!(matches!(
         unattended.list("").await,
+        Err(RemoteError::Unauthenticated)
+    ));
+});
+
+database_test!(a_client_that_logs_out_is_signed_out, harness, {
+    let account = harness.account("logout@example.com", Role::Member).await;
+    let remote = connect(&harness, &account).await;
+    remote.list("").await.expect("listing while signed in");
+
+    remote.logout().await.expect("logging out");
+
+    assert!(matches!(
+        remote.list("").await,
         Err(RemoteError::Unauthenticated)
     ));
 });
